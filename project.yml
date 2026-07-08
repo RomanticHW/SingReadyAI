@@ -1,0 +1,54 @@
+name: SingReadyAI
+options:
+  minimumXcodeGenVersion: 2.42.0
+  deploymentTarget:
+    iOS: "17.0"
+packages:
+  SingReadyAISharedKit:
+    path: .
+targets:
+  SingReadyAIApp:
+    type: application
+    platform: iOS
+    deploymentTarget: "17.0"
+    sources:
+      - SingReadyAI/App
+      - SingReadyAI/Features
+    dependencies:
+      - package: SingReadyAISharedKit
+        product: SingReadyAISharedKit
+      - target: SingReadyAIShareExtension
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.example.SingReadyAI
+        GENERATE_INFOPLIST_FILE: YES
+        INFOPLIST_KEY_CFBundleDisplayName: 今晚唱什么
+        INFOPLIST_KEY_UISupportedInterfaceOrientations: UIInterfaceOrientationPortrait
+        INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad: UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight
+        CODE_SIGN_ENTITLEMENTS: SingReadyAI/App/SingReadyAI.entitlements
+        DEVELOPMENT_TEAM: ""
+  SingReadyAIShareExtension:
+    type: app-extension
+    platform: iOS
+    deploymentTarget: "17.0"
+    sources:
+      - SingReadyAI/ShareExtension
+    info:
+      path: SingReadyAI/ShareExtension/Info.plist
+    dependencies:
+      - package: SingReadyAISharedKit
+        product: SingReadyAISharedKit
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.example.SingReadyAI.ShareExtension
+        CODE_SIGN_ENTITLEMENTS: SingReadyAI/ShareExtension/SingReadyAIShareExtension.entitlements
+        DEVELOPMENT_TEAM: ""
+  SingReadyAITests:
+    type: bundle.unit-test
+    platform: iOS
+    deploymentTarget: "17.0"
+    sources:
+      - Tests/SingReadyAISharedKitTests
+    dependencies:
+      - package: SingReadyAISharedKit
+        product: SingReadyAISharedKit

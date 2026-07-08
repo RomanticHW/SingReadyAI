@@ -1,0 +1,14 @@
+# Local product documents
+/SingReady_AI_Technical_Design.md
+/SingReady_AI_PRD.md
+
+# SwiftPM / Xcode
+/.build
+/DerivedData
+*.xcuserstate
+*.xcuserdata
+*.moved-aside
+*.hmap
+*.ipa
+*.dSYM.zip
+*.dSYM

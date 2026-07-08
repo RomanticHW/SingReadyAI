@@ -1,0 +1,692 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		0A9E0D7AB7B7A9111E279ACB /* PitchDetectorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 15DC16061F7D82AF300867EF /* PitchDetectorTests.swift */; };
+		11E928A86C1663AAFFE6478A /* ExportView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2E8CE351ED512F91F7B7FE3A /* ExportView.swift */; };
+		13AF3C3DEA06C677FC4B1471 /* ProfileView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5CEDD74CAF6A9AEBF4A4AD5F /* ProfileView.swift */; };
+		17514527DAA69D1CBE8A0556 /* ShareExtensionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA5969A33C2CED9D06A4FBCD /* ShareExtensionView.swift */; };
+		23AC2A5C548008D77DCA701E /* SingReadyAIShareExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = CAB7068ACA6E319D5A4C13C0 /* SingReadyAIShareExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		2BC15078BD857B351DE40A32 /* SingReadyAIApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9593B719EAB3149FD4249604 /* SingReadyAIApp.swift */; };
+		31404B5BACC34C6FC9AA04F4 /* ShareViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7AB6135D2844DB4FA8510CFB /* ShareViewController.swift */; };
+		32AA02A0DDBBD6186E0B9625 /* ExporterAndNormalizerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FFFD641A0449CDF49C337785 /* ExporterAndNormalizerTests.swift */; };
+		3533EA9B751C47AB2F533F10 /* GenerateView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4BF7C7047AE7DF3ABE24FAA5 /* GenerateView.swift */; };
+		364DFAA6A2D24B1E025FD409 /* ProductFlowViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 86799084B613AB2D6DD594D3 /* ProductFlowViews.swift */; };
+		46179FB74CAC54E56AEC27DE /* RootTabView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F4808431BAE6498730EDFEB8 /* RootTabView.swift */; };
+		46B334ECC90568D220C16225 /* CatalogAndProfilerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 696991165B8DAF60A47220C5 /* CatalogAndProfilerTests.swift */; };
+		5D152EE028C12B344D4CD91F /* SingReadyAISharedKit in Frameworks */ = {isa = PBXBuildFile; productRef = 3671526F20F2D30498DADFBD /* SingReadyAISharedKit */; };
+		764F5FC8582606710C32B4F9 /* RecommendationEngineTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 34AD70163CB170F9953EAD4A /* RecommendationEngineTests.swift */; };
+		8FC285C6F1084F46D88D0BD9 /* SingReadyAISharedKit in Frameworks */ = {isa = PBXBuildFile; productRef = E564E0272A46BF887309D559 /* SingReadyAISharedKit */; };
+		B4F7D86A1F7E346D0F18B7C1 /* ShareProviderDetectorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F785B90F2D1F7CBDCE2BCB2C /* ShareProviderDetectorTests.swift */; };
+		B4F9E1CA7B8F596741084B5F /* SingReadyAISharedKit in Frameworks */ = {isa = PBXBuildFile; productRef = 16CFC5B5443C9AE5B2BA40F0 /* SingReadyAISharedKit */; };
+		C2A60BF5AF5012CD138339E4 /* ImportHomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8E7FABAE3FBD613279F5DB2B /* ImportHomeView.swift */; };
+		C6FB1196D51101BE6CA45453 /* PlainTextPlaylistParserTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = EC679D326DE3AE6DECB6136C /* PlainTextPlaylistParserTests.swift */; };
+		D60E7673CC8124D920A05BA4 /* VoiceCheckView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4D4D52ADA834A74762752B2A /* VoiceCheckView.swift */; };
+		E3AA774F646CF0D25DCEC1D7 /* DemoWorkflowStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 57AFD700B7858271F4F3EFD8 /* DemoWorkflowStore.swift */; };
+		E5F30E24492B305BC707F4B8 /* SongMatcherTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7C8DC81FD06B2047F1AACD75 /* SongMatcherTests.swift */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		B7008B9556D8F13C7AA906D6 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 6812ACED501A4126E5FEE354 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 3C57FC0E628562E89E0CD8A4;
+			remoteInfo = SingReadyAIShareExtension;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		EF12C147C9B922F1E3E19748 /* Embed Foundation Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				23AC2A5C548008D77DCA701E /* SingReadyAIShareExtension.appex in Embed Foundation Extensions */,
+			);
+			name = "Embed Foundation Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
+
+/* Begin PBXFileReference section */
+		15DC16061F7D82AF300867EF /* PitchDetectorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PitchDetectorTests.swift; sourceTree = "<group>"; };
+		1CD5A792590A558CB03D8655 /* SingReadyAIShareExtension.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = SingReadyAIShareExtension.entitlements; sourceTree = "<group>"; };
+		2E8CE351ED512F91F7B7FE3A /* ExportView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExportView.swift; sourceTree = "<group>"; };
+		34AD70163CB170F9953EAD4A /* RecommendationEngineTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecommendationEngineTests.swift; sourceTree = "<group>"; };
+		3954811D6CF035D6F482F00B /* SingReadyAITests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = SingReadyAITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		4BF7C7047AE7DF3ABE24FAA5 /* GenerateView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GenerateView.swift; sourceTree = "<group>"; };
+		4D4D52ADA834A74762752B2A /* VoiceCheckView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VoiceCheckView.swift; sourceTree = "<group>"; };
+		57AFD700B7858271F4F3EFD8 /* DemoWorkflowStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DemoWorkflowStore.swift; sourceTree = "<group>"; };
+		5A9B4529EE85AF76C24354C1 /* SingReadyAIApp.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = SingReadyAIApp.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		5CEDD74CAF6A9AEBF4A4AD5F /* ProfileView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProfileView.swift; sourceTree = "<group>"; };
+		63D83AA37A780907AEDDE5D1 /* SingReadyAI */ = {isa = PBXFileReference; lastKnownFileType = folder; name = SingReadyAI; path = .; sourceTree = SOURCE_ROOT; };
+		696991165B8DAF60A47220C5 /* CatalogAndProfilerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CatalogAndProfilerTests.swift; sourceTree = "<group>"; };
+		7AB6135D2844DB4FA8510CFB /* ShareViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShareViewController.swift; sourceTree = "<group>"; };
+		7C8DC81FD06B2047F1AACD75 /* SongMatcherTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SongMatcherTests.swift; sourceTree = "<group>"; };
+		86799084B613AB2D6DD594D3 /* ProductFlowViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProductFlowViews.swift; sourceTree = "<group>"; };
+		8E7FABAE3FBD613279F5DB2B /* ImportHomeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImportHomeView.swift; sourceTree = "<group>"; };
+		9593B719EAB3149FD4249604 /* SingReadyAIApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SingReadyAIApp.swift; sourceTree = "<group>"; };
+		9606E10EA2B29CBEDA950161 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		CAB7068ACA6E319D5A4C13C0 /* SingReadyAIShareExtension.appex */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = "wrapper.app-extension"; path = SingReadyAIShareExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		DA5969A33C2CED9D06A4FBCD /* ShareExtensionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShareExtensionView.swift; sourceTree = "<group>"; };
+		E8D1D426C002BC0A1D95C8B6 /* SingReadyAI.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = SingReadyAI.entitlements; sourceTree = "<group>"; };
+		EC679D326DE3AE6DECB6136C /* PlainTextPlaylistParserTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlainTextPlaylistParserTests.swift; sourceTree = "<group>"; };
+		F4808431BAE6498730EDFEB8 /* RootTabView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RootTabView.swift; sourceTree = "<group>"; };
+		F785B90F2D1F7CBDCE2BCB2C /* ShareProviderDetectorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShareProviderDetectorTests.swift; sourceTree = "<group>"; };
+		FFFD641A0449CDF49C337785 /* ExporterAndNormalizerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExporterAndNormalizerTests.swift; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		06E562DC3EC9A50C350D6FD7 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				8FC285C6F1084F46D88D0BD9 /* SingReadyAISharedKit in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		E51E29B0E07B7468B05717ED /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				B4F9E1CA7B8F596741084B5F /* SingReadyAISharedKit in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		F5B7BA2069906D99BA11C2B0 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				5D152EE028C12B344D4CD91F /* SingReadyAISharedKit in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		0CC62EF028D5295EA37DF888 /* SingReadyAISharedKitTests */ = {
+			isa = PBXGroup;
+			children = (
+				696991165B8DAF60A47220C5 /* CatalogAndProfilerTests.swift */,
+				FFFD641A0449CDF49C337785 /* ExporterAndNormalizerTests.swift */,
+				15DC16061F7D82AF300867EF /* PitchDetectorTests.swift */,
+				EC679D326DE3AE6DECB6136C /* PlainTextPlaylistParserTests.swift */,
+				34AD70163CB170F9953EAD4A /* RecommendationEngineTests.swift */,
+				F785B90F2D1F7CBDCE2BCB2C /* ShareProviderDetectorTests.swift */,
+				7C8DC81FD06B2047F1AACD75 /* SongMatcherTests.swift */,
+			);
+			name = SingReadyAISharedKitTests;
+			path = Tests/SingReadyAISharedKitTests;
+			sourceTree = "<group>";
+		};
+		268B35DF9EBCD91B4D43DD4B /* Voice */ = {
+			isa = PBXGroup;
+			children = (
+				4D4D52ADA834A74762752B2A /* VoiceCheckView.swift */,
+			);
+			path = Voice;
+			sourceTree = "<group>";
+		};
+		3EAA03E3FE6C14FA0E05DBDF /* ShareExtension */ = {
+			isa = PBXGroup;
+			children = (
+				9606E10EA2B29CBEDA950161 /* Info.plist */,
+				DA5969A33C2CED9D06A4FBCD /* ShareExtensionView.swift */,
+				7AB6135D2844DB4FA8510CFB /* ShareViewController.swift */,
+				1CD5A792590A558CB03D8655 /* SingReadyAIShareExtension.entitlements */,
+			);
+			name = ShareExtension;
+			path = SingReadyAI/ShareExtension;
+			sourceTree = "<group>";
+		};
+		44F01BEB973F02BAE725F725 /* Import */ = {
+			isa = PBXGroup;
+			children = (
+				8E7FABAE3FBD613279F5DB2B /* ImportHomeView.swift */,
+			);
+			path = Import;
+			sourceTree = "<group>";
+		};
+		4DA2889A52BB67F8D8BB5C9A /* Export */ = {
+			isa = PBXGroup;
+			children = (
+				2E8CE351ED512F91F7B7FE3A /* ExportView.swift */,
+			);
+			path = Export;
+			sourceTree = "<group>";
+		};
+		4FE76B21CB2D06DFD7EAF82A = {
+			isa = PBXGroup;
+			children = (
+				E1E4F6B7253D53EFE6F6806B /* App */,
+				B97B5A92EC77100B766A72DA /* Features */,
+				DF1319A2D2CA775247831C03 /* Packages */,
+				3EAA03E3FE6C14FA0E05DBDF /* ShareExtension */,
+				0CC62EF028D5295EA37DF888 /* SingReadyAISharedKitTests */,
+				6D9031CA913E3772D960CA5A /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		6D9031CA913E3772D960CA5A /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				5A9B4529EE85AF76C24354C1 /* SingReadyAIApp.app */,
+				CAB7068ACA6E319D5A4C13C0 /* SingReadyAIShareExtension.appex */,
+				3954811D6CF035D6F482F00B /* SingReadyAITests.xctest */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		A6C252FEF03FE087F6BF7764 /* ProductFlow */ = {
+			isa = PBXGroup;
+			children = (
+				86799084B613AB2D6DD594D3 /* ProductFlowViews.swift */,
+			);
+			path = ProductFlow;
+			sourceTree = "<group>";
+		};
+		A7C48C2C3C8F66E40282DE6B /* Generate */ = {
+			isa = PBXGroup;
+			children = (
+				4BF7C7047AE7DF3ABE24FAA5 /* GenerateView.swift */,
+			);
+			path = Generate;
+			sourceTree = "<group>";
+		};
+		B97B5A92EC77100B766A72DA /* Features */ = {
+			isa = PBXGroup;
+			children = (
+				4DA2889A52BB67F8D8BB5C9A /* Export */,
+				A7C48C2C3C8F66E40282DE6B /* Generate */,
+				44F01BEB973F02BAE725F725 /* Import */,
+				A6C252FEF03FE087F6BF7764 /* ProductFlow */,
+				CF7AA61C9CBD75B601F7A58B /* Profile */,
+				268B35DF9EBCD91B4D43DD4B /* Voice */,
+			);
+			name = Features;
+			path = SingReadyAI/Features;
+			sourceTree = "<group>";
+		};
+		CF7AA61C9CBD75B601F7A58B /* Profile */ = {
+			isa = PBXGroup;
+			children = (
+				5CEDD74CAF6A9AEBF4A4AD5F /* ProfileView.swift */,
+			);
+			path = Profile;
+			sourceTree = "<group>";
+		};
+		DF1319A2D2CA775247831C03 /* Packages */ = {
+			isa = PBXGroup;
+			children = (
+				63D83AA37A780907AEDDE5D1 /* SingReadyAI */,
+			);
+			name = Packages;
+			sourceTree = "<group>";
+		};
+		E1E4F6B7253D53EFE6F6806B /* App */ = {
+			isa = PBXGroup;
+			children = (
+				57AFD700B7858271F4F3EFD8 /* DemoWorkflowStore.swift */,
+				F4808431BAE6498730EDFEB8 /* RootTabView.swift */,
+				E8D1D426C002BC0A1D95C8B6 /* SingReadyAI.entitlements */,
+				9593B719EAB3149FD4249604 /* SingReadyAIApp.swift */,
+			);
+			name = App;
+			path = SingReadyAI/App;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		3C57FC0E628562E89E0CD8A4 /* SingReadyAIShareExtension */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = C7DDDAFDE3631F62262DC26C /* Build configuration list for PBXNativeTarget "SingReadyAIShareExtension" */;
+			buildPhases = (
+				7A5891DA0BDD6D8DBF83C09E /* Sources */,
+				E51E29B0E07B7468B05717ED /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = SingReadyAIShareExtension;
+			packageProductDependencies = (
+				16CFC5B5443C9AE5B2BA40F0 /* SingReadyAISharedKit */,
+			);
+			productName = SingReadyAIShareExtension;
+			productReference = CAB7068ACA6E319D5A4C13C0 /* SingReadyAIShareExtension.appex */;
+			productType = "com.apple.product-type.app-extension";
+		};
+		4B109A29E37C9F39494AAD1E /* SingReadyAIApp */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 75CD5CF122480E790DDE2E3C /* Build configuration list for PBXNativeTarget "SingReadyAIApp" */;
+			buildPhases = (
+				0B091C611E3D8EC11E604C35 /* Sources */,
+				06E562DC3EC9A50C350D6FD7 /* Frameworks */,
+				EF12C147C9B922F1E3E19748 /* Embed Foundation Extensions */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				A71DED0002F2AF38D41082B6 /* PBXTargetDependency */,
+			);
+			name = SingReadyAIApp;
+			packageProductDependencies = (
+				E564E0272A46BF887309D559 /* SingReadyAISharedKit */,
+			);
+			productName = SingReadyAIApp;
+			productReference = 5A9B4529EE85AF76C24354C1 /* SingReadyAIApp.app */;
+			productType = "com.apple.product-type.application";
+		};
+		7DEEE1376D1BCF4A13AE3114 /* SingReadyAITests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 510B30F100A06B8032D8CC3D /* Build configuration list for PBXNativeTarget "SingReadyAITests" */;
+			buildPhases = (
+				BFFB8A50FB1DA7097BA484A9 /* Sources */,
+				F5B7BA2069906D99BA11C2B0 /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = SingReadyAITests;
+			packageProductDependencies = (
+				3671526F20F2D30498DADFBD /* SingReadyAISharedKit */,
+			);
+			productName = SingReadyAITests;
+			productReference = 3954811D6CF035D6F482F00B /* SingReadyAITests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		6812ACED501A4126E5FEE354 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = YES;
+				LastUpgradeCheck = 1430;
+				TargetAttributes = {
+					3C57FC0E628562E89E0CD8A4 = {
+						DevelopmentTeam = "";
+					};
+					4B109A29E37C9F39494AAD1E = {
+						DevelopmentTeam = "";
+					};
+				};
+			};
+			buildConfigurationList = 33189EEDC53B4A33AF6A9C85 /* Build configuration list for PBXProject "SingReadyAI" */;
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				Base,
+				en,
+			);
+			mainGroup = 4FE76B21CB2D06DFD7EAF82A;
+			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				1E6FAB111E27185AE374E2A4 /* XCLocalSwiftPackageReference "." */,
+			);
+			preferredProjectObjectVersion = 77;
+			productRefGroup = 6D9031CA913E3772D960CA5A /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				4B109A29E37C9F39494AAD1E /* SingReadyAIApp */,
+				3C57FC0E628562E89E0CD8A4 /* SingReadyAIShareExtension */,
+				7DEEE1376D1BCF4A13AE3114 /* SingReadyAITests */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXSourcesBuildPhase section */
+		0B091C611E3D8EC11E604C35 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				E3AA774F646CF0D25DCEC1D7 /* DemoWorkflowStore.swift in Sources */,
+				11E928A86C1663AAFFE6478A /* ExportView.swift in Sources */,
+				3533EA9B751C47AB2F533F10 /* GenerateView.swift in Sources */,
+				C2A60BF5AF5012CD138339E4 /* ImportHomeView.swift in Sources */,
+				364DFAA6A2D24B1E025FD409 /* ProductFlowViews.swift in Sources */,
+				13AF3C3DEA06C677FC4B1471 /* ProfileView.swift in Sources */,
+				46179FB74CAC54E56AEC27DE /* RootTabView.swift in Sources */,
+				2BC15078BD857B351DE40A32 /* SingReadyAIApp.swift in Sources */,
+				D60E7673CC8124D920A05BA4 /* VoiceCheckView.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		7A5891DA0BDD6D8DBF83C09E /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				17514527DAA69D1CBE8A0556 /* ShareExtensionView.swift in Sources */,
+				31404B5BACC34C6FC9AA04F4 /* ShareViewController.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		BFFB8A50FB1DA7097BA484A9 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				46B334ECC90568D220C16225 /* CatalogAndProfilerTests.swift in Sources */,
+				32AA02A0DDBBD6186E0B9625 /* ExporterAndNormalizerTests.swift in Sources */,
+				0A9E0D7AB7B7A9111E279ACB /* PitchDetectorTests.swift in Sources */,
+				C6FB1196D51101BE6CA45453 /* PlainTextPlaylistParserTests.swift in Sources */,
+				764F5FC8582606710C32B4F9 /* RecommendationEngineTests.swift in Sources */,
+				B4F7D86A1F7E346D0F18B7C1 /* ShareProviderDetectorTests.swift in Sources */,
+				E5F30E24492B305BC707F4B8 /* SongMatcherTests.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		A71DED0002F2AF38D41082B6 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 3C57FC0E628562E89E0CD8A4 /* SingReadyAIShareExtension */;
+			targetProxy = B7008B9556D8F13C7AA906D6 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
+/* Begin XCBuildConfiguration section */
+		0989EF74F8B29223B262F6ED /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_VERSION = 5.0;
+			};
+			name = Release;
+		};
+		274972C5D183D011FEF7EB59 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_ENTITLEMENTS = SingReadyAI/ShareExtension/SingReadyAIShareExtension.entitlements;
+				DEVELOPMENT_TEAM = "";
+				INFOPLIST_FILE = SingReadyAI/ShareExtension/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.example.SingReadyAI.ShareExtension;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		35F9A07E878D9767F451B051 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"$(inherited)",
+					"DEBUG=1",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 5.0;
+			};
+			name = Debug;
+		};
+		4EE5F21838335E711B5DCD35 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = SingReadyAI/App/SingReadyAI.entitlements;
+				CODE_SIGN_IDENTITY = "iPhone Developer";
+				DEVELOPMENT_TEAM = "";
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = "今晚唱什么";
+				INFOPLIST_KEY_UISupportedInterfaceOrientations = UIInterfaceOrientationPortrait;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.example.SingReadyAI;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		6F43BC38DF9DF5ABF2F42FD2 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+		C847F5C1419DB575064F4F0B /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_ENTITLEMENTS = SingReadyAI/ShareExtension/SingReadyAIShareExtension.entitlements;
+				DEVELOPMENT_TEAM = "";
+				INFOPLIST_FILE = SingReadyAI/ShareExtension/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.example.SingReadyAI.ShareExtension;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+		D6B1EB0C587D0A5C4FD0F5B8 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		E0CECEE99C7FA0298C763B7A /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = SingReadyAI/App/SingReadyAI.entitlements;
+				CODE_SIGN_IDENTITY = "iPhone Developer";
+				DEVELOPMENT_TEAM = "";
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = "今晚唱什么";
+				INFOPLIST_KEY_UISupportedInterfaceOrientations = UIInterfaceOrientationPortrait;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.example.SingReadyAI;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		33189EEDC53B4A33AF6A9C85 /* Build configuration list for PBXProject "SingReadyAI" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				35F9A07E878D9767F451B051 /* Debug */,
+				0989EF74F8B29223B262F6ED /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		510B30F100A06B8032D8CC3D /* Build configuration list for PBXNativeTarget "SingReadyAITests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				D6B1EB0C587D0A5C4FD0F5B8 /* Debug */,
+				6F43BC38DF9DF5ABF2F42FD2 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		75CD5CF122480E790DDE2E3C /* Build configuration list for PBXNativeTarget "SingReadyAIApp" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				4EE5F21838335E711B5DCD35 /* Debug */,
+				E0CECEE99C7FA0298C763B7A /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		C7DDDAFDE3631F62262DC26C /* Build configuration list for PBXNativeTarget "SingReadyAIShareExtension" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				274972C5D183D011FEF7EB59 /* Debug */,
+				C847F5C1419DB575064F4F0B /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+/* End XCConfigurationList section */
+
+/* Begin XCLocalSwiftPackageReference section */
+		1E6FAB111E27185AE374E2A4 /* XCLocalSwiftPackageReference "." */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = .;
+		};
+/* End XCLocalSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		16CFC5B5443C9AE5B2BA40F0 /* SingReadyAISharedKit */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = SingReadyAISharedKit;
+		};
+		3671526F20F2D30498DADFBD /* SingReadyAISharedKit */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = SingReadyAISharedKit;
+		};
+		E564E0272A46BF887309D559 /* SingReadyAISharedKit */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = SingReadyAISharedKit;
+		};
+/* End XCSwiftPackageProductDependency section */
+	};
+	rootObject = 6812ACED501A4126E5FEE354 /* Project object */;
+}

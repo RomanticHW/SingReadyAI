@@ -1,0 +1,7199 @@
+[
+  {
+    "id": "t001",
+    "title": "晴天",
+    "artist": "周杰伦",
+    "language": "Mandarin",
+    "era": "2000s",
+    "genre": "华语流行",
+    "moodTags": [
+      "青春",
+      "怀旧",
+      "旋律熟"
+    ],
+    "sceneTags": [
+      "friends",
+      "carKTV"
+    ],
+    "difficulty": 3,
+    "vocalRangeLowMidi": 50,
+    "vocalRangeHighMidi": 70,
+    "energy": 0.6,
+    "singAlongScore": 0.88,
+    "ktvAvailability": 0.96,
+    "duetFriendly": false,
+    "rapDensity": 0.1,
+    "highNoteRisk": 0.45,
+    "aliases": [
+      "晴天 Live"
+    ],
+    "similarSongIds": [
+      "t002",
+      "t003"
+    ]
+  },
+  {
+    "id": "t002",
+    "title": "稻香",
+    "artist": "周杰伦",
+    "language": "Mandarin",
+    "era": "2000s",
+    "genre": "华语流行",
+    "moodTags": [
+      "温暖",
+      "励志",
+      "旋律熟"
+    ],
+    "sceneTags": [
+      "friends",
+      "teamBuilding",
+      "carKTV"
+    ],
+    "difficulty": 2,
+    "vocalRangeLowMidi": 48,
+    "vocalRangeHighMidi": 67,
+    "energy": 0.7,
+    "singAlongScore": 0.9,
+    "ktvAvailability": 0.97,
+    "duetFriendly": false,
+    "rapDensity": 0.22,
+    "highNoteRisk": 0.25,
+    "aliases": [
+      "稻香 Live"
+    ],
+    "similarSongIds": [
+      "t001",
+      "t004"
+    ]
+  },
+  {
+    "id": "t003",
+    "title": "告白气球",
+    "artist": "周杰伦",
+    "language": "Mandarin",
+    "era": "2010s",
+    "genre": "甜歌",
+    "moodTags": [
+      "轻松",
+      "甜蜜",
+      "旋律熟"
+    ],
+    "sceneTags": [
+      "birthday",
+      "friends",
+      "carKTV"
+    ],
+    "difficulty": 2,
+    "vocalRangeLowMidi": 50,
+    "vocalRangeHighMidi": 68,
+    "energy": 0.66,
+    "singAlongScore": 0.86,
+    "ktvAvailability": 0.95,
+    "duetFriendly": true,
+    "rapDensity": 0.12,
+    "highNoteRisk": 0.3,
+    "aliases": [
+      "告白气球 伴奏"
+    ],
+    "similarSongIds": [
+      "t001",
+      "t007"
+    ]
+  },
+  {
+    "id": "t004",
+    "title": "夜曲",
+    "artist": "周杰伦",
+    "language": "Mandarin",
+    "era": "2000s",
+    "genre": "R&B",
+    "moodTags": [
+      "酷感",
+      "怀旧",
+      "节奏"
+    ],
+    "sceneTags": [
+      "friends"
+    ],
+    "difficulty": 4,
+    "vocalRangeLowMidi": 47,
+    "vocalRangeHighMidi": 70,
+    "energy": 0.62,
+    "singAlongScore": 0.7,
+    "ktvAvailability": 0.92,
+    "duetFriendly": false,
+    "rapDensity": 0.48,
+    "highNoteRisk": 0.42,
+    "aliases": [
+      "Nocturne"
+    ],
+    "similarSongIds": [
+      "t001",
+      "t005"
+    ]
+  },
+  {
+    "id": "t005",
+    "title": "简单爱",
+    "artist": "周杰伦",
+    "language": "Mandarin",
+    "era": "2000s",
+    "genre": "甜歌",
+    "moodTags": [
+      "轻松",
+      "青春",
+      "甜蜜"
+    ],
+    "sceneTags": [
+      "birthday",
+      "friends",
+      "carKTV"
+    ],
+    "difficulty": 2,
+    "vocalRangeLowMidi": 49,
+    "vocalRangeHighMidi": 67,
+    "energy": 0.58,
+    "singAlongScore": 0.84,
+    "ktvAvailability": 0.94,
+    "duetFriendly": true,
+    "rapDensity": 0.08,
+    "highNoteRisk": 0.22,
+    "aliases": [
+      "简单爱 Live"
+    ],
+    "similarSongIds": [
+      "t003",
+      "t007"
+    ]
+  },
+  {
+    "id": "t006",
+    "title": "七里香",
+    "artist": "周杰伦",
+    "language": "Mandarin",
+    "era": "2000s",
+    "genre": "华语流行",
+    "moodTags": [
+      "青春",
+      "浪漫",
+      "怀旧"
+    ],
+    "sceneTags": [
+      "friends",
+      "carKTV"
+    ],
+    "difficulty": 3,
+    "vocalRangeLowMidi": 50,
+    "vocalRangeHighMidi": 70,
+    "energy": 0.57,
+    "singAlongScore": 0.82,
+    "ktvAvailability": 0.94,
+    "duetFriendly": false,
+    "rapDensity": 0.08,
+    "highNoteRisk": 0.38,
+    "aliases": [
+      "七里香 Live"
+    ],
+    "similarSongIds": [
+      "t001",
+      "t005"
+    ]
+  },
+  {
+    "id": "t007",
+    "title": "十年",
+    "artist": "陈奕迅",
+    "language": "Mandarin",
+    "era": "2000s",
+    "genre": "情歌",
+    "moodTags": [
+      "怀旧",
+      "走心",
+      "旋律熟"
+    ],
+    "sceneTags": [
+      "friends",
+      "carKTV"
+    ],
+    "difficulty": 3,
+    "vocalRangeLowMidi": 47,
+    "vocalRangeHighMidi": 68,
+    "energy": 0.4,
+    "singAlongScore": 0.86,
+    "ktvAvailability": 0.97,
+    "duetFriendly": false,
+    "rapDensity": 0.02,
+    "highNoteRisk": 0.28,
+    "aliases": [
+      "十年 Live"
+    ],
+    "similarSongIds": [
+      "t008",
+      "t009"
+    ]
+  },
+  {
+    "id": "t008",
+    "title": "K歌之王",
+    "artist": "陈奕迅",
+    "language": "Cantonese",
+    "era": "2000s",
+    "genre": "粤语流行",
+    "moodTags": [
+      "怀旧",
+      "KTV经典",
+      "走心"
+    ],
+    "sceneTags": [
+      "friends"
+    ],
+    "difficulty": 4,
+    "vocalRangeLowMidi": 47,
+    "vocalRangeHighMidi": 72,
+    "energy": 0.5,
+    "singAlongScore": 0.8,
+    "ktvAvailability": 0.95,
+    "duetFriendly": false,
+    "rapDensity": 0.01,
+    "highNoteRisk": 0.58,
+    "aliases": [
+      "K 歌之王"
+    ],
+    "similarSongIds": [
+      "t007",
+      "t010"
+    ]
+  },
+  {
+    "id": "t009",
+    "title": "浮夸",
+    "artist": "陈奕迅",
+    "language": "Cantonese",
+    "era": "2000s",
+    "genre": "粤语流行",
+    "moodTags": [
+      "高光",
+      "戏剧感",
+      "KTV经典"
+    ],
+    "sceneTags": [
+      "friends"
+    ],
+    "difficulty": 5,
+    "vocalRangeLowMidi": 45,
+    "vocalRangeHighMidi": 78,
+    "energy": 0.72,
+    "singAlongScore": 0.76,
+    "ktvAvailability": 0.94,
+    "duetFriendly": false,
+    "rapDensity": 0.02,
+    "highNoteRisk": 0.92,
+    "aliases": [
+      "浮夸 Live"
+    ],
+    "similarSongIds": [
+      "t008",
+      "t010"
+    ]
+  },
+  {
+    "id": "t010",
+    "title": "淘汰",
+    "artist": "陈奕迅",
+    "language": "Mandarin",
+    "era": "2000s",
+    "genre": "情歌",
+    "moodTags": [
+      "走心",
+      "怀旧",
+      "低落"
+    ],
+    "sceneTags": [
+      "friends",
+      "carKTV"
+    ],
+    "difficulty": 3,
+    "vocalRangeLowMidi": 47,
+    "vocalRangeHighMidi": 69,
+    "energy": 0.38,
+    "singAlongScore": 0.78,
+    "ktvAvailability": 0.93,
+    "duetFriendly": false,
+    "rapDensity": 0.01,
+    "highNoteRisk": 0.36,
+    "aliases": [
+      "淘汰 Live"
+    ],
+    "similarSongIds": [
+      "t007",
+      "t011"
+    ]
+  },
+  {
+    "id": "t011",
+    "title": "突然好想你",
+    "artist": "五月天",
+    "language": "Mandarin",
+    "era": "2000s",
+    "genre": "摇滚流行",
+    "moodTags": [
+      "怀旧",
+      "合唱",
+      "走心"
+    ],
+    "sceneTags": [
+      "friends",
+      "teamBuilding"
+    ],
+    "difficulty": 3,
+    "vocalRangeLowMidi": 48,
+    "vocalRangeHighMidi": 71,
+    "energy": 0.62,
+    "singAlongScore": 0.91,
+    "ktvAvailability": 0.96,
+    "duetFriendly": false,
+    "rapDensity": 0.03,
+    "highNoteRisk": 0.45,
+    "aliases": [
+      "突然好想你 Live"
+    ],
+    "similarSongIds": [
+      "t012",
+      "t013"
+    ]
+  },
+  {
+    "id": "t012",
+    "title": "倔强",
+    "artist": "五月天",
+    "language": "Mandarin",
+    "era": "2000s",
+    "genre": "摇滚流行",
+    "moodTags": [
+      "励志",
+      "合唱",
+      "热血"
+    ],
+    "sceneTags": [
+      "friends",
+      "teamBuilding",
+      "carKTV"
+    ],
+    "difficulty": 3,
+    "vocalRangeLowMidi": 49,
+    "vocalRangeHighMidi": 72,
+    "energy": 0.86,
+    "singAlongScore": 0.92,
+    "ktvAvailability": 0.97,
+    "duetFriendly": false,
+    "rapDensity": 0.02,
+    "highNoteRisk": 0.52,
+    "aliases": [
+      "倔强 Live"
+    ],
+    "similarSongIds": [
+      "t011",
+      "t014"
+    ]
+  },
+  {
+    "id": "t013",
+    "title": "知足",
+    "artist": "五月天",
+    "language": "Mandarin",
+    "era": "2000s",
+    "genre": "摇滚流行",
+    "moodTags": [
+      "温暖",
+      "怀旧",
+      "合唱"
+    ],
+    "sceneTags": [
+      "friends",
+      "birthday",
+      "carKTV"
+    ],
+    "difficulty": 2,
+    "vocalRangeLowMidi": 48,
+    "vocalRangeHighMidi": 68,
+    "energy": 0.45,
+    "singAlongScore": 0.88,
+    "ktvAvailability": 0.95,
+    "duetFriendly": false,
+    "rapDensity": 0.01,
+    "highNoteRisk": 0.27,
+    "aliases": [
+      "知足 Live"
+    ],
+    "similarSongIds": [
+      "t011",
+      "t015"
+    ]
+  },
+  {
+    "id": "t014",
+    "title": "恋爱ing",
+    "artist": "五月天",
+    "language": "Mandarin",
+    "era": "2000s",
+    "genre": "摇滚流行",
+    "moodTags": [
+      "热闹",
+      "轻松",
+      "合唱"
+    ],
+    "sceneTags": [
+      "friends",
+      "birthday",
+      "teamBuilding"
+    ],
+    "difficulty": 2,
+    "vocalRangeLowMidi": 50,
+    "vocalRangeHighMidi": 70,
+    "energy": 0.88,
+    "singAlongScore": 0.93,
+    "ktvAvailability": 0.95,
+    "duetFriendly": true,
+    "rapDensity": 0.02,
+    "highNoteRisk": 0.36,
+    "aliases": [
+      "恋爱 ING"
+    ],
+    "similarSongIds": [
+      "t012",
+      "t013"
+    ]
+  },
+  {
+    "id": "t015",
+    "title": "干杯",
+    "artist": "五月天",
+    "language": "Mandarin",
+    "era": "2010s",
+    "genre": "摇滚流行",
+    "moodTags": [
+      "怀旧",
+      "合唱",
+      "收尾"
+    ],
+    "sceneTags": [
+      "friends",
+      "birthday",
+      "teamBuilding"
+    ],
+    "difficulty": 3,
+    "vocalRangeLowMidi": 49,
+    "vocalRangeHighMidi": 71,
+    "energy": 0.73,
+    "singAlongScore": 0.89,
+    "ktvAvailability": 0.94,
+    "duetFriendly": false,
+    "rapDensity": 0.02,
+    "highNoteRisk": 0.46,
+    "aliases": [
+      "干杯 Live"
+    ],
+    "similarSongIds": [
+      "t012",
+      "t013"
+    ]
+  },
+  {
+    "id": "t016",
+    "title": "遇见",
+    "artist": "孙燕姿",
+    "language": "Mandarin",
+    "era": "2000s",
+    "genre": "情歌",
+    "moodTags": [
+      "温暖",
+      "怀旧",
+      "旋律熟"
+    ],
+    "sceneTags": [
+      "friends",
+      "birthday",
+      "carKTV"
+    ],
+    "difficulty": 2,
+    "vocalRangeLowMidi": 51,
+    "vocalRangeHighMidi": 69,
+    "energy": 0.42,
+    "singAlongScore": 0.85,
+    "ktvAvailability": 0.95,
+    "duetFriendly": false,
+    "rapDensity": 0.01,
+    "highNoteRisk": 0.28,
+    "aliases": [
+      "遇见 Live"
+    ],
+    "similarSongIds": [
+      "t017",
+      "t018"
+    ]
+  },
+  {
+    "id": "t017",
+    "title": "绿光",
+    "artist": "孙燕姿",
+    "language": "Mandarin",
+    "era": "2000s",
+    "genre": "华语流行",
+    "moodTags": [
+      "热闹",
+      "青春",
+      "轻快"
+    ],
+    "sceneTags": [
+      "friends",
+      "teamBuilding"
+    ],
+    "difficulty": 3,
+    "vocalRangeLowMidi": 52,
+    "vocalRangeHighMidi": 72,
+    "energy": 0.82,
+    "singAlongScore": 0.82,
+    "ktvAvailability": 0.93,
+    "duetFriendly": false,
+    "rapDensity": 0.05,
+    "highNoteRisk": 0.48,
+    "aliases": [
+      "绿光 Live"
+    ],
+    "similarSongIds": [
+      "t016",
+      "t018"
+    ]
+  },
+  {
+    "id": "t018",
+    "title": "我怀念的",
+    "artist": "孙燕姿",
+    "language": "Mandarin",
+    "era": "2000s",
+    "genre": "情歌",
+    "moodTags": [
+      "走心",
+      "怀旧",
+      "高光"
+    ],
+    "sceneTags": [
+      "friends"
+    ],
+    "difficulty": 4,
+    "vocalRangeLowMidi": 50,
+    "vocalRangeHighMidi": 74,
+    "energy": 0.46,
+    "singAlongScore": 0.77,
+    "ktvAvailability": 0.93,
+    "duetFriendly": false,
+    "rapDensity": 0.01,
+    "highNoteRisk": 0.68,
+    "aliases": [
+      "我怀念的 Live"
+    ],
+    "similarSongIds": [
+      "t016",
+      "t019"
+    ]
+  },
+  {
+    "id": "t019",
+    "title": "小幸运",
+    "artist": "田馥甄",
+    "language": "Mandarin",
+    "era": "2010s",
+    "genre": "情歌",
+    "moodTags": [
+      "青春",
+      "温暖",
+      "旋律熟"
+    ],
+    "sceneTags": [
+      "friends",
+      "birthday",
+      "carKTV"
+    ],
+    "difficulty": 3,
+    "vocalRangeLowMidi": 51,
+    "vocalRangeHighMidi": 71,
+    "energy": 0.48,
+    "singAlongScore": 0.88,
+    "ktvAvailability": 0.96,
+    "duetFriendly": false,
+    "rapDensity": 0.01,
+    "highNoteRisk": 0.42,
+    "aliases": [
+      "小幸运 Live"
+    ],
+    "similarSongIds": [
+      "t016",
+      "t020"
+    ]
+  },
+  {
+    "id": "t020",
+    "title": "你就不要想起我",
+    "artist": "田馥甄",
+    "language": "Mandarin",
+    "era": "2010s",
+    "genre": "情歌",
+    "moodTags": [
+      "走心",
+      "高光",
+      "低落"
+    ],
+    "sceneTags": [
+      "friends"
+    ],
+    "difficulty": 4,
+    "vocalRangeLowMidi": 50,
+    "vocalRangeHighMidi": 75,
+    "energy": 0.44,
+    "singAlongScore": 0.74,
+    "ktvAvailability": 0.92,
+    "duetFriendly": false,
+    "rapDensity": 0.01,
+    "highNoteRisk": 0.74,
+    "aliases": [
+      "你就不要想起我 Live"
+    ],
+    "similarSongIds": [
+      "t019",
+      "t018"
+    ]
+  },
+  {
+    "id": "t021",
+    "title": "演员",
+    "artist": "薛之谦",
+    "language": "Mandarin",
+    "era": "2010s",
+    "genre": "情歌",
+    "moodTags": [
+      "走心",
+      "旋律熟",
+      "低落"
+    ],
+    "sceneTags": [
+      "friends",
+      "carKTV"
+    ],
+    "difficulty": 3,
+    "vocalRangeLowMidi": 47,
+    "vocalRangeHighMidi": 69,
+    "energy": 0.43,
+    "singAlongScore": 0.84,
+    "ktvAvailability": 0.94,
+    "duetFriendly": false,
+    "rapDensity": 0.02,
+    "highNoteRisk": 0.33,
+    "aliases": [
+      "演员 Live"
+    ],
+    "similarSongIds": [
+      "t022",
+      "t023"
+    ]
+  },
+  {
+    "id": "t022",
+    "title": "刚刚好",
+    "artist": "薛之谦",
+    "language": "Mandarin",
+    "era": "2010s",
+    "genre": "情歌",
+    "moodTags": [
+      "走心",
+      "旋律熟",
+      "低落"
+    ],
+    "sceneTags": [
+      "friends",
+      "carKTV"
+    ],
+    "difficulty": 3,
+    "vocalRangeLowMidi": 47,
+    "vocalRangeHighMidi": 70,
+    "energy": 0.42,
+    "singAlongScore": 0.8,
+    "ktvAvailability": 0.92,
+    "duetFriendly": false,
+    "rapDensity": 0.02,
+    "highNoteRisk": 0.4,
+    "aliases": [
+      "刚刚好 Live"
+    ],
+    "similarSongIds": [
+      "t021",
+      "t024"
+    ]
+  },
+  {
+    "id": "t023",
+    "title": "丑八怪",
+    "artist": "薛之谦",
+    "language": "Mandarin",
+    "era": "2010s",
+    "genre": "情歌",
+    "moodTags": [
+      "高光",
+      "走心",
+      "KTV经典"
+    ],
+    "sceneTags": [
+      "friends"
+    ],
+    "difficulty": 4,
+    "vocalRangeLowMidi": 46,
+    "vocalRangeHighMidi": 73,
+    "energy": 0.55,
+    "singAlongScore": 0.78,
+    "ktvAvailability": 0.92,
+    "duetFriendly": false,
+    "rapDensity": 0.02,
+    "highNoteRisk": 0.62,
+    "aliases": [
+      "丑八怪 Live"
+    ],
+    "similarSongIds": [
+      "t021",
+      "t022"
+    ]
+  },
+  {
+    "id": "t024",
+    "title": "年少有为",
+    "artist": "李荣浩",
+    "language": "Mandarin",
+    "era": "2010s",
+    "genre": "情歌",
+    "moodTags": [
+      "走心",
+      "遗憾",
+      "旋律熟"
+    ],
+    "sceneTags": [
+      "friends",
+      "carKTV"
+    ],
+    "difficulty": 3,
+    "vocalRangeLowMidi": 46,
+    "vocalRangeHighMidi": 68,
+    "energy": 0.39,
+    "singAlongScore": 0.8,
+    "ktvAvailability": 0.94,
+    "duetFriendly": false,
+    "rapDensity": 0.01,
+    "highNoteRisk": 0.3,
+    "aliases": [
+      "年少有为 Live"
+    ],
+    "similarSongIds": [
+      "t025",
+      "t026"
+    ]
+  },
+  {
+    "id": "t025",
+    "title": "李白",
+    "artist": "李荣浩",
+    "language": "Mandarin",
+    "era": "2010s",
+    "genre": "华语流行",
+    "moodTags": [
+      "轻松",
+      "个性",
+      "节奏"
+    ],
+    "sceneTags": [
+      "friends",
+      "teamBuilding",
+      "carKTV"
+    ],
+    "difficulty": 2,
+    "vocalRangeLowMidi": 46,
+    "vocalRangeHighMidi": 67,
+    "energy": 0.68,
+    "singAlongScore": 0.83,
+    "ktvAvailability": 0.93,
+    "duetFriendly": false,
+    "rapDensity": 0.08,
+    "highNoteRisk": 0.25,
+    "aliases": [
+      "李白 Live"
+    ],
+    "similarSongIds": [
+      "t024",
+      "t027"
+    ]
+  },
+  {
+    "id": "t026",
+    "title": "模特",
+    "artist": "李荣浩",
+    "language": "Mandarin",
+    "era": "2010s",
+    "genre": "华语流行",
+    "moodTags": [
+      "走心",
+      "个性",
+      "低落"
+    ],
+    "sceneTags": [
+      "friends"
+    ],
+    "difficulty": 3,
+    "vocalRangeLowMidi": 45,
+    "vocalRangeHighMidi": 68,
+    "energy": 0.38,
+    "singAlongScore": 0.72,
+    "ktvAvailability": 0.9,
+    "duetFriendly": false,
+    "rapDensity": 0.03,
+    "highNoteRisk": 0.32,
+    "aliases": [
+      "模特 Live"
+    ],
+    "similarSongIds": [
+      "t024",
+      "t025"
+    ]
+  },
+  {
+    "id": "t027",
+    "title": "泡沫",
+    "artist": "邓紫棋",
+    "language": "Mandarin",
+    "era": "2010s",
+    "genre": "情歌",
+    "moodTags": [
+      "高光",
+      "走心",
+      "KTV经典"
+    ],
+    "sceneTags": [
+      "friends"
+    ],
+    "difficulty": 5,
+    "vocalRangeLowMidi": 51,
+    "vocalRangeHighMidi": 78,
+    "energy": 0.58,
+    "singAlongScore": 0.8,
+    "ktvAvailability": 0.96,
+    "duetFriendly": false,
+    "rapDensity": 0.01,
+    "highNoteRisk": 0.9,
+    "aliases": [
+      "泡沫 Live"
+    ],
+    "similarSongIds": [
+      "t028",
+      "t029"
+    ]
+  },
+  {
+    "id": "t028",
+    "title": "光年之外",
+    "artist": "邓紫棋",
+    "language": "Mandarin",
+    "era": "2010s",
+    "genre": "华语流行",
+    "moodTags": [
+      "高光",
+      "热度",
+      "旋律熟"
+    ],
+    "sceneTags": [
+      "friends",
+      "carKTV"
+    ],
+    "difficulty": 4,
+    "vocalRangeLowMidi": 50,
+    "vocalRangeHighMidi": 75,
+    "energy": 0.7,
+    "singAlongScore": 0.82,
+    "ktvAvailability": 0.95,
+    "duetFriendly": false,
+    "rapDensity": 0.04,
+    "highNoteRisk": 0.72,
+    "aliases": [
+      "光年之外 Live"
+    ],
+    "similarSongIds": [
+      "t027",
+      "t030"
+    ]
+  },
+  {
+    "id": "t029",
+    "title": "喜欢你",
+    "artist": "邓紫棋",
+    "language": "Cantonese",
+    "era": "2010s",
+    "genre": "粤语流行",
+    "moodTags": [
+      "浪漫",
+      "怀旧",
+      "旋律熟"
+    ],
+    "sceneTags": [
+      "friends",
+      "birthday",
+      "carKTV"
+    ],
+    "difficulty": 3,
+    "vocalRangeLowMidi": 50,
+    "vocalRangeHighMidi": 72,
+    "energy": 0.54,
+    "singAlongScore": 0.84,
+    "ktvAvailability": 0.93,
+    "duetFriendly": false,
+    "rapDensity": 0.01,
+    "highNoteRisk": 0.52,
+    "aliases": [
+      "喜欢你 Live"
+    ],
+    "similarSongIds": [
+      "t027",
+      "t028"
+    ]
+  },
+  {
+    "id": "t030",
+    "title": "句号",
+    "artist": "邓紫棋",
+    "language": "Mandarin",
+    "era": "2010s",
+    "genre": "情歌",
+    "moodTags": [
+      "走心",
+      "高光",
+      "热度"
+    ],
+    "sceneTags": [
+      "friends"
+    ],
+    "difficulty": 4,
+    "vocalRangeLowMidi": 50,
+    "vocalRangeHighMidi": 74,
+    "energy": 0.52,
+    "singAlongScore": 0.76,
+    "ktvAvailability": 0.91,
+    "duetFriendly": false,
+    "rapDensity": 0.03,
+    "highNoteRisk": 0.66,
+    "aliases": [
+      "句号 Live"
+    ],
+    "similarSongIds": [
+      "t027",
+      "t028"
+    ]
+  },
+  {
+    "id": "t031",
+    "title": "后来",
+    "artist": "刘若英",
+    "language": "Mandarin",
+    "era": "2000s",
+    "genre": "情歌",
+    "moodTags": [
+      "怀旧",
+      "合唱",
+      "走心"
+    ],
+    "sceneTags": [
+      "friends",
+      "birthday",
+      "carKTV"
+    ],
+    "difficulty": 2,
+    "vocalRangeLowMidi": 50,
+    "vocalRangeHighMidi": 68,
+    "energy": 0.43,
+    "singAlongScore": 0.91,
+    "ktvAvailability": 0.97,
+    "duetFriendly": false,
+    "rapDensity": 0.01,
+    "highNoteRisk": 0.25,
+    "aliases": [
+      "后来 Live"
+    ],
+    "similarSongIds": [
+      "t032",
+      "t016"
+    ]
+  },
+  {
+    "id": "t032",
+    "title": "很爱很爱你",
+    "artist": "刘若英",
+    "language": "Mandarin",
+    "era": "1990s",
+    "genre": "情歌",
+    "moodTags": [
+      "怀旧",
+      "温暖",
+      "旋律熟"
+    ],
+    "sceneTags": [
+      "birthday",
+      "friends",
+      "carKTV"
+    ],
+    "difficulty": 2,
+    "vocalRangeLowMidi": 50,
+    "vocalRangeHighMidi": 68,
+    "energy": 0.4,
+    "singAlongScore": 0.82,
+    "ktvAvailability": 0.92,
+    "duetFriendly": false,
+    "rapDensity": 0.01,
+    "highNoteRisk": 0.24,
+    "aliases": [
+      "很爱很爱你 Live"
+    ],
+    "similarSongIds": [
+      "t031",
+      "t033"
+    ]
+  },
+  {
+    "id": "t033",
+    "title": "勇气",
+    "artist": "梁静茹",
+    "language": "Mandarin",
+    "era": "2000s",
+    "genre": "情歌",
+    "moodTags": [
+      "温暖",
+      "合唱",
+      "KTV经典"
+    ],
+    "sceneTags": [
+      "friends",
+      "birthday",
+      "teamBuilding",
+      "carKTV"
+    ],
+    "difficulty": 2,
+    "vocalRangeLowMidi": 50,
+    "vocalRangeHighMidi": 69,
+    "energy": 0.5,
+    "singAlongScore": 0.92,
+    "ktvAvailability": 0.97,
+    "duetFriendly": true,
+    "rapDensity": 0.01,
+    "highNoteRisk": 0.3,
+    "aliases": [
+      "勇气 Live"
+    ],
+    "similarSongIds": [
+      "t034",
+      "t031"
+    ]
+  },
+  {
+    "id": "t034",
+    "title": "暖暖",
+    "artist": "梁静茹",
+    "language": "Mandarin",
+    "era": "2000s",
+    "genre": "甜歌",
+    "moodTags": [
+      "温暖",
+      "轻松",
+      "甜蜜"
+    ],
+    "sceneTags": [
+      "birthday",
+      "friends",
+      "carKTV"
+    ],
+    "difficulty": 2,
+    "vocalRangeLowMidi": 51,
+    "vocalRangeHighMidi": 68,
+    "energy": 0.56,
+    "singAlongScore": 0.85,
+    "ktvAvailability": 0.93,
+    "duetFriendly": true,
+    "rapDensity": 0.01,
+    "highNoteRisk": 0.22,
+    "aliases": [
+      "暖暖 Live"
+    ],
+    "similarSongIds": [
+      "t033",
+      "t035"
+    ]
+  },
+  {
+    "id": "t035",
+    "title": "可惜不是你",
+    "artist": "梁静茹",
+    "language": "Mandarin",
+    "era": "2000s",
+    "genre": "情歌",
+    "moodTags": [
+      "走心",
+      "怀旧",
+      "旋律熟"
+    ],
+    "sceneTags": [
+      "friends",
+      "carKTV"
+    ],
+    "difficulty": 3,
+    "vocalRangeLowMidi": 50,
+    "vocalRangeHighMidi": 70,
+    "energy": 0.4,
+    "singAlongScore": 0.82,
+    "ktvAvailability": 0.94,
+    "duetFriendly": false,
+    "rapDensity": 0.01,
+    "highNoteRisk": 0.4,
+    "aliases": [
+      "可惜不是你 Live"
+    ],
+    "similarSongIds": [
+      "t033",
+      "t034"
+    ]
+  },
+  {
+    "id": "t036",
+    "title": "爱很简单",
+    "artist": "陶喆",
+    "language": "Mandarin",
+    "era": "1990s",
+    "genre": "R&B",
+    "moodTags": [
+      "浪漫",
+      "怀旧",
+      "旋律熟"
+    ],
+    "sceneTags": [
+      "friends",
+      "birthday",
+      "carKTV"
+    ],
+    "difficulty": 3,
+    "vocalRangeLowMidi": 47,
+    "vocalRangeHighMidi": 70,
+    "energy": 0.48,
+    "singAlongScore": 0.83,
+    "ktvAvailability": 0.94,
+    "duetFriendly": true,
+    "rapDensity": 0.02,
+    "highNoteRisk": 0.4,
+    "aliases": [
+      "爱很简单 Live"
+    ],
+    "similarSongIds": [
+      "t037",
+      "t038"
+    ]
+  },
+  {
+    "id": "t037",
+    "title": "就是爱你",
+    "artist": "陶喆",
+    "language": "Mandarin",
+    "era": "2000s",
+    "genre": "R&B",
+    "moodTags": [
+      "甜蜜",
+      "浪漫",
+      "轻松"
+    ],
+    "sceneTags": [
+      "birthday",
+      "friends",
+      "carKTV"
+    ],
+    "difficulty": 3,
+    "vocalRangeLowMidi": 48,
+    "vocalRangeHighMidi": 70,
+    "energy": 0.58,
+    "singAlongScore": 0.82,
+    "ktvAvailability": 0.93,
+    "duetFriendly": true,
+    "rapDensity": 0.02,
+    "highNoteRisk": 0.38,
+    "aliases": [
+      "就是爱你 Live"
+    ],
+    "similarSongIds": [
+      "t036",
+      "t039"
+    ]
+  },
+  {
+    "id": "t038",
+    "title": "普通朋友",
+    "artist": "陶喆",
+    "language": "Mandarin",
+    "era": "1990s",
+    "genre": "R&B",
+    "moodTags": [
+      "怀旧",
+      "走心",
+      "律动"
+    ],
+    "sceneTags": [
+      "friends"
+    ],
+    "difficulty": 4,
+    "vocalRangeLowMidi": 47,
+    "vocalRangeHighMidi": 72,
+    "energy": 0.52,
+    "singAlongScore": 0.72,
+    "ktvAvailability": 0.91,
+    "duetFriendly": false,
+    "rapDensity": 0.06,
+    "highNoteRisk": 0.55,
+    "aliases": [
+      "普通朋友 Live"
+    ],
+    "similarSongIds": [
+      "t036",
+      "t039"
+    ]
+  },
+  {
+    "id": "t039",
+    "title": "修炼爱情",
+    "artist": "林俊杰",
+    "language": "Mandarin",
+    "era": "2010s",
+    "genre": "情歌",
+    "moodTags": [
+      "走心",
+      "旋律熟",
+      "高光"
+    ],
+    "sceneTags": [
+      "friends",
+      "carKTV"
+    ],
+    "difficulty": 4,
+    "vocalRangeLowMidi": 48,
+    "vocalRangeHighMidi": 74,
+    "energy": 0.47,
+    "singAlongScore": 0.78,
+    "ktvAvailability": 0.95,
+    "duetFriendly": false,
+    "rapDensity": 0.01,
+    "highNoteRisk": 0.7,
+    "aliases": [
+      "修炼爱情 Live"
+    ],
+    "similarSongIds": [
+      "t040",
+      "t041"
+    ]
+  },
+  {
+    "id": "t040",
+    "title": "江南",
+    "artist": "林俊杰",
+    "language": "Mandarin",
+    "era": "2000s",
+    "genre": "华语流行",
+    "moodTags": [
+      "怀旧",
+      "旋律熟",
+      "KTV经典"
+    ],
+    "sceneTags": [
+      "friends",
+      "teamBuilding",
+      "carKTV"
+    ],
+    "difficulty": 3,
+    "vocalRangeLowMidi": 48,
+    "vocalRangeHighMidi": 71,
+    "energy": 0.57,
+    "singAlongScore": 0.88,
+    "ktvAvailability": 0.96,
+    "duetFriendly": false,
+    "rapDensity": 0.02,
+    "highNoteRisk": 0.48,
+    "aliases": [
+      "江南 Live"
+    ],
+    "similarSongIds": [
+      "t039",
+      "t042"
+    ]
+  },
+  {
+    "id": "t041",
+    "title": "她说",
+    "artist": "林俊杰",
+    "language": "Mandarin",
+    "era": "2010s",
+    "genre": "情歌",
+    "moodTags": [
+      "走心",
+      "旋律熟",
+      "低落"
+    ],
+    "sceneTags": [
+      "friends",
+      "carKTV"
+    ],
+    "difficulty": 3,
+    "vocalRangeLowMidi": 47,
+    "vocalRangeHighMidi": 70,
+    "energy": 0.42,
+    "singAlongScore": 0.8,
+    "ktvAvailability": 0.93,
+    "duetFriendly": false,
+    "rapDensity": 0.01,
+    "highNoteRisk": 0.42,
+    "aliases": [
+      "她说 Live"
+    ],
+    "similarSongIds": [
+      "t039",
+      "t040"
+    ]
+  },
+  {
+    "id": "t042",
+    "title": "小酒窝",
+    "artist": "林俊杰",
+    "language": "Mandarin",
+    "era": "2000s",
+    "genre": "甜歌",
+    "moodTags": [
+      "甜蜜",
+      "合唱",
+      "轻松"
+    ],
+    "sceneTags": [
+      "birthday",
+      "friends",
+      "teamBuilding",
+      "carKTV"
+    ],
+    "difficulty": 2,
+    "vocalRangeLowMidi": 49,
+    "vocalRangeHighMidi": 69,
+    "energy": 0.58,
+    "singAlongScore": 0.88,
+    "ktvAvailability": 0.95,
+    "duetFriendly": true,
+    "rapDensity": 0.01,
+    "highNoteRisk": 0.3,
+    "aliases": [
+      "小酒窝 Live"
+    ],
+    "similarSongIds": [
+      "t037",
+      "t040"
+    ]
+  },
+  {
+    "id": "t043",
+    "title": "红豆",
+    "artist": "王菲",
+    "language": "Mandarin",
+    "era": "1990s",
+    "genre": "情歌",
+    "moodTags": [
+      "怀旧",
+      "温柔",
+      "旋律熟"
+    ],
+    "sceneTags": [
+      "friends",
+      "birthday",
+      "carKTV"
+    ],
+    "difficulty": 2,
+    "vocalRangeLowMidi": 50,
+    "vocalRangeHighMidi": 68,
+    "energy": 0.36,
+    "singAlongScore": 0.83,
+    "ktvAvailability": 0.94,
+    "duetFriendly": false,
+    "rapDensity": 0.01,
+    "highNoteRisk": 0.24,
+    "aliases": [
+      "红豆 Live"
+    ],
+    "similarSongIds": [
+      "t044",
+      "t045"
+    ]
+  },
+  {
+    "id": "t044",
+    "title": "匆匆那年",
+    "artist": "王菲",
+    "language": "Mandarin",
+    "era": "2010s",
+    "genre": "情歌",
+    "moodTags": [
+      "走心",
+      "怀旧",
+      "电影感"
+    ],
+    "sceneTags": [
+      "friends",
+      "carKTV"
+    ],
+    "difficulty": 3,
+    "vocalRangeLowMidi": 50,
+    "vocalRangeHighMidi": 71,
+    "energy": 0.38,
+    "singAlongScore": 0.78,
+    "ktvAvailability": 0.92,
+    "duetFriendly": false,
+    "rapDensity": 0.01,
+    "highNoteRisk": 0.42,
+    "aliases": [
+      "匆匆那年 Live"
+    ],
+    "similarSongIds": [
+      "t043",
+      "t046"
+    ]
+  },
+  {
+    "id": "t045",
+    "title": "传奇",
+    "artist": "王菲",
+    "language": "Mandarin",
+    "era": "2010s",
+    "genre": "情歌",
+    "moodTags": [
+      "温柔",
+      "高光",
+      "旋律熟"
+    ],
+    "sceneTags": [
+      "birthday",
+      "friends",
+      "carKTV"
+    ],
+    "difficulty": 3,
+    "vocalRangeLowMidi": 50,
+    "vocalRangeHighMidi": 72,
+    "energy": 0.36,
+    "singAlongScore": 0.76,
+    "ktvAvailability": 0.9,
+    "duetFriendly": false,
+    "rapDensity": 0.01,
+    "highNoteRisk": 0.48,
+    "aliases": [
+      "传奇 Live"
+    ],
+    "similarSongIds": [
+      "t043",
+      "t044"
+    ]
+  },
+  {
+    "id": "t046",
+    "title": "月半小夜曲",
+    "artist": "李克勤",
+    "language": "Cantonese",
+    "era": "1980s",
+    "genre": "粤语流行",
+    "moodTags": [
+      "怀旧",
+      "经典",
+      "走心"
+    ],
+    "sceneTags": [
+      "friends",
+      "carKTV"
+    ],
+    "difficulty": 3,
+    "vocalRangeLowMidi": 46,
+    "vocalRangeHighMidi": 69,
+    "energy": 0.4,
+    "singAlongScore": 0.82,
+    "ktvAvailability": 0.94,
+    "duetFriendly": false,
+    "rapDensity": 0.01,
+    "highNoteRisk": 0.34,
+    "aliases": [
+      "月半小夜曲 Live"
+    ],
+    "similarSongIds": [
+      "t047",
+      "t048"
+    ]
+  },
+  {
+    "id": "t047",
+    "title": "红日",
+    "artist": "李克勤",
+    "language": "Cantonese",
+    "era": "1990s",
+    "genre": "粤语流行",
+    "moodTags": [
+      "励志",
+      "热闹",
+      "合唱"
+    ],
+    "sceneTags": [
+      "friends",
+      "teamBuilding"
+    ],
+    "difficulty": 3,
+    "vocalRangeLowMidi": 47,
+    "vocalRangeHighMidi": 72,
+    "energy": 0.88,
+    "singAlongScore": 0.91,
+    "ktvAvailability": 0.96,
+    "duetFriendly": false,
+    "rapDensity": 0.02,
+    "highNoteRisk": 0.52,
+    "aliases": [
+      "红日 Live"
+    ],
+    "similarSongIds": [
+      "t046",
+      "t049"
+    ]
+  },
+  {
+    "id": "t048",
+    "title": "海阔天空",
+    "artist": "Beyond",
+    "language": "Cantonese",
+    "era": "1990s",
+    "genre": "摇滚流行",
+    "moodTags": [
+      "励志",
+      "合唱",
+      "经典"
+    ],
+    "sceneTags": [
+      "friends",
+      "teamBuilding",
+      "carKTV"
+    ],
+    "difficulty": 3,
+    "vocalRangeLowMidi": 46,
+    "vocalRangeHighMidi": 72,
+    "energy": 0.82,
+    "singAlongScore": 0.94,
+    "ktvAvailability": 0.98,
+    "duetFriendly": false,
+    "rapDensity": 0.01,
+    "highNoteRisk": 0.54,
+    "aliases": [
+      "海阔天空 Live"
+    ],
+    "similarSongIds": [
+      "t049",
+      "t047"
+    ]
+  },
+  {
+    "id": "t049",
+    "title": "真的爱你",
+    "artist": "Beyond",
+    "language": "Cantonese",
+    "era": "1980s",
+    "genre": "摇滚流行",
+    "moodTags": [
+      "温暖",
+      "合唱",
+      "经典"
+    ],
+    "sceneTags": [
+      "friends",
+      "birthday",
+      "teamBuilding"
+    ],
+    "difficulty": 3,
+    "vocalRangeLowMidi": 46,
+    "vocalRangeHighMidi": 70,
+    "energy": 0.76,
+    "singAlongScore": 0.93,
+    "ktvAvailability": 0.97,
+    "duetFriendly": false,
+    "rapDensity": 0.01,
+    "highNoteRisk": 0.42,
+    "aliases": [
+      "真的爱你 Live"
+    ],
+    "similarSongIds": [
+      "t048",
+      "t050"
+    ]
+  },
+  {
+    "id": "t050",
+    "title": "光辉岁月",
+    "artist": "Beyond",
+    "language": "Cantonese",
+    "era": "1990s",
+    "genre": "摇滚流行",
+    "moodTags": [
+      "励志",
+      "合唱",
+      "经典"
+    ],
+    "sceneTags": [
+      "friends",
+      "teamBuilding"
+    ],
+    "difficulty": 3,
+    "vocalRangeLowMidi": 46,
+    "vocalRangeHighMidi": 71,
+    "energy": 0.78,
+    "singAlongScore": 0.92,
+    "ktvAvailability": 0.96,
+    "duetFriendly": false,
+    "rapDensity": 0.01,
+    "highNoteRisk": 0.48,
+    "aliases": [
+      "光辉岁月 Live"
+    ],
+    "similarSongIds": [
+      "t048",
+      "t049"
+    ]
+  },
+  {
+    "id": "t051",
+    "title": "爱你",
+    "artist": "王心凌",
+    "language": "Mandarin",
+    "era": "2000s",
+    "genre": "甜歌",
+    "moodTags": [
+      "热闹",
+      "甜蜜",
+      "复古"
+    ],
+    "sceneTags": [
+      "friends",
+      "birthday",
+      "teamBuilding"
+    ],
+    "difficulty": 2,
+    "vocalRangeLowMidi": 52,
+    "vocalRangeHighMidi": 70,
+    "energy": 0.9,
+    "singAlongScore": 0.9,
+    "ktvAvailability": 0.95,
+    "duetFriendly": true,
+    "rapDensity": 0.03,
+    "highNoteRisk": 0.3,
+    "aliases": [
+      "爱你 Live"
+    ],
+    "similarSongIds": [
+      "t052",
+      "t014"
+    ]
+  },
+  {
+    "id": "t052",
+    "title": "睫毛弯弯",
+    "artist": "王心凌",
+    "language": "Mandarin",
+    "era": "2000s",
+    "genre": "甜歌",
+    "moodTags": [
+      "热闹",
+      "甜蜜",
+      "轻快"
+    ],
+    "sceneTags": [
+      "friends",
+      "birthday",
+      "teamBuilding"
+    ],
+    "difficulty": 2,
+    "vocalRangeLowMidi": 52,
+    "vocalRangeHighMidi": 70,
+    "energy": 0.86,
+    "singAlongScore": 0.86,
+    "ktvAvailability": 0.92,
+    "duetFriendly": true,
+    "rapDensity": 0.03,
+    "highNoteRisk": 0.28,
+    "aliases": [
+      "睫毛弯弯 Live"
+    ],
+    "similarSongIds": [
+      "t051",
+      "t053"
+    ]
+  },
+  {
+    "id": "t053",
+    "title": "第一次爱的人",
+    "artist": "王心凌",
+    "language": "Mandarin",
+    "era": "2000s",
+    "genre": "甜歌",
+    "moodTags": [
+      "青春",
+      "怀旧",
+      "旋律熟"
+    ],
+    "sceneTags": [
+      "friends",
+      "birthday",
+      "carKTV"
+    ],
+    "difficulty": 2,
+    "vocalRangeLowMidi": 51,
+    "vocalRangeHighMidi": 69,
+    "energy": 0.62,
+    "singAlongScore": 0.84,
+    "ktvAvailability": 0.92,
+    "duetFriendly": false,
+    "rapDensity": 0.01,
+    "highNoteRisk": 0.28,
+    "aliases": [
+      "第一次爱的人 Live"
+    ],
+    "similarSongIds": [
+      "t051",
+      "t052"
+    ]
+  },
+  {
+    "id": "t054",
+    "title": "体面",
+    "artist": "于文文",
+    "language": "Mandarin",
+    "era": "2010s",
+    "genre": "情歌",
+    "moodTags": [
+      "走心",
+      "电影感",
+      "旋律熟"
+    ],
+    "sceneTags": [
+      "friends",
+      "carKTV"
+    ],
+    "difficulty": 3,
+    "vocalRangeLowMidi": 50,
+    "vocalRangeHighMidi": 71,
+    "energy": 0.45,
+    "singAlongScore": 0.8,
+    "ktvAvailability": 0.94,
+    "duetFriendly": false,
+    "rapDensity": 0.01,
+    "highNoteRisk": 0.45,
+    "aliases": [
+      "体面 Live"
+    ],
+    "similarSongIds": [
+      "t055",
+      "t024"
+    ]
+  },
+  {
+    "id": "t055",
+    "title": "说散就散",
+    "artist": "袁娅维",
+    "language": "Mandarin",
+    "era": "2010s",
+    "genre": "情歌",
+    "moodTags": [
+      "走心",
+      "电影感",
+      "高光"
+    ],
+    "sceneTags": [
+      "friends"
+    ],
+    "difficulty": 4,
+    "vocalRangeLowMidi": 50,
+    "vocalRangeHighMidi": 74,
+    "energy": 0.5,
+    "singAlongScore": 0.76,
+    "ktvAvailability": 0.92,
+    "duetFriendly": false,
+    "rapDensity": 0.01,
+    "highNoteRisk": 0.68,
+    "aliases": [
+      "说散就散 Live"
+    ],
+    "similarSongIds": [
+      "t054",
+      "t056"
+    ]
+  },
+  {
+    "id": "t056",
+    "title": "起风了",
+    "artist": "买辣椒也用券",
+    "language": "Mandarin",
+    "era": "2010s",
+    "genre": "华语流行",
+    "moodTags": [
+      "青春",
+      "热度",
+      "合唱"
+    ],
+    "sceneTags": [
+      "friends",
+      "teamBuilding",
+      "carKTV"
+    ],
+    "difficulty": 3,
+    "vocalRangeLowMidi": 49,
+    "vocalRangeHighMidi": 71,
+    "energy": 0.68,
+    "singAlongScore": 0.88,
+    "ktvAvailability": 0.94,
+    "duetFriendly": false,
+    "rapDensity": 0.02,
+    "highNoteRisk": 0.46,
+    "aliases": [
+      "起风了 Live"
+    ],
+    "similarSongIds": [
+      "t057",
+      "t058"
+    ]
+  },
+  {
+    "id": "t057",
+    "title": "那些年",
+    "artist": "胡夏",
+    "language": "Mandarin",
+    "era": "2010s",
+    "genre": "情歌",
+    "moodTags": [
+      "青春",
+      "怀旧",
+      "旋律熟"
+    ],
+    "sceneTags": [
+      "friends",
+      "birthday",
+      "carKTV"
+    ],
+    "difficulty": 2,
+    "vocalRangeLowMidi": 48,
+    "vocalRangeHighMidi": 68,
+    "energy": 0.48,
+    "singAlongScore": 0.86,
+    "ktvAvailability": 0.94,
+    "duetFriendly": false,
+    "rapDensity": 0.01,
+    "highNoteRisk": 0.26,
+    "aliases": [
+      "那些年 Live"
+    ],
+    "similarSongIds": [
+      "t056",
+      "t019"
+    ]
+  },
+  {
+    "id": "t058",
+    "title": "平凡之路",
+    "artist": "朴树",
+    "language": "Mandarin",
+    "era": "2010s",
+    "genre": "民谣流行",
+    "moodTags": [
+      "公路",
+      "合唱",
+      "走心"
+    ],
+    "sceneTags": [
+      "friends",
+      "teamBuilding",
+      "carKTV"
+    ],
+    "difficulty": 2,
+    "vocalRangeLowMidi": 45,
+    "vocalRangeHighMidi": 66,
+    "energy": 0.58,
+    "singAlongScore": 0.89,
+    "ktvAvailability": 0.95,
+    "duetFriendly": false,
+    "rapDensity": 0.02,
+    "highNoteRisk": 0.18,
+    "aliases": [
+      "平凡之路 Live"
+    ],
+    "similarSongIds": [
+      "t059",
+      "t060"
+    ]
+  },
+  {
+    "id": "t059",
+    "title": "成都",
+    "artist": "赵雷",
+    "language": "Mandarin",
+    "era": "2010s",
+    "genre": "民谣流行",
+    "moodTags": [
+      "民谣",
+      "轻松",
+      "怀旧"
+    ],
+    "sceneTags": [
+      "friends",
+      "carKTV"
+    ],
+    "difficulty": 1,
+    "vocalRangeLowMidi": 44,
+    "vocalRangeHighMidi": 64,
+    "energy": 0.38,
+    "singAlongScore": 0.82,
+    "ktvAvailability": 0.93,
+    "duetFriendly": false,
+    "rapDensity": 0.01,
+    "highNoteRisk": 0.12,
+    "aliases": [
+      "成都 Live"
+    ],
+    "similarSongIds": [
+      "t058",
+      "t061"
+    ]
+  },
+  {
+    "id": "t060",
+    "title": "像我这样的人",
+    "artist": "毛不易",
+    "language": "Mandarin",
+    "era": "2010s",
+    "genre": "民谣流行",
+    "moodTags": [
+      "走心",
+      "低落",
+      "独白"
+    ],
+    "sceneTags": [
+      "friends",
+      "carKTV"
+    ],
+    "difficulty": 2,
+    "vocalRangeLowMidi": 44,
+    "vocalRangeHighMidi": 65,
+    "energy": 0.34,
+    "singAlongScore": 0.78,
+    "ktvAvailability": 0.92,
+    "duetFriendly": false,
+    "rapDensity": 0.01,
+    "highNoteRisk": 0.15,
+    "aliases": [
+      "像我这样的人 Live"
+    ],
+    "similarSongIds": [
+      "t059",
+      "t061"
+    ]
+  },
+  {
+    "id": "t061",
+    "title": "消愁",
+    "artist": "毛不易",
+    "language": "Mandarin",
+    "era": "2010s",
+    "genre": "民谣流行",
+    "moodTags": [
+      "走心",
+      "低落",
+      "KTV经典"
+    ],
+    "sceneTags": [
+      "friends"
+    ],
+    "difficulty": 2,
+    "vocalRangeLowMidi": 44,
+    "vocalRangeHighMidi": 65,
+    "energy": 0.32,
+    "singAlongScore": 0.8,
+    "ktvAvailability": 0.94,
+    "duetFriendly": false,
+    "rapDensity": 0.01,
+    "highNoteRisk": 0.14,
+    "aliases": [
+      "消愁 Live"
+    ],
+    "similarSongIds": [
+      "t060",
+      "t058"
+    ]
+  },
+  {
+    "id": "t062",
+    "title": "有点甜",
+    "artist": "汪苏泷",
+    "language": "Mandarin",
+    "era": "2010s",
+    "genre": "甜歌",
+    "moodTags": [
+      "甜蜜",
+      "合唱",
+      "轻松"
+    ],
+    "sceneTags": [
+      "birthday",
+      "friends",
+      "teamBuilding",
+      "carKTV"
+    ],
+    "difficulty": 2,
+    "vocalRangeLowMidi": 49,
+    "vocalRangeHighMidi": 68,
+    "energy": 0.62,
+    "singAlongScore": 0.87,
+    "ktvAvailability": 0.93,
+    "duetFriendly": true,
+    "rapDensity": 0.02,
+    "highNoteRisk": 0.24,
+    "aliases": [
+      "有点甜 Live"
+    ],
+    "similarSongIds": [
+      "t063",
+      "t042"
+    ]
+  },
+  {
+    "id": "t063",
+    "title": "不分手的恋爱",
+    "artist": "汪苏泷",
+    "language": "Mandarin",
+    "era": "2010s",
+    "genre": "甜歌",
+    "moodTags": [
+      "青春",
+      "甜蜜",
+      "旋律熟"
+    ],
+    "sceneTags": [
+      "friends",
+      "birthday",
+      "carKTV"
+    ],
+    "difficulty": 2,
+    "vocalRangeLowMidi": 48,
+    "vocalRangeHighMidi": 68,
+    "energy": 0.6,
+    "singAlongScore": 0.82,
+    "ktvAvailability": 0.91,
+    "duetFriendly": false,
+    "rapDensity": 0.02,
+    "highNoteRisk": 0.24,
+    "aliases": [
+      "不分手的恋爱 Live"
+    ],
+    "similarSongIds": [
+      "t062",
+      "t064"
+    ]
+  },
+  {
+    "id": "t064",
+    "title": "素颜",
+    "artist": "许嵩",
+    "language": "Mandarin",
+    "era": "2010s",
+    "genre": "华语流行",
+    "moodTags": [
+      "青春",
+      "怀旧",
+      "轻松"
+    ],
+    "sceneTags": [
+      "friends",
+      "carKTV"
+    ],
+    "difficulty": 2,
+    "vocalRangeLowMidi": 47,
+    "vocalRangeHighMidi": 67,
+    "energy": 0.58,
+    "singAlongScore": 0.82,
+    "ktvAvailability": 0.92,
+    "duetFriendly": true,
+    "rapDensity": 0.02,
+    "highNoteRisk": 0.2,
+    "aliases": [
+      "素颜 Live"
+    ],
+    "similarSongIds": [
+      "t063",
+      "t065"
+    ]
+  },
+  {
+    "id": "t065",
+    "title": "庐州月",
+    "artist": "许嵩",
+    "language": "Mandarin",
+    "era": "2010s",
+    "genre": "国风流行",
+    "moodTags": [
+      "国风",
+      "怀旧",
+      "旋律熟"
+    ],
+    "sceneTags": [
+      "friends",
+      "carKTV"
+    ],
+    "difficulty": 3,
+    "vocalRangeLowMidi": 47,
+    "vocalRangeHighMidi": 69,
+    "energy": 0.46,
+    "singAlongScore": 0.78,
+    "ktvAvailability": 0.9,
+    "duetFriendly": false,
+    "rapDensity": 0.04,
+    "highNoteRisk": 0.32,
+    "aliases": [
+      "庐州月 Live"
+    ],
+    "similarSongIds": [
+      "t064",
+      "t066"
+    ]
+  },
+  {
+    "id": "t066",
+    "title": "日不落",
+    "artist": "蔡依林",
+    "language": "Mandarin",
+    "era": "2000s",
+    "genre": "舞曲流行",
+    "moodTags": [
+      "热闹",
+      "合唱",
+      "甜蜜"
+    ],
+    "sceneTags": [
+      "friends",
+      "birthday",
+      "teamBuilding"
+    ],
+    "difficulty": 2,
+    "vocalRangeLowMidi": 51,
+    "vocalRangeHighMidi": 70,
+    "energy": 0.9,
+    "singAlongScore": 0.91,
+    "ktvAvailability": 0.96,
+    "duetFriendly": true,
+    "rapDensity": 0.02,
+    "highNoteRisk": 0.34,
+    "aliases": [
+      "日不落 Live"
+    ],
+    "similarSongIds": [
+      "t067",
+      "t051"
+    ]
+  },
+  {
+    "id": "t067",
+    "title": "说爱你",
+    "artist": "蔡依林",
+    "language": "Mandarin",
+    "era": "2000s",
+    "genre": "舞曲流行",
+    "moodTags": [
+      "热闹",
+      "甜蜜",
+      "复古"
+    ],
+    "sceneTags": [
+      "friends",
+      "birthday",
+      "teamBuilding"
+    ],
+    "difficulty": 2,
+    "vocalRangeLowMidi": 51,
+    "vocalRangeHighMidi": 70,
+    "energy": 0.86,
+    "singAlongScore": 0.86,
+    "ktvAvailability": 0.94,
+    "duetFriendly": true,
+    "rapDensity": 0.03,
+    "highNoteRisk": 0.32,
+    "aliases": [
+      "说爱你 Live"
+    ],
+    "similarSongIds": [
+      "t066",
+      "t068"
+    ]
+  },
+  {
+    "id": "t068",
+    "title": "倒带",
+    "artist": "蔡依林",
+    "language": "Mandarin",
+    "era": "2000s",
+    "genre": "情歌",
+    "moodTags": [
+      "怀旧",
+      "走心",
+      "旋律熟"
+    ],
+    "sceneTags": [
+      "friends",
+      "carKTV"
+    ],
+    "difficulty": 3,
+    "vocalRangeLowMidi": 51,
+    "vocalRangeHighMidi": 71,
+    "energy": 0.48,
+    "singAlongScore": 0.82,
+    "ktvAvailability": 0.94,
+    "duetFriendly": false,
+    "rapDensity": 0.01,
+    "highNoteRisk": 0.42,
+    "aliases": [
+      "倒带 Live"
+    ],
+    "similarSongIds": [
+      "t066",
+      "t067"
+    ]
+  },
+  {
+    "id": "t069",
+    "title": "听海",
+    "artist": "张惠妹",
+    "language": "Mandarin",
+    "era": "1990s",
+    "genre": "情歌",
+    "moodTags": [
+      "高光",
+      "经典",
+      "走心"
+    ],
+    "sceneTags": [
+      "friends"
+    ],
+    "difficulty": 5,
+    "vocalRangeLowMidi": 49,
+    "vocalRangeHighMidi": 77,
+    "energy": 0.55,
+    "singAlongScore": 0.8,
+    "ktvAvailability": 0.96,
+    "duetFriendly": false,
+    "rapDensity": 0.01,
+    "highNoteRisk": 0.88,
+    "aliases": [
+      "听海 Live"
+    ],
+    "similarSongIds": [
+      "t070",
+      "t071"
+    ]
+  },
+  {
+    "id": "t070",
+    "title": "记得",
+    "artist": "张惠妹",
+    "language": "Mandarin",
+    "era": "2000s",
+    "genre": "情歌",
+    "moodTags": [
+      "走心",
+      "高光",
+      "KTV经典"
+    ],
+    "sceneTags": [
+      "friends"
+    ],
+    "difficulty": 4,
+    "vocalRangeLowMidi": 49,
+    "vocalRangeHighMidi": 74,
+    "energy": 0.46,
+    "singAlongScore": 0.76,
+    "ktvAvailability": 0.93,
+    "duetFriendly": false,
+    "rapDensity": 0.01,
+    "highNoteRisk": 0.7,
+    "aliases": [
+      "记得 Live"
+    ],
+    "similarSongIds": [
+      "t069",
+      "t071"
+    ]
+  },
+  {
+    "id": "t071",
+    "title": "如果你也听说",
+    "artist": "张惠妹",
+    "language": "Mandarin",
+    "era": "2000s",
+    "genre": "情歌",
+    "moodTags": [
+      "走心",
+      "高光",
+      "旋律熟"
+    ],
+    "sceneTags": [
+      "friends"
+    ],
+    "difficulty": 4,
+    "vocalRangeLowMidi": 49,
+    "vocalRangeHighMidi": 74,
+    "energy": 0.48,
+    "singAlongScore": 0.78,
+    "ktvAvailability": 0.93,
+    "duetFriendly": false,
+    "rapDensity": 0.01,
+    "highNoteRisk": 0.7,
+    "aliases": [
+      "如果你也听说 Live"
+    ],
+    "similarSongIds": [
+      "t069",
+      "t070"
+    ]
+  },
+  {
+    "id": "t072",
+    "title": "隐形的翅膀",
+    "artist": "张韶涵",
+    "language": "Mandarin",
+    "era": "2000s",
+    "genre": "励志流行",
+    "moodTags": [
+      "励志",
+      "合唱",
+      "温暖"
+    ],
+    "sceneTags": [
+      "friends",
+      "birthday",
+      "teamBuilding",
+      "carKTV"
+    ],
+    "difficulty": 3,
+    "vocalRangeLowMidi": 51,
+    "vocalRangeHighMidi": 72,
+    "energy": 0.66,
+    "singAlongScore": 0.91,
+    "ktvAvailability": 0.97,
+    "duetFriendly": false,
+    "rapDensity": 0.01,
+    "highNoteRisk": 0.5,
+    "aliases": [
+      "隐形的翅膀 Live"
+    ],
+    "similarSongIds": [
+      "t073",
+      "t012"
+    ]
+  },
+  {
+    "id": "t073",
+    "title": "欧若拉",
+    "artist": "张韶涵",
+    "language": "Mandarin",
+    "era": "2000s",
+    "genre": "华语流行",
+    "moodTags": [
+      "热闹",
+      "高光",
+      "复古"
+    ],
+    "sceneTags": [
+      "friends",
+      "teamBuilding"
+    ],
+    "difficulty": 4,
+    "vocalRangeLowMidi": 52,
+    "vocalRangeHighMidi": 75,
+    "energy": 0.84,
+    "singAlongScore": 0.8,
+    "ktvAvailability": 0.93,
+    "duetFriendly": false,
+    "rapDensity": 0.02,
+    "highNoteRisk": 0.72,
+    "aliases": [
+      "欧若拉 Live"
+    ],
+    "similarSongIds": [
+      "t072",
+      "t074"
+    ]
+  },
+  {
+    "id": "t074",
+    "title": "遗失的美好",
+    "artist": "张韶涵",
+    "language": "Mandarin",
+    "era": "2000s",
+    "genre": "情歌",
+    "moodTags": [
+      "怀旧",
+      "走心",
+      "旋律熟"
+    ],
+    "sceneTags": [
+      "friends",
+      "carKTV"
+    ],
+    "difficulty": 3,
+    "vocalRangeLowMidi": 51,
+    "vocalRangeHighMidi": 72,
+    "energy": 0.48,
+    "singAlongScore": 0.8,
+    "ktvAvailability": 0.92,
+    "duetFriendly": false,
+    "rapDensity": 0.01,
+    "highNoteRisk": 0.52,
+    "aliases": [
+      "遗失的美好 Live"
+    ],
+    "similarSongIds": [
+      "t072",
+      "t073"
+    ]
+  },
+  {
+    "id": "t075",
+    "title": "如果这都不算爱",
+    "artist": "张学友",
+    "language": "Mandarin",
+    "era": "2000s",
+    "genre": "情歌",
+    "moodTags": [
+      "高光",
+      "经典",
+      "走心"
+    ],
+    "sceneTags": [
+      "friends"
+    ],
+    "difficulty": 4,
+    "vocalRangeLowMidi": 45,
+    "vocalRangeHighMidi": 72,
+    "energy": 0.52,
+    "singAlongScore": 0.82,
+    "ktvAvailability": 0.95,
+    "duetFriendly": false,
+    "rapDensity": 0.01,
+    "highNoteRisk": 0.6,
+    "aliases": [
+      "如果这都不算爱 Live"
+    ],
+    "similarSongIds": [
+      "t076",
+      "t077"
+    ]
+  },
+  {
+    "id": "t076",
+    "title": "吻别",
+    "artist": "张学友",
+    "language": "Mandarin",
+    "era": "1990s",
+    "genre": "情歌",
+    "moodTags": [
+      "怀旧",
+      "经典",
+      "合唱"
+    ],
+    "sceneTags": [
+      "friends",
+      "teamBuilding",
+      "carKTV"
+    ],
+    "difficulty": 3,
+    "vocalRangeLowMidi": 45,
+    "vocalRangeHighMidi": 69,
+    "energy": 0.48,
+    "singAlongScore": 0.91,
+    "ktvAvailability": 0.98,
+    "duetFriendly": false,
+    "rapDensity": 0.01,
+    "highNoteRisk": 0.36,
+    "aliases": [
+      "吻别 Live"
+    ],
+    "similarSongIds": [
+      "t075",
+      "t077"
+    ]
+  },
+  {
+    "id": "t077",
+    "title": "一路上有你",
+    "artist": "张学友",
+    "language": "Mandarin",
+    "era": "1990s",
+    "genre": "情歌",
+    "moodTags": [
+      "温暖",
+      "经典",
+      "怀旧"
+    ],
+    "sceneTags": [
+      "birthday",
+      "friends",
+      "carKTV"
+    ],
+    "difficulty": 3,
+    "vocalRangeLowMidi": 45,
+    "vocalRangeHighMidi": 69,
+    "energy": 0.46,
+    "singAlongScore": 0.84,
+    "ktvAvailability": 0.95,
+    "duetFriendly": true,
+    "rapDensity": 0.01,
+    "highNoteRisk": 0.34,
+    "aliases": [
+      "一路上有你 Live"
+    ],
+    "similarSongIds": [
+      "t075",
+      "t076"
+    ]
+  },
+  {
+    "id": "t078",
+    "title": "忘情水",
+    "artist": "刘德华",
+    "language": "Mandarin",
+    "era": "1990s",
+    "genre": "情歌",
+    "moodTags": [
+      "怀旧",
+      "经典",
+      "合唱"
+    ],
+    "sceneTags": [
+      "friends",
+      "teamBuilding",
+      "carKTV"
+    ],
+    "difficulty": 2,
+    "vocalRangeLowMidi": 45,
+    "vocalRangeHighMidi": 67,
+    "energy": 0.54,
+    "singAlongScore": 0.88,
+    "ktvAvailability": 0.96,
+    "duetFriendly": false,
+    "rapDensity": 0.01,
+    "highNoteRisk": 0.24,
+    "aliases": [
+      "忘情水 Live"
+    ],
+    "similarSongIds": [
+      "t079",
+      "t080"
+    ]
+  },
+  {
+    "id": "t079",
+    "title": "冰雨",
+    "artist": "刘德华",
+    "language": "Mandarin",
+    "era": "1990s",
+    "genre": "情歌",
+    "moodTags": [
+      "怀旧",
+      "经典",
+      "走心"
+    ],
+    "sceneTags": [
+      "friends",
+      "carKTV"
+    ],
+    "difficulty": 2,
+    "vocalRangeLowMidi": 45,
+    "vocalRangeHighMidi": 67,
+    "energy": 0.42,
+    "singAlongScore": 0.82,
+    "ktvAvailability": 0.94,
+    "duetFriendly": false,
+    "rapDensity": 0.01,
+    "highNoteRisk": 0.24,
+    "aliases": [
+      "冰雨 Live"
+    ],
+    "similarSongIds": [
+      "t078",
+      "t080"
+    ]
+  },
+  {
+    "id": "t080",
+    "title": "恭喜发财",
+    "artist": "刘德华",
+    "language": "Mandarin",
+    "era": "2000s",
+    "genre": "节庆流行",
+    "moodTags": [
+      "热闹",
+      "合唱",
+      "喜庆"
+    ],
+    "sceneTags": [
+      "birthday",
+      "teamBuilding",
+      "friends"
+    ],
+    "difficulty": 1,
+    "vocalRangeLowMidi": 45,
+    "vocalRangeHighMidi": 66,
+    "energy": 0.92,
+    "singAlongScore": 0.9,
+    "ktvAvailability": 0.93,
+    "duetFriendly": true,
+    "rapDensity": 0.02,
+    "highNoteRisk": 0.12,
+    "aliases": [
+      "恭喜发财 Live"
+    ],
+    "similarSongIds": [
+      "t078",
+      "t047"
+    ]
+  },
+  {
+    "id": "t081",
+    "title": "唯一",
+    "artist": "王力宏",
+    "language": "Mandarin",
+    "era": "2000s",
+    "genre": "华语流行",
+    "moodTags": [
+      "浪漫",
+      "旋律熟",
+      "走心"
+    ],
+    "sceneTags": [
+      "friends",
+      "birthday",
+      "carKTV",
+      "couples"
+    ],
+    "difficulty": 3,
+    "vocalRangeLowMidi": 47,
+    "vocalRangeHighMidi": 70,
+    "energy": 0.5,
+    "singAlongScore": 0.84,
+    "ktvAvailability": 0.94,
+    "duetFriendly": true,
+    "rapDensity": 0.02,
+    "highNoteRisk": 0.38,
+    "aliases": [
+      "唯一 Live"
+    ],
+    "similarSongIds": [
+      "t082"
+    ]
+  },
+  {
+    "id": "t082",
+    "title": "大城小爱",
+    "artist": "王力宏",
+    "language": "Mandarin",
+    "era": "2000s",
+    "genre": "甜歌",
+    "moodTags": [
+      "甜蜜",
+      "轻松",
+      "旋律熟"
+    ],
+    "sceneTags": [
+      "friends",
+      "birthday",
+      "carKTV",
+      "couples"
+    ],
+    "difficulty": 2,
+    "vocalRangeLowMidi": 48,
+    "vocalRangeHighMidi": 69,
+    "energy": 0.64,
+    "singAlongScore": 0.86,
+    "ktvAvailability": 0.93,
+    "duetFriendly": true,
+    "rapDensity": 0.04,
+    "highNoteRisk": 0.3,
+    "aliases": [
+      "大城小爱 Live"
+    ],
+    "similarSongIds": [
+      "t081",
+      "t083"
+    ]
+  },
+  {
+    "id": "t083",
+    "title": "爱的就是你",
+    "artist": "王力宏",
+    "language": "Mandarin",
+    "era": "2000s",
+    "genre": "R&B",
+    "moodTags": [
+      "轻松",
+      "甜蜜",
+      "律动"
+    ],
+    "sceneTags": [
+      "friends",
+      "birthday",
+      "couples"
+    ],
+    "difficulty": 3,
+    "vocalRangeLowMidi": 48,
+    "vocalRangeHighMidi": 71,
+    "energy": 0.68,
+    "singAlongScore": 0.8,
+    "ktvAvailability": 0.91,
+    "duetFriendly": true,
+    "rapDensity": 0.18,
+    "highNoteRisk": 0.42,
+    "aliases": [
+      "爱的就是你 Live"
+    ],
+    "similarSongIds": [
+      "t082",
+      "t084"
+    ]
+  },
+  {
+    "id": "t084",
+    "title": "你不知道的事",
+    "artist": "王力宏",
+    "language": "Mandarin",
+    "era": "2010s",
+    "genre": "情歌",
+    "moodTags": [
+      "走心",
+      "旋律熟",
+      "电影感"
+    ],
+    "sceneTags": [
+      "friends",
+      "carKTV",
+      "couples"
+    ],
+    "difficulty": 3,
+    "vocalRangeLowMidi": 47,
+    "vocalRangeHighMidi": 70,
+    "energy": 0.42,
+    "singAlongScore": 0.78,
+    "ktvAvailability": 0.92,
+    "duetFriendly": false,
+    "rapDensity": 0.01,
+    "highNoteRisk": 0.4,
+    "aliases": [
+      "你不知道的事 Live"
+    ],
+    "similarSongIds": [
+      "t083",
+      "t085"
+    ]
+  },
+  {
+    "id": "t085",
+    "title": "年轮",
+    "artist": "张碧晨",
+    "language": "Mandarin",
+    "era": "2010s",
+    "genre": "情歌",
+    "moodTags": [
+      "走心",
+      "高光",
+      "影视"
+    ],
+    "sceneTags": [
+      "friends",
+      "soloPractice"
+    ],
+    "difficulty": 4,
+    "vocalRangeLowMidi": 50,
+    "vocalRangeHighMidi": 74,
+    "energy": 0.48,
+    "singAlongScore": 0.76,
+    "ktvAvailability": 0.91,
+    "duetFriendly": false,
+    "rapDensity": 0.01,
+    "highNoteRisk": 0.68,
+    "aliases": [
+      "年轮 Live"
+    ],
+    "similarSongIds": [
+      "t084",
+      "t086"
+    ]
+  },
+  {
+    "id": "t086",
+    "title": "凉凉",
+    "artist": "张碧晨",
+    "language": "Mandarin",
+    "era": "2010s",
+    "genre": "国风流行",
+    "moodTags": [
+      "国风",
+      "合唱",
+      "影视"
+    ],
+    "sceneTags": [
+      "friends",
+      "birthday",
+      "couples"
+    ],
+    "difficulty": 3,
+    "vocalRangeLowMidi": 49,
+    "vocalRangeHighMidi": 73,
+    "energy": 0.55,
+    "singAlongScore": 0.86,
+    "ktvAvailability": 0.94,
+    "duetFriendly": true,
+    "rapDensity": 0.01,
+    "highNoteRisk": 0.56,
+    "aliases": [
+      "凉凉 Live"
+    ],
+    "similarSongIds": [
+      "t085",
+      "t087"
+    ]
+  },
+  {
+    "id": "t087",
+    "title": "光的方向",
+    "artist": "张碧晨",
+    "language": "Mandarin",
+    "era": "2020s",
+    "genre": "励志流行",
+    "moodTags": [
+      "高光",
+      "励志",
+      "热度"
+    ],
+    "sceneTags": [
+      "friends",
+      "teamBuilding",
+      "soloPractice"
+    ],
+    "difficulty": 4,
+    "vocalRangeLowMidi": 50,
+    "vocalRangeHighMidi": 75,
+    "energy": 0.76,
+    "singAlongScore": 0.78,
+    "ktvAvailability": 0.9,
+    "duetFriendly": false,
+    "rapDensity": 0.02,
+    "highNoteRisk": 0.72,
+    "aliases": [
+      "光的方向 Live"
+    ],
+    "similarSongIds": [
+      "t086",
+      "t088"
+    ]
+  },
+  {
+    "id": "t088",
+    "title": "笼",
+    "artist": "张碧晨",
+    "language": "Mandarin",
+    "era": "2020s",
+    "genre": "情歌",
+    "moodTags": [
+      "走心",
+      "高光",
+      "电影感"
+    ],
+    "sceneTags": [
+      "friends",
+      "soloPractice"
+    ],
+    "difficulty": 4,
+    "vocalRangeLowMidi": 50,
+    "vocalRangeHighMidi": 75,
+    "energy": 0.46,
+    "singAlongScore": 0.72,
+    "ktvAvailability": 0.88,
+    "duetFriendly": false,
+    "rapDensity": 0.01,
+    "highNoteRisk": 0.74,
+    "aliases": [
+      "笼 Live"
+    ],
+    "similarSongIds": [
+      "t087",
+      "t089"
+    ]
+  },
+  {
+    "id": "t089",
+    "title": "大鱼",
+    "artist": "周深",
+    "language": "Mandarin",
+    "era": "2010s",
+    "genre": "华语流行",
+    "moodTags": [
+      "空灵",
+      "高光",
+      "影视"
+    ],
+    "sceneTags": [
+      "friends",
+      "birthday",
+      "soloPractice"
+    ],
+    "difficulty": 4,
+    "vocalRangeLowMidi": 51,
+    "vocalRangeHighMidi": 76,
+    "energy": 0.45,
+    "singAlongScore": 0.78,
+    "ktvAvailability": 0.94,
+    "duetFriendly": false,
+    "rapDensity": 0.01,
+    "highNoteRisk": 0.78,
+    "aliases": [
+      "大鱼 Live"
+    ],
+    "similarSongIds": [
+      "t088",
+      "t090"
+    ]
+  },
+  {
+    "id": "t090",
+    "title": "光亮",
+    "artist": "周深",
+    "language": "Mandarin",
+    "era": "2020s",
+    "genre": "国风流行",
+    "moodTags": [
+      "国风",
+      "高光",
+      "励志"
+    ],
+    "sceneTags": [
+      "friends",
+      "teamBuilding",
+      "soloPractice"
+    ],
+    "difficulty": 5,
+    "vocalRangeLowMidi": 51,
+    "vocalRangeHighMidi": 79,
+    "energy": 0.72,
+    "singAlongScore": 0.76,
+    "ktvAvailability": 0.88,
+    "duetFriendly": false,
+    "rapDensity": 0.02,
+    "highNoteRisk": 0.88,
+    "aliases": [
+      "光亮 Live"
+    ],
+    "similarSongIds": [
+      "t089",
+      "t091"
+    ]
+  },
+  {
+    "id": "t091",
+    "title": "说谎",
+    "artist": "林宥嘉",
+    "language": "Mandarin",
+    "era": "2000s",
+    "genre": "情歌",
+    "moodTags": [
+      "走心",
+      "低落",
+      "旋律熟"
+    ],
+    "sceneTags": [
+      "friends",
+      "carKTV"
+    ],
+    "difficulty": 3,
+    "vocalRangeLowMidi": 46,
+    "vocalRangeHighMidi": 69,
+    "energy": 0.4,
+    "singAlongScore": 0.8,
+    "ktvAvailability": 0.94,
+    "duetFriendly": false,
+    "rapDensity": 0.01,
+    "highNoteRisk": 0.36,
+    "aliases": [
+      "说谎 Live"
+    ],
+    "similarSongIds": [
+      "t090",
+      "t092"
+    ]
+  },
+  {
+    "id": "t092",
+    "title": "兜圈",
+    "artist": "林宥嘉",
+    "language": "Mandarin",
+    "era": "2010s",
+    "genre": "情歌",
+    "moodTags": [
+      "走心",
+      "温柔",
+      "旋律熟"
+    ],
+    "sceneTags": [
+      "friends",
+      "carKTV",
+      "couples"
+    ],
+    "difficulty": 3,
+    "vocalRangeLowMidi": 46,
+    "vocalRangeHighMidi": 69,
+    "energy": 0.42,
+    "singAlongScore": 0.78,
+    "ktvAvailability": 0.9,
+    "duetFriendly": false,
+    "rapDensity": 0.01,
+    "highNoteRisk": 0.36,
+    "aliases": [
+      "兜圈 Live"
+    ],
+    "similarSongIds": [
+      "t091",
+      "t093"
+    ]
+  },
+  {
+    "id": "t093",
+    "title": "成全",
+    "artist": "林宥嘉",
+    "language": "Mandarin",
+    "era": "2010s",
+    "genre": "情歌",
+    "moodTags": [
+      "走心",
+      "遗憾",
+      "高光"
+    ],
+    "sceneTags": [
+      "friends",
+      "soloPractice"
+    ],
+    "difficulty": 4,
+    "vocalRangeLowMidi": 46,
+    "vocalRangeHighMidi": 72,
+    "energy": 0.48,
+    "singAlongScore": 0.78,
+    "ktvAvailability": 0.93,
+    "duetFriendly": false,
+    "rapDensity": 0.01,
+    "highNoteRisk": 0.6,
+    "aliases": [
+      "成全 Live"
+    ],
+    "similarSongIds": [
+      "t092",
+      "t094"
+    ]
+  },
+  {
+    "id": "t094",
+    "title": "残酷月光",
+    "artist": "林宥嘉",
+    "language": "Mandarin",
+    "era": "2000s",
+    "genre": "情歌",
+    "moodTags": [
+      "走心",
+      "温柔",
+      "旋律熟"
+    ],
+    "sceneTags": [
+      "friends",
+      "carKTV"
+    ],
+    "difficulty": 3,
+    "vocalRangeLowMidi": 46,
+    "vocalRangeHighMidi": 69,
+    "energy": 0.42,
+    "singAlongScore": 0.78,
+    "ktvAvailability": 0.92,
+    "duetFriendly": false,
+    "rapDensity": 0.01,
+    "highNoteRisk": 0.36,
+    "aliases": [
+      "残酷月光 Live"
+    ],
+    "similarSongIds": [
+      "t093",
+      "t095"
+    ]
+  },
+  {
+    "id": "t095",
+    "title": "王妃",
+    "artist": "萧敬腾",
+    "language": "Mandarin",
+    "era": "2000s",
+    "genre": "摇滚/乐队",
+    "moodTags": [
+      "高光",
+      "热闹",
+      "舞台感"
+    ],
+    "sceneTags": [
+      "friends",
+      "teamBuilding",
+      "soloPractice"
+    ],
+    "difficulty": 5,
+    "vocalRangeLowMidi": 47,
+    "vocalRangeHighMidi": 75,
+    "energy": 0.88,
+    "singAlongScore": 0.78,
+    "ktvAvailability": 0.93,
+    "duetFriendly": false,
+    "rapDensity": 0.04,
+    "highNoteRisk": 0.82,
+    "aliases": [
+      "王妃 Live"
+    ],
+    "similarSongIds": [
+      "t094",
+      "t096"
+    ]
+  },
+  {
+    "id": "t096",
+    "title": "海芋恋",
+    "artist": "萧敬腾",
+    "language": "Mandarin",
+    "era": "2000s",
+    "genre": "甜歌",
+    "moodTags": [
+      "轻松",
+      "甜蜜",
+      "热闹"
+    ],
+    "sceneTags": [
+      "friends",
+      "birthday",
+      "couples"
+    ],
+    "difficulty": 3,
+    "vocalRangeLowMidi": 48,
+    "vocalRangeHighMidi": 71,
+    "energy": 0.72,
+    "singAlongScore": 0.82,
+    "ktvAvailability": 0.91,
+    "duetFriendly": true,
+    "rapDensity": 0.02,
+    "highNoteRisk": 0.46,
+    "aliases": [
+      "海芋恋 Live"
+    ],
+    "similarSongIds": [
+      "t095",
+      "t097"
+    ]
+  },
+  {
+    "id": "t097",
+    "title": "新不了情",
+    "artist": "萧敬腾",
+    "language": "Mandarin",
+    "era": "2000s",
+    "genre": "情歌",
+    "moodTags": [
+      "经典",
+      "走心",
+      "高光"
+    ],
+    "sceneTags": [
+      "friends",
+      "soloPractice"
+    ],
+    "difficulty": 4,
+    "vocalRangeLowMidi": 47,
+    "vocalRangeHighMidi": 74,
+    "energy": 0.5,
+    "singAlongScore": 0.78,
+    "ktvAvailability": 0.92,
+    "duetFriendly": false,
+    "rapDensity": 0.01,
+    "highNoteRisk": 0.7,
+    "aliases": [
+      "新不了情 Live"
+    ],
+    "similarSongIds": [
+      "t096",
+      "t098"
+    ]
+  },
+  {
+    "id": "t098",
+    "title": "逆战",
+    "artist": "张杰",
+    "language": "Mandarin",
+    "era": "2010s",
+    "genre": "励志流行",
+    "moodTags": [
+      "热血",
+      "高光",
+      "节奏"
+    ],
+    "sceneTags": [
+      "friends",
+      "teamBuilding"
+    ],
+    "difficulty": 5,
+    "vocalRangeLowMidi": 48,
+    "vocalRangeHighMidi": 76,
+    "energy": 0.92,
+    "singAlongScore": 0.82,
+    "ktvAvailability": 0.91,
+    "duetFriendly": false,
+    "rapDensity": 0.08,
+    "highNoteRisk": 0.82,
+    "aliases": [
+      "逆战 Live"
+    ],
+    "similarSongIds": [
+      "t097",
+      "t099"
+    ]
+  },
+  {
+    "id": "t099",
+    "title": "这就是爱",
+    "artist": "张杰",
+    "language": "Mandarin",
+    "era": "2010s",
+    "genre": "情歌",
+    "moodTags": [
+      "高光",
+      "走心",
+      "旋律熟"
+    ],
+    "sceneTags": [
+      "friends",
+      "birthday",
+      "soloPractice"
+    ],
+    "difficulty": 4,
+    "vocalRangeLowMidi": 48,
+    "vocalRangeHighMidi": 75,
+    "energy": 0.58,
+    "singAlongScore": 0.8,
+    "ktvAvailability": 0.92,
+    "duetFriendly": false,
+    "rapDensity": 0.02,
+    "highNoteRisk": 0.76,
+    "aliases": [
+      "这就是爱 Live"
+    ],
+    "similarSongIds": [
+      "t098",
+      "t100"
+    ]
+  },
+  {
+    "id": "t100",
+    "title": "天下",
+    "artist": "张杰",
+    "language": "Mandarin",
+    "era": "2000s",
+    "genre": "国风流行",
+    "moodTags": [
+      "国风",
+      "高光",
+      "热血"
+    ],
+    "sceneTags": [
+      "friends",
+      "teamBuilding",
+      "soloPractice"
+    ],
+    "difficulty": 5,
+    "vocalRangeLowMidi": 48,
+    "vocalRangeHighMidi": 76,
+    "energy": 0.84,
+    "singAlongScore": 0.78,
+    "ktvAvailability": 0.9,
+    "duetFriendly": false,
+    "rapDensity": 0.03,
+    "highNoteRisk": 0.82,
+    "aliases": [
+      "天下 Live"
+    ],
+    "similarSongIds": [
+      "t099",
+      "t101"
+    ]
+  },
+  {
+    "id": "t101",
+    "title": "飞得更高",
+    "artist": "汪峰",
+    "language": "Mandarin",
+    "era": "2000s",
+    "genre": "摇滚/乐队",
+    "moodTags": [
+      "励志",
+      "合唱",
+      "热血"
+    ],
+    "sceneTags": [
+      "friends",
+      "teamBuilding"
+    ],
+    "difficulty": 3,
+    "vocalRangeLowMidi": 45,
+    "vocalRangeHighMidi": 70,
+    "energy": 0.84,
+    "singAlongScore": 0.9,
+    "ktvAvailability": 0.95,
+    "duetFriendly": false,
+    "rapDensity": 0.02,
+    "highNoteRisk": 0.42,
+    "aliases": [
+      "飞得更高 Live"
+    ],
+    "similarSongIds": [
+      "t100",
+      "t102"
+    ]
+  },
+  {
+    "id": "t102",
+    "title": "春天里",
+    "artist": "汪峰",
+    "language": "Mandarin",
+    "era": "2010s",
+    "genre": "摇滚/乐队",
+    "moodTags": [
+      "怀旧",
+      "走心",
+      "合唱"
+    ],
+    "sceneTags": [
+      "friends",
+      "teamBuilding",
+      "carKTV"
+    ],
+    "difficulty": 3,
+    "vocalRangeLowMidi": 45,
+    "vocalRangeHighMidi": 70,
+    "energy": 0.62,
+    "singAlongScore": 0.86,
+    "ktvAvailability": 0.94,
+    "duetFriendly": false,
+    "rapDensity": 0.02,
+    "highNoteRisk": 0.4,
+    "aliases": [
+      "春天里 Live"
+    ],
+    "similarSongIds": [
+      "t101",
+      "t103"
+    ]
+  },
+  {
+    "id": "t103",
+    "title": "存在",
+    "artist": "汪峰",
+    "language": "Mandarin",
+    "era": "2010s",
+    "genre": "摇滚/乐队",
+    "moodTags": [
+      "走心",
+      "高光",
+      "热血"
+    ],
+    "sceneTags": [
+      "friends",
+      "soloPractice"
+    ],
+    "difficulty": 4,
+    "vocalRangeLowMidi": 45,
+    "vocalRangeHighMidi": 72,
+    "energy": 0.66,
+    "singAlongScore": 0.8,
+    "ktvAvailability": 0.92,
+    "duetFriendly": false,
+    "rapDensity": 0.02,
+    "highNoteRisk": 0.58,
+    "aliases": [
+      "存在 Live"
+    ],
+    "similarSongIds": [
+      "t102",
+      "t104"
+    ]
+  },
+  {
+    "id": "t104",
+    "title": "曾经的你",
+    "artist": "许巍",
+    "language": "Mandarin",
+    "era": "2000s",
+    "genre": "摇滚/乐队",
+    "moodTags": [
+      "公路",
+      "怀旧",
+      "合唱"
+    ],
+    "sceneTags": [
+      "friends",
+      "teamBuilding",
+      "carKTV"
+    ],
+    "difficulty": 2,
+    "vocalRangeLowMidi": 44,
+    "vocalRangeHighMidi": 67,
+    "energy": 0.66,
+    "singAlongScore": 0.88,
+    "ktvAvailability": 0.96,
+    "duetFriendly": false,
+    "rapDensity": 0.01,
+    "highNoteRisk": 0.22,
+    "aliases": [
+      "曾经的你 Live"
+    ],
+    "similarSongIds": [
+      "t103",
+      "t105"
+    ]
+  },
+  {
+    "id": "t105",
+    "title": "蓝莲花",
+    "artist": "许巍",
+    "language": "Mandarin",
+    "era": "2000s",
+    "genre": "摇滚/乐队",
+    "moodTags": [
+      "公路",
+      "轻松",
+      "合唱"
+    ],
+    "sceneTags": [
+      "friends",
+      "teamBuilding",
+      "carKTV"
+    ],
+    "difficulty": 2,
+    "vocalRangeLowMidi": 44,
+    "vocalRangeHighMidi": 67,
+    "energy": 0.62,
+    "singAlongScore": 0.88,
+    "ktvAvailability": 0.96,
+    "duetFriendly": false,
+    "rapDensity": 0.01,
+    "highNoteRisk": 0.22,
+    "aliases": [
+      "蓝莲花 Live"
+    ],
+    "similarSongIds": [
+      "t104",
+      "t106"
+    ]
+  },
+  {
+    "id": "t106",
+    "title": "旅行",
+    "artist": "许巍",
+    "language": "Mandarin",
+    "era": "2000s",
+    "genre": "民谣流行",
+    "moodTags": [
+      "公路",
+      "轻松",
+      "怀旧"
+    ],
+    "sceneTags": [
+      "friends",
+      "carKTV"
+    ],
+    "difficulty": 2,
+    "vocalRangeLowMidi": 44,
+    "vocalRangeHighMidi": 66,
+    "energy": 0.48,
+    "singAlongScore": 0.82,
+    "ktvAvailability": 0.92,
+    "duetFriendly": false,
+    "rapDensity": 0.01,
+    "highNoteRisk": 0.18,
+    "aliases": [
+      "旅行 Live"
+    ],
+    "similarSongIds": [
+      "t105",
+      "t107"
+    ]
+  },
+  {
+    "id": "t107",
+    "title": "突然的自我",
+    "artist": "伍佰",
+    "language": "Mandarin",
+    "era": "2000s",
+    "genre": "摇滚/乐队",
+    "moodTags": [
+      "热闹",
+      "合唱",
+      "KTV经典"
+    ],
+    "sceneTags": [
+      "friends",
+      "teamBuilding",
+      "carKTV"
+    ],
+    "difficulty": 2,
+    "vocalRangeLowMidi": 44,
+    "vocalRangeHighMidi": 67,
+    "energy": 0.78,
+    "singAlongScore": 0.92,
+    "ktvAvailability": 0.97,
+    "duetFriendly": false,
+    "rapDensity": 0.02,
+    "highNoteRisk": 0.24,
+    "aliases": [
+      "突然的自我 Live"
+    ],
+    "similarSongIds": [
+      "t106",
+      "t108"
+    ]
+  },
+  {
+    "id": "t108",
+    "title": "挪威的森林",
+    "artist": "伍佰",
+    "language": "Mandarin",
+    "era": "1990s",
+    "genre": "摇滚/乐队",
+    "moodTags": [
+      "怀旧",
+      "经典",
+      "走心"
+    ],
+    "sceneTags": [
+      "friends",
+      "carKTV"
+    ],
+    "difficulty": 3,
+    "vocalRangeLowMidi": 44,
+    "vocalRangeHighMidi": 68,
+    "energy": 0.52,
+    "singAlongScore": 0.84,
+    "ktvAvailability": 0.94,
+    "duetFriendly": false,
+    "rapDensity": 0.02,
+    "highNoteRisk": 0.3,
+    "aliases": [
+      "挪威的森林 Live"
+    ],
+    "similarSongIds": [
+      "t107",
+      "t109"
+    ]
+  },
+  {
+    "id": "t109",
+    "title": "追",
+    "artist": "张国荣",
+    "language": "Cantonese",
+    "era": "1990s",
+    "genre": "粤语经典",
+    "moodTags": [
+      "怀旧",
+      "经典",
+      "走心"
+    ],
+    "sceneTags": [
+      "friends",
+      "carKTV"
+    ],
+    "difficulty": 3,
+    "vocalRangeLowMidi": 45,
+    "vocalRangeHighMidi": 69,
+    "energy": 0.44,
+    "singAlongScore": 0.82,
+    "ktvAvailability": 0.94,
+    "duetFriendly": false,
+    "rapDensity": 0.01,
+    "highNoteRisk": 0.34,
+    "aliases": [
+      "追 Live"
+    ],
+    "similarSongIds": [
+      "t108",
+      "t110"
+    ]
+  },
+  {
+    "id": "t110",
+    "title": "当年情",
+    "artist": "张国荣",
+    "language": "Cantonese",
+    "era": "1980s",
+    "genre": "粤语经典",
+    "moodTags": [
+      "怀旧",
+      "经典",
+      "合唱"
+    ],
+    "sceneTags": [
+      "friends",
+      "teamBuilding",
+      "carKTV"
+    ],
+    "difficulty": 2,
+    "vocalRangeLowMidi": 45,
+    "vocalRangeHighMidi": 68,
+    "energy": 0.52,
+    "singAlongScore": 0.88,
+    "ktvAvailability": 0.95,
+    "duetFriendly": false,
+    "rapDensity": 0.01,
+    "highNoteRisk": 0.26,
+    "aliases": [
+      "当年情 Live"
+    ],
+    "similarSongIds": [
+      "t109",
+      "t111"
+    ]
+  },
+  {
+    "id": "t111",
+    "title": "左右手",
+    "artist": "张国荣",
+    "language": "Cantonese",
+    "era": "1990s",
+    "genre": "粤语经典",
+    "moodTags": [
+      "走心",
+      "高光",
+      "经典"
+    ],
+    "sceneTags": [
+      "friends",
+      "soloPractice"
+    ],
+    "difficulty": 4,
+    "vocalRangeLowMidi": 45,
+    "vocalRangeHighMidi": 72,
+    "energy": 0.46,
+    "singAlongScore": 0.76,
+    "ktvAvailability": 0.91,
+    "duetFriendly": false,
+    "rapDensity": 0.01,
+    "highNoteRisk": 0.62,
+    "aliases": [
+      "左右手 Live"
+    ],
+    "similarSongIds": [
+      "t110",
+      "t112"
+    ]
+  },
+  {
+    "id": "t112",
+    "title": "倩女幽魂",
+    "artist": "张国荣",
+    "language": "Cantonese",
+    "era": "1980s",
+    "genre": "粤语经典",
+    "moodTags": [
+      "影视",
+      "怀旧",
+      "经典"
+    ],
+    "sceneTags": [
+      "friends",
+      "carKTV"
+    ],
+    "difficulty": 3,
+    "vocalRangeLowMidi": 45,
+    "vocalRangeHighMidi": 69,
+    "energy": 0.48,
+    "singAlongScore": 0.82,
+    "ktvAvailability": 0.93,
+    "duetFriendly": false,
+    "rapDensity": 0.01,
+    "highNoteRisk": 0.34,
+    "aliases": [
+      "倩女幽魂 Live"
+    ],
+    "similarSongIds": [
+      "t111",
+      "t113"
+    ]
+  },
+  {
+    "id": "t113",
+    "title": "亲密爱人",
+    "artist": "梅艳芳",
+    "language": "Mandarin",
+    "era": "1990s",
+    "genre": "情歌",
+    "moodTags": [
+      "温暖",
+      "经典",
+      "走心"
+    ],
+    "sceneTags": [
+      "birthday",
+      "friends",
+      "couples",
+      "carKTV"
+    ],
+    "difficulty": 2,
+    "vocalRangeLowMidi": 49,
+    "vocalRangeHighMidi": 68,
+    "energy": 0.42,
+    "singAlongScore": 0.84,
+    "ktvAvailability": 0.92,
+    "duetFriendly": true,
+    "rapDensity": 0.01,
+    "highNoteRisk": 0.22,
+    "aliases": [
+      "亲密爱人 Live"
+    ],
+    "similarSongIds": [
+      "t112",
+      "t114"
+    ]
+  },
+  {
+    "id": "t114",
+    "title": "夕阳之歌",
+    "artist": "梅艳芳",
+    "language": "Cantonese",
+    "era": "1980s",
+    "genre": "粤语经典",
+    "moodTags": [
+      "怀旧",
+      "高光",
+      "经典"
+    ],
+    "sceneTags": [
+      "friends",
+      "soloPractice"
+    ],
+    "difficulty": 4,
+    "vocalRangeLowMidi": 49,
+    "vocalRangeHighMidi": 73,
+    "energy": 0.56,
+    "singAlongScore": 0.78,
+    "ktvAvailability": 0.91,
+    "duetFriendly": false,
+    "rapDensity": 0.01,
+    "highNoteRisk": 0.64,
+    "aliases": [
+      "夕阳之歌 Live"
+    ],
+    "similarSongIds": [
+      "t113",
+      "t115"
+    ]
+  },
+  {
+    "id": "t115",
+    "title": "偏偏喜欢你",
+    "artist": "陈百强",
+    "language": "Cantonese",
+    "era": "1980s",
+    "genre": "粤语经典",
+    "moodTags": [
+      "怀旧",
+      "温柔",
+      "经典"
+    ],
+    "sceneTags": [
+      "friends",
+      "carKTV",
+      "couples"
+    ],
+    "difficulty": 2,
+    "vocalRangeLowMidi": 45,
+    "vocalRangeHighMidi": 67,
+    "energy": 0.38,
+    "singAlongScore": 0.84,
+    "ktvAvailability": 0.94,
+    "duetFriendly": false,
+    "rapDensity": 0.01,
+    "highNoteRisk": 0.2,
+    "aliases": [
+      "偏偏喜欢你 Live"
+    ],
+    "similarSongIds": [
+      "t114",
+      "t116"
+    ]
+  },
+  {
+    "id": "t116",
+    "title": "一生何求",
+    "artist": "陈百强",
+    "language": "Cantonese",
+    "era": "1980s",
+    "genre": "粤语经典",
+    "moodTags": [
+      "怀旧",
+      "经典",
+      "走心"
+    ],
+    "sceneTags": [
+      "friends",
+      "carKTV"
+    ],
+    "difficulty": 3,
+    "vocalRangeLowMidi": 45,
+    "vocalRangeHighMidi": 68,
+    "energy": 0.42,
+    "singAlongScore": 0.84,
+    "ktvAvailability": 0.94,
+    "duetFriendly": false,
+    "rapDensity": 0.01,
+    "highNoteRisk": 0.28,
+    "aliases": [
+      "一生何求 Live"
+    ],
+    "similarSongIds": [
+      "t115",
+      "t117"
+    ]
+  },
+  {
+    "id": "t117",
+    "title": "朋友",
+    "artist": "谭咏麟",
+    "language": "Cantonese",
+    "era": "1980s",
+    "genre": "粤语经典",
+    "moodTags": [
+      "友情",
+      "合唱",
+      "经典"
+    ],
+    "sceneTags": [
+      "friends",
+      "teamBuilding"
+    ],
+    "difficulty": 2,
+    "vocalRangeLowMidi": 45,
+    "vocalRangeHighMidi": 68,
+    "energy": 0.66,
+    "singAlongScore": 0.92,
+    "ktvAvailability": 0.95,
+    "duetFriendly": false,
+    "rapDensity": 0.01,
+    "highNoteRisk": 0.24,
+    "aliases": [
+      "朋友 Live"
+    ],
+    "similarSongIds": [
+      "t116",
+      "t118"
+    ]
+  },
+  {
+    "id": "t118",
+    "title": "讲不出再见",
+    "artist": "谭咏麟",
+    "language": "Cantonese",
+    "era": "1990s",
+    "genre": "粤语经典",
+    "moodTags": [
+      "怀旧",
+      "合唱",
+      "经典"
+    ],
+    "sceneTags": [
+      "friends",
+      "teamBuilding",
+      "carKTV"
+    ],
+    "difficulty": 3,
+    "vocalRangeLowMidi": 45,
+    "vocalRangeHighMidi": 70,
+    "energy": 0.58,
+    "singAlongScore": 0.9,
+    "ktvAvailability": 0.94,
+    "duetFriendly": false,
+    "rapDensity": 0.01,
+    "highNoteRisk": 0.38,
+    "aliases": [
+      "讲不出再见 Live"
+    ],
+    "similarSongIds": [
+      "t117",
+      "t119"
+    ]
+  },
+  {
+    "id": "t119",
+    "title": "喜欢你",
+    "artist": "Beyond",
+    "language": "Cantonese",
+    "era": "1980s",
+    "genre": "摇滚/乐队",
+    "moodTags": [
+      "怀旧",
+      "经典",
+      "合唱"
+    ],
+    "sceneTags": [
+      "friends",
+      "teamBuilding",
+      "carKTV"
+    ],
+    "difficulty": 3,
+    "vocalRangeLowMidi": 46,
+    "vocalRangeHighMidi": 70,
+    "energy": 0.72,
+    "singAlongScore": 0.91,
+    "ktvAvailability": 0.96,
+    "duetFriendly": false,
+    "rapDensity": 0.01,
+    "highNoteRisk": 0.4,
+    "aliases": [
+      "喜欢你 Live"
+    ],
+    "similarSongIds": [
+      "t118",
+      "t120"
+    ]
+  },
+  {
+    "id": "t120",
+    "title": "灰色轨迹",
+    "artist": "Beyond",
+    "language": "Cantonese",
+    "era": "1990s",
+    "genre": "摇滚/乐队",
+    "moodTags": [
+      "怀旧",
+      "走心",
+      "经典"
+    ],
+    "sceneTags": [
+      "friends",
+      "carKTV"
+    ],
+    "difficulty": 3,
+    "vocalRangeLowMidi": 46,
+    "vocalRangeHighMidi": 70,
+    "energy": 0.55,
+    "singAlongScore": 0.84,
+    "ktvAvailability": 0.93,
+    "duetFriendly": false,
+    "rapDensity": 0.01,
+    "highNoteRisk": 0.4,
+    "aliases": [
+      "灰色轨迹 Live"
+    ],
+    "similarSongIds": [
+      "t119",
+      "t121"
+    ]
+  },
+  {
+    "id": "t121",
+    "title": "挥着翅膀的女孩",
+    "artist": "容祖儿",
+    "language": "Mandarin",
+    "era": "2000s",
+    "genre": "华语流行",
+    "moodTags": [
+      "温暖",
+      "励志",
+      "旋律熟"
+    ],
+    "sceneTags": [
+      "friends",
+      "birthday",
+      "teamBuilding",
+      "carKTV"
+    ],
+    "difficulty": 3,
+    "vocalRangeLowMidi": 50,
+    "vocalRangeHighMidi": 72,
+    "energy": 0.62,
+    "singAlongScore": 0.86,
+    "ktvAvailability": 0.94,
+    "duetFriendly": false,
+    "rapDensity": 0.01,
+    "highNoteRisk": 0.48,
+    "aliases": [
+      "挥着翅膀的女孩 Live"
+    ],
+    "similarSongIds": [
+      "t120",
+      "t122"
+    ]
+  },
+  {
+    "id": "t122",
+    "title": "我的骄傲",
+    "artist": "容祖儿",
+    "language": "Cantonese",
+    "era": "2000s",
+    "genre": "粤语流行",
+    "moodTags": [
+      "励志",
+      "高光",
+      "经典"
+    ],
+    "sceneTags": [
+      "friends",
+      "teamBuilding",
+      "soloPractice"
+    ],
+    "difficulty": 4,
+    "vocalRangeLowMidi": 50,
+    "vocalRangeHighMidi": 74,
+    "energy": 0.76,
+    "singAlongScore": 0.82,
+    "ktvAvailability": 0.92,
+    "duetFriendly": false,
+    "rapDensity": 0.01,
+    "highNoteRisk": 0.68,
+    "aliases": [
+      "我的骄傲 Live"
+    ],
+    "similarSongIds": [
+      "t121",
+      "t123"
+    ]
+  },
+  {
+    "id": "t123",
+    "title": "下一站天后",
+    "artist": "Twins",
+    "language": "Cantonese",
+    "era": "2000s",
+    "genre": "粤语流行",
+    "moodTags": [
+      "青春",
+      "合唱",
+      "轻松"
+    ],
+    "sceneTags": [
+      "friends",
+      "birthday",
+      "teamBuilding"
+    ],
+    "difficulty": 2,
+    "vocalRangeLowMidi": 50,
+    "vocalRangeHighMidi": 70,
+    "energy": 0.68,
+    "singAlongScore": 0.88,
+    "ktvAvailability": 0.92,
+    "duetFriendly": true,
+    "rapDensity": 0.02,
+    "highNoteRisk": 0.32,
+    "aliases": [
+      "下一站天后 Live"
+    ],
+    "similarSongIds": [
+      "t122",
+      "t124"
+    ]
+  },
+  {
+    "id": "t124",
+    "title": "爱与诚",
+    "artist": "古巨基",
+    "language": "Cantonese",
+    "era": "2000s",
+    "genre": "粤语流行",
+    "moodTags": [
+      "走心",
+      "KTV经典",
+      "旋律熟"
+    ],
+    "sceneTags": [
+      "friends",
+      "carKTV"
+    ],
+    "difficulty": 3,
+    "vocalRangeLowMidi": 46,
+    "vocalRangeHighMidi": 70,
+    "energy": 0.46,
+    "singAlongScore": 0.82,
+    "ktvAvailability": 0.94,
+    "duetFriendly": false,
+    "rapDensity": 0.01,
+    "highNoteRisk": 0.4,
+    "aliases": [
+      "爱与诚 Live"
+    ],
+    "similarSongIds": [
+      "t123",
+      "t125"
+    ]
+  },
+  {
+    "id": "t125",
+    "title": "可惜我是水瓶座",
+    "artist": "杨千嬅",
+    "language": "Cantonese",
+    "era": "2000s",
+    "genre": "粤语流行",
+    "moodTags": [
+      "走心",
+      "高光",
+      "KTV经典"
+    ],
+    "sceneTags": [
+      "friends",
+      "soloPractice"
+    ],
+    "difficulty": 4,
+    "vocalRangeLowMidi": 50,
+    "vocalRangeHighMidi": 73,
+    "energy": 0.48,
+    "singAlongScore": 0.78,
+    "ktvAvailability": 0.92,
+    "duetFriendly": false,
+    "rapDensity": 0.01,
+    "highNoteRisk": 0.62,
+    "aliases": [
+      "可惜我是水瓶座 Live"
+    ],
+    "similarSongIds": [
+      "t124",
+      "t126"
+    ]
+  },
+  {
+    "id": "t126",
+    "title": "断点",
+    "artist": "张敬轩",
+    "language": "Mandarin",
+    "era": "2000s",
+    "genre": "情歌",
+    "moodTags": [
+      "走心",
+      "旋律熟",
+      "KTV经典"
+    ],
+    "sceneTags": [
+      "friends",
+      "carKTV"
+    ],
+    "difficulty": 3,
+    "vocalRangeLowMidi": 46,
+    "vocalRangeHighMidi": 70,
+    "energy": 0.42,
+    "singAlongScore": 0.82,
+    "ktvAvailability": 0.94,
+    "duetFriendly": false,
+    "rapDensity": 0.01,
+    "highNoteRisk": 0.4,
+    "aliases": [
+      "断点 Live"
+    ],
+    "similarSongIds": [
+      "t125",
+      "t127"
+    ]
+  },
+  {
+    "id": "t127",
+    "title": "酷爱",
+    "artist": "张敬轩",
+    "language": "Cantonese",
+    "era": "2000s",
+    "genre": "粤语流行",
+    "moodTags": [
+      "高光",
+      "走心",
+      "KTV经典"
+    ],
+    "sceneTags": [
+      "friends",
+      "soloPractice"
+    ],
+    "difficulty": 4,
+    "vocalRangeLowMidi": 46,
+    "vocalRangeHighMidi": 73,
+    "energy": 0.58,
+    "singAlongScore": 0.78,
+    "ktvAvailability": 0.91,
+    "duetFriendly": false,
+    "rapDensity": 0.01,
+    "highNoteRisk": 0.66,
+    "aliases": [
+      "酷爱 Live"
+    ],
+    "similarSongIds": [
+      "t126",
+      "t128"
+    ]
+  },
+  {
+    "id": "t128",
+    "title": "兄弟",
+    "artist": "任贤齐",
+    "language": "Mandarin",
+    "era": "2000s",
+    "genre": "华语流行",
+    "moodTags": [
+      "友情",
+      "合唱",
+      "热血"
+    ],
+    "sceneTags": [
+      "friends",
+      "teamBuilding"
+    ],
+    "difficulty": 2,
+    "vocalRangeLowMidi": 45,
+    "vocalRangeHighMidi": 67,
+    "energy": 0.74,
+    "singAlongScore": 0.9,
+    "ktvAvailability": 0.93,
+    "duetFriendly": false,
+    "rapDensity": 0.01,
+    "highNoteRisk": 0.22,
+    "aliases": [
+      "兄弟 Live"
+    ],
+    "similarSongIds": [
+      "t127",
+      "t129"
+    ]
+  },
+  {
+    "id": "t129",
+    "title": "心太软",
+    "artist": "任贤齐",
+    "language": "Mandarin",
+    "era": "1990s",
+    "genre": "华语流行",
+    "moodTags": [
+      "怀旧",
+      "合唱",
+      "经典"
+    ],
+    "sceneTags": [
+      "friends",
+      "teamBuilding",
+      "carKTV"
+    ],
+    "difficulty": 2,
+    "vocalRangeLowMidi": 45,
+    "vocalRangeHighMidi": 67,
+    "energy": 0.6,
+    "singAlongScore": 0.91,
+    "ktvAvailability": 0.97,
+    "duetFriendly": false,
+    "rapDensity": 0.01,
+    "highNoteRisk": 0.22,
+    "aliases": [
+      "心太软 Live"
+    ],
+    "similarSongIds": [
+      "t128",
+      "t130"
+    ]
+  },
+  {
+    "id": "t130",
+    "title": "对面的女孩看过来",
+    "artist": "任贤齐",
+    "language": "Mandarin",
+    "era": "1990s",
+    "genre": "华语流行",
+    "moodTags": [
+      "热闹",
+      "轻松",
+      "合唱"
+    ],
+    "sceneTags": [
+      "friends",
+      "birthday",
+      "teamBuilding"
+    ],
+    "difficulty": 1,
+    "vocalRangeLowMidi": 45,
+    "vocalRangeHighMidi": 66,
+    "energy": 0.84,
+    "singAlongScore": 0.92,
+    "ktvAvailability": 0.95,
+    "duetFriendly": true,
+    "rapDensity": 0.02,
+    "highNoteRisk": 0.14,
+    "aliases": [
+      "对面的女孩看过来 Live"
+    ],
+    "similarSongIds": [
+      "t129",
+      "t131"
+    ]
+  },
+  {
+    "id": "t131",
+    "title": "朋友",
+    "artist": "周华健",
+    "language": "Mandarin",
+    "era": "1990s",
+    "genre": "华语流行",
+    "moodTags": [
+      "友情",
+      "合唱",
+      "经典"
+    ],
+    "sceneTags": [
+      "friends",
+      "teamBuilding",
+      "birthday"
+    ],
+    "difficulty": 2,
+    "vocalRangeLowMidi": 45,
+    "vocalRangeHighMidi": 67,
+    "energy": 0.66,
+    "singAlongScore": 0.94,
+    "ktvAvailability": 0.98,
+    "duetFriendly": false,
+    "rapDensity": 0.01,
+    "highNoteRisk": 0.22,
+    "aliases": [
+      "朋友 Live"
+    ],
+    "similarSongIds": [
+      "t130",
+      "t132"
+    ]
+  },
+  {
+    "id": "t132",
+    "title": "花心",
+    "artist": "周华健",
+    "language": "Mandarin",
+    "era": "1990s",
+    "genre": "华语流行",
+    "moodTags": [
+      "怀旧",
+      "轻松",
+      "经典"
+    ],
+    "sceneTags": [
+      "friends",
+      "carKTV"
+    ],
+    "difficulty": 2,
+    "vocalRangeLowMidi": 45,
+    "vocalRangeHighMidi": 67,
+    "energy": 0.58,
+    "singAlongScore": 0.86,
+    "ktvAvailability": 0.95,
+    "duetFriendly": false,
+    "rapDensity": 0.01,
+    "highNoteRisk": 0.22,
+    "aliases": [
+      "花心 Live"
+    ],
+    "similarSongIds": [
+      "t131",
+      "t133"
+    ]
+  },
+  {
+    "id": "t133",
+    "title": "让我欢喜让我忧",
+    "artist": "周华健",
+    "language": "Mandarin",
+    "era": "1990s",
+    "genre": "情歌",
+    "moodTags": [
+      "怀旧",
+      "经典",
+      "走心"
+    ],
+    "sceneTags": [
+      "friends",
+      "carKTV"
+    ],
+    "difficulty": 3,
+    "vocalRangeLowMidi": 45,
+    "vocalRangeHighMidi": 68,
+    "energy": 0.48,
+    "singAlongScore": 0.86,
+    "ktvAvailability": 0.95,
+    "duetFriendly": false,
+    "rapDensity": 0.01,
+    "highNoteRisk": 0.28,
+    "aliases": [
+      "让我欢喜让我忧 Live"
+    ],
+    "similarSongIds": [
+      "t132",
+      "t134"
+    ]
+  },
+  {
+    "id": "t134",
+    "title": "New Boy",
+    "artist": "朴树",
+    "language": "Mandarin",
+    "era": "1990s",
+    "genre": "摇滚/乐队",
+    "moodTags": [
+      "青春",
+      "热闹",
+      "复古"
+    ],
+    "sceneTags": [
+      "friends",
+      "teamBuilding",
+      "carKTV"
+    ],
+    "difficulty": 2,
+    "vocalRangeLowMidi": 44,
+    "vocalRangeHighMidi": 66,
+    "energy": 0.78,
+    "singAlongScore": 0.86,
+    "ktvAvailability": 0.92,
+    "duetFriendly": false,
+    "rapDensity": 0.02,
+    "highNoteRisk": 0.18,
+    "aliases": [
+      "New Boy Live",
+      "NewBoy"
+    ],
+    "similarSongIds": [
+      "t133",
+      "t135"
+    ]
+  },
+  {
+    "id": "t135",
+    "title": "派对动物",
+    "artist": "五月天",
+    "language": "Mandarin",
+    "era": "2010s",
+    "genre": "摇滚/乐队",
+    "moodTags": [
+      "热闹",
+      "合唱",
+      "节奏"
+    ],
+    "sceneTags": [
+      "friends",
+      "teamBuilding",
+      "birthday"
+    ],
+    "difficulty": 3,
+    "vocalRangeLowMidi": 49,
+    "vocalRangeHighMidi": 72,
+    "energy": 0.92,
+    "singAlongScore": 0.9,
+    "ktvAvailability": 0.93,
+    "duetFriendly": false,
+    "rapDensity": 0.03,
+    "highNoteRisk": 0.52,
+    "aliases": [
+      "派对动物 Live"
+    ],
+    "similarSongIds": [
+      "t134",
+      "t136"
+    ]
+  },
+  {
+    "id": "t136",
+    "title": "离开地球表面",
+    "artist": "五月天",
+    "language": "Mandarin",
+    "era": "2000s",
+    "genre": "摇滚/乐队",
+    "moodTags": [
+      "热闹",
+      "合唱",
+      "热血"
+    ],
+    "sceneTags": [
+      "friends",
+      "teamBuilding"
+    ],
+    "difficulty": 3,
+    "vocalRangeLowMidi": 49,
+    "vocalRangeHighMidi": 72,
+    "energy": 0.94,
+    "singAlongScore": 0.91,
+    "ktvAvailability": 0.94,
+    "duetFriendly": false,
+    "rapDensity": 0.03,
+    "highNoteRisk": 0.52,
+    "aliases": [
+      "离开地球表面 Live"
+    ],
+    "similarSongIds": [
+      "t135",
+      "t137"
+    ]
+  },
+  {
+    "id": "t137",
+    "title": "最炫民族风",
+    "artist": "凤凰传奇",
+    "language": "Mandarin",
+    "era": "2010s",
+    "genre": "舞曲流行",
+    "moodTags": [
+      "热闹",
+      "合唱",
+      "广场感"
+    ],
+    "sceneTags": [
+      "friends",
+      "teamBuilding",
+      "birthday"
+    ],
+    "difficulty": 1,
+    "vocalRangeLowMidi": 47,
+    "vocalRangeHighMidi": 67,
+    "energy": 0.96,
+    "singAlongScore": 0.94,
+    "ktvAvailability": 0.95,
+    "duetFriendly": true,
+    "rapDensity": 0.06,
+    "highNoteRisk": 0.16,
+    "aliases": [
+      "最炫民族风 Live"
+    ],
+    "similarSongIds": [
+      "t136",
+      "t138"
+    ]
+  },
+  {
+    "id": "t138",
+    "title": "月亮之上",
+    "artist": "凤凰传奇",
+    "language": "Mandarin",
+    "era": "2000s",
+    "genre": "舞曲流行",
+    "moodTags": [
+      "热闹",
+      "合唱",
+      "经典"
+    ],
+    "sceneTags": [
+      "friends",
+      "teamBuilding",
+      "birthday"
+    ],
+    "difficulty": 2,
+    "vocalRangeLowMidi": 47,
+    "vocalRangeHighMidi": 68,
+    "energy": 0.9,
+    "singAlongScore": 0.92,
+    "ktvAvailability": 0.94,
+    "duetFriendly": true,
+    "rapDensity": 0.06,
+    "highNoteRisk": 0.2,
+    "aliases": [
+      "月亮之上 Live"
+    ],
+    "similarSongIds": [
+      "t137",
+      "t139"
+    ]
+  },
+  {
+    "id": "t139",
+    "title": "荷塘月色",
+    "artist": "凤凰传奇",
+    "language": "Mandarin",
+    "era": "2010s",
+    "genre": "舞曲流行",
+    "moodTags": [
+      "轻松",
+      "合唱",
+      "旋律熟"
+    ],
+    "sceneTags": [
+      "friends",
+      "teamBuilding",
+      "carKTV"
+    ],
+    "difficulty": 1,
+    "vocalRangeLowMidi": 47,
+    "vocalRangeHighMidi": 67,
+    "energy": 0.72,
+    "singAlongScore": 0.9,
+    "ktvAvailability": 0.93,
+    "duetFriendly": true,
+    "rapDensity": 0.04,
+    "highNoteRisk": 0.16,
+    "aliases": [
+      "荷塘月色 Live"
+    ],
+    "similarSongIds": [
+      "t138",
+      "t140"
+    ]
+  },
+  {
+    "id": "t140",
+    "title": "小苹果",
+    "artist": "筷子兄弟",
+    "language": "Mandarin",
+    "era": "2010s",
+    "genre": "舞曲流行",
+    "moodTags": [
+      "热闹",
+      "合唱",
+      "洗脑"
+    ],
+    "sceneTags": [
+      "friends",
+      "teamBuilding",
+      "birthday"
+    ],
+    "difficulty": 1,
+    "vocalRangeLowMidi": 46,
+    "vocalRangeHighMidi": 66,
+    "energy": 0.95,
+    "singAlongScore": 0.93,
+    "ktvAvailability": 0.93,
+    "duetFriendly": true,
+    "rapDensity": 0.04,
+    "highNoteRisk": 0.14,
+    "aliases": [
+      "小苹果 Live"
+    ],
+    "similarSongIds": [
+      "t139",
+      "t141"
+    ]
+  },
+  {
+    "id": "t141",
+    "title": "父亲",
+    "artist": "筷子兄弟",
+    "language": "Mandarin",
+    "era": "2010s",
+    "genre": "情歌",
+    "moodTags": [
+      "走心",
+      "温暖",
+      "合唱"
+    ],
+    "sceneTags": [
+      "friends",
+      "birthday",
+      "carKTV"
+    ],
+    "difficulty": 2,
+    "vocalRangeLowMidi": 45,
+    "vocalRangeHighMidi": 67,
+    "energy": 0.42,
+    "singAlongScore": 0.86,
+    "ktvAvailability": 0.92,
+    "duetFriendly": false,
+    "rapDensity": 0.01,
+    "highNoteRisk": 0.22,
+    "aliases": [
+      "父亲 Live"
+    ],
+    "similarSongIds": [
+      "t140",
+      "t142"
+    ]
+  },
+  {
+    "id": "t142",
+    "title": "祝我生日快乐",
+    "artist": "温岚",
+    "language": "Mandarin",
+    "era": "2000s",
+    "genre": "情歌",
+    "moodTags": [
+      "生日",
+      "温暖",
+      "走心"
+    ],
+    "sceneTags": [
+      "birthday",
+      "friends",
+      "couples"
+    ],
+    "difficulty": 2,
+    "vocalRangeLowMidi": 50,
+    "vocalRangeHighMidi": 69,
+    "energy": 0.42,
+    "singAlongScore": 0.84,
+    "ktvAvailability": 0.92,
+    "duetFriendly": false,
+    "rapDensity": 0.01,
+    "highNoteRisk": 0.26,
+    "aliases": [
+      "祝我生日快乐 Live"
+    ],
+    "similarSongIds": [
+      "t141",
+      "t143"
+    ]
+  },
+  {
+    "id": "t143",
+    "title": "最重要的决定",
+    "artist": "范玮琪",
+    "language": "Mandarin",
+    "era": "2010s",
+    "genre": "甜歌",
+    "moodTags": [
+      "温暖",
+      "祝福",
+      "甜蜜"
+    ],
+    "sceneTags": [
+      "birthday",
+      "couples",
+      "friends"
+    ],
+    "difficulty": 2,
+    "vocalRangeLowMidi": 50,
+    "vocalRangeHighMidi": 69,
+    "energy": 0.5,
+    "singAlongScore": 0.86,
+    "ktvAvailability": 0.92,
+    "duetFriendly": true,
+    "rapDensity": 0.01,
+    "highNoteRisk": 0.26,
+    "aliases": [
+      "最重要的决定 Live"
+    ],
+    "similarSongIds": [
+      "t142",
+      "t144"
+    ]
+  },
+  {
+    "id": "t144",
+    "title": "给你们",
+    "artist": "张宇",
+    "language": "Mandarin",
+    "era": "2000s",
+    "genre": "情歌",
+    "moodTags": [
+      "祝福",
+      "温暖",
+      "合唱"
+    ],
+    "sceneTags": [
+      "birthday",
+      "couples",
+      "friends"
+    ],
+    "difficulty": 2,
+    "vocalRangeLowMidi": 45,
+    "vocalRangeHighMidi": 68,
+    "energy": 0.46,
+    "singAlongScore": 0.88,
+    "ktvAvailability": 0.93,
+    "duetFriendly": true,
+    "rapDensity": 0.01,
+    "highNoteRisk": 0.24,
+    "aliases": [
+      "给你们 Live"
+    ],
+    "similarSongIds": [
+      "t143",
+      "t145"
+    ]
+  },
+  {
+    "id": "t145",
+    "title": "今天你要嫁给我",
+    "artist": "陶喆",
+    "language": "Mandarin",
+    "era": "2000s",
+    "genre": "甜歌",
+    "moodTags": [
+      "祝福",
+      "甜蜜",
+      "合唱"
+    ],
+    "sceneTags": [
+      "birthday",
+      "couples",
+      "friends",
+      "teamBuilding"
+    ],
+    "difficulty": 2,
+    "vocalRangeLowMidi": 48,
+    "vocalRangeHighMidi": 69,
+    "energy": 0.76,
+    "singAlongScore": 0.9,
+    "ktvAvailability": 0.94,
+    "duetFriendly": true,
+    "rapDensity": 0.1,
+    "highNoteRisk": 0.28,
+    "aliases": [
+      "今天你要嫁给我 Live"
+    ],
+    "similarSongIds": [
+      "t144",
+      "t146"
+    ]
+  },
+  {
+    "id": "t146",
+    "title": "期待爱",
+    "artist": "林俊杰",
+    "language": "Mandarin",
+    "era": "2000s",
+    "genre": "甜歌",
+    "moodTags": [
+      "甜蜜",
+      "轻松",
+      "对唱"
+    ],
+    "sceneTags": [
+      "birthday",
+      "couples",
+      "friends"
+    ],
+    "difficulty": 2,
+    "vocalRangeLowMidi": 49,
+    "vocalRangeHighMidi": 69,
+    "energy": 0.6,
+    "singAlongScore": 0.84,
+    "ktvAvailability": 0.91,
+    "duetFriendly": true,
+    "rapDensity": 0.03,
+    "highNoteRisk": 0.3,
+    "aliases": [
+      "期待爱 Live"
+    ],
+    "similarSongIds": [
+      "t145",
+      "t147"
+    ]
+  },
+  {
+    "id": "t147",
+    "title": "依然爱你",
+    "artist": "王力宏",
+    "language": "Mandarin",
+    "era": "2010s",
+    "genre": "甜歌",
+    "moodTags": [
+      "甜蜜",
+      "温暖",
+      "旋律熟"
+    ],
+    "sceneTags": [
+      "birthday",
+      "couples",
+      "friends",
+      "carKTV"
+    ],
+    "difficulty": 3,
+    "vocalRangeLowMidi": 48,
+    "vocalRangeHighMidi": 70,
+    "energy": 0.56,
+    "singAlongScore": 0.84,
+    "ktvAvailability": 0.93,
+    "duetFriendly": true,
+    "rapDensity": 0.02,
+    "highNoteRisk": 0.38,
+    "aliases": [
+      "依然爱你 Live"
+    ],
+    "similarSongIds": [
+      "t146",
+      "t148"
+    ]
+  },
+  {
+    "id": "t148",
+    "title": "稳稳的幸福",
+    "artist": "陈奕迅",
+    "language": "Mandarin",
+    "era": "2010s",
+    "genre": "情歌",
+    "moodTags": [
+      "温暖",
+      "祝福",
+      "旋律熟"
+    ],
+    "sceneTags": [
+      "birthday",
+      "couples",
+      "friends",
+      "carKTV"
+    ],
+    "difficulty": 2,
+    "vocalRangeLowMidi": 47,
+    "vocalRangeHighMidi": 68,
+    "energy": 0.44,
+    "singAlongScore": 0.86,
+    "ktvAvailability": 0.94,
+    "duetFriendly": false,
+    "rapDensity": 0.01,
+    "highNoteRisk": 0.24,
+    "aliases": [
+      "稳稳的幸福 Live"
+    ],
+    "similarSongIds": [
+      "t147",
+      "t149"
+    ]
+  },
+  {
+    "id": "t149",
+    "title": "为爱痴狂",
+    "artist": "刘若英",
+    "language": "Mandarin",
+    "era": "1990s",
+    "genre": "情歌",
+    "moodTags": [
+      "怀旧",
+      "高光",
+      "走心"
+    ],
+    "sceneTags": [
+      "friends",
+      "birthday",
+      "soloPractice"
+    ],
+    "difficulty": 3,
+    "vocalRangeLowMidi": 50,
+    "vocalRangeHighMidi": 72,
+    "energy": 0.52,
+    "singAlongScore": 0.82,
+    "ktvAvailability": 0.94,
+    "duetFriendly": false,
+    "rapDensity": 0.01,
+    "highNoteRisk": 0.5,
+    "aliases": [
+      "为爱痴狂 Live"
+    ],
+    "similarSongIds": [
+      "t148",
+      "t150"
+    ]
+  },
+  {
+    "id": "t150",
+    "title": "夜空中最亮的星",
+    "artist": "逃跑计划",
+    "language": "Mandarin",
+    "era": "2010s",
+    "genre": "摇滚/乐队",
+    "moodTags": [
+      "励志",
+      "合唱",
+      "热血"
+    ],
+    "sceneTags": [
+      "friends",
+      "teamBuilding",
+      "carKTV"
+    ],
+    "difficulty": 2,
+    "vocalRangeLowMidi": 45,
+    "vocalRangeHighMidi": 68,
+    "energy": 0.78,
+    "singAlongScore": 0.92,
+    "ktvAvailability": 0.97,
+    "duetFriendly": false,
+    "rapDensity": 0.01,
+    "highNoteRisk": 0.28,
+    "aliases": [
+      "夜空中最亮的星 Live"
+    ],
+    "similarSongIds": [
+      "t149",
+      "t151"
+    ]
+  },
+  {
+    "id": "t151",
+    "title": "一生有你",
+    "artist": "水木年华",
+    "language": "Mandarin",
+    "era": "2000s",
+    "genre": "民谣流行",
+    "moodTags": [
+      "校园",
+      "怀旧",
+      "合唱"
+    ],
+    "sceneTags": [
+      "friends",
+      "teamBuilding",
+      "carKTV"
+    ],
+    "difficulty": 2,
+    "vocalRangeLowMidi": 45,
+    "vocalRangeHighMidi": 67,
+    "energy": 0.54,
+    "singAlongScore": 0.9,
+    "ktvAvailability": 0.95,
+    "duetFriendly": false,
+    "rapDensity": 0.01,
+    "highNoteRisk": 0.22,
+    "aliases": [
+      "一生有你 Live"
+    ],
+    "similarSongIds": [
+      "t150",
+      "t152"
+    ]
+  },
+  {
+    "id": "t152",
+    "title": "同桌的你",
+    "artist": "老狼",
+    "language": "Mandarin",
+    "era": "1990s",
+    "genre": "民谣流行",
+    "moodTags": [
+      "校园",
+      "怀旧",
+      "合唱"
+    ],
+    "sceneTags": [
+      "friends",
+      "teamBuilding",
+      "carKTV"
+    ],
+    "difficulty": 1,
+    "vocalRangeLowMidi": 44,
+    "vocalRangeHighMidi": 65,
+    "energy": 0.4,
+    "singAlongScore": 0.9,
+    "ktvAvailability": 0.96,
+    "duetFriendly": false,
+    "rapDensity": 0.01,
+    "highNoteRisk": 0.12,
+    "aliases": [
+      "同桌的你 Live"
+    ],
+    "similarSongIds": [
+      "t151",
+      "t153"
+    ]
+  },
+  {
+    "id": "t153",
+    "title": "私奔",
+    "artist": "郑钧",
+    "language": "Mandarin",
+    "era": "2000s",
+    "genre": "摇滚/乐队",
+    "moodTags": [
+      "热血",
+      "公路",
+      "高光"
+    ],
+    "sceneTags": [
+      "friends",
+      "teamBuilding",
+      "carKTV"
+    ],
+    "difficulty": 4,
+    "vocalRangeLowMidi": 45,
+    "vocalRangeHighMidi": 72,
+    "energy": 0.84,
+    "singAlongScore": 0.82,
+    "ktvAvailability": 0.92,
+    "duetFriendly": false,
+    "rapDensity": 0.02,
+    "highNoteRisk": 0.58,
+    "aliases": [
+      "私奔 Live"
+    ],
+    "similarSongIds": [
+      "t152",
+      "t154"
+    ]
+  },
+  {
+    "id": "t154",
+    "title": "勇敢的心",
+    "artist": "汪峰",
+    "language": "Mandarin",
+    "era": "2000s",
+    "genre": "摇滚/乐队",
+    "moodTags": [
+      "励志",
+      "热血",
+      "合唱"
+    ],
+    "sceneTags": [
+      "friends",
+      "teamBuilding"
+    ],
+    "difficulty": 3,
+    "vocalRangeLowMidi": 45,
+    "vocalRangeHighMidi": 71,
+    "energy": 0.82,
+    "singAlongScore": 0.86,
+    "ktvAvailability": 0.92,
+    "duetFriendly": false,
+    "rapDensity": 0.02,
+    "highNoteRisk": 0.48,
+    "aliases": [
+      "勇敢的心 Live"
+    ],
+    "similarSongIds": [
+      "t153",
+      "t155"
+    ]
+  },
+  {
+    "id": "t155",
+    "title": "再见",
+    "artist": "张震岳",
+    "language": "Mandarin",
+    "era": "2000s",
+    "genre": "摇滚/乐队",
+    "moodTags": [
+      "青春",
+      "合唱",
+      "收尾"
+    ],
+    "sceneTags": [
+      "friends",
+      "teamBuilding",
+      "carKTV"
+    ],
+    "difficulty": 2,
+    "vocalRangeLowMidi": 44,
+    "vocalRangeHighMidi": 66,
+    "energy": 0.64,
+    "singAlongScore": 0.89,
+    "ktvAvailability": 0.95,
+    "duetFriendly": false,
+    "rapDensity": 0.08,
+    "highNoteRisk": 0.2,
+    "aliases": [
+      "再见 Live"
+    ],
+    "similarSongIds": [
+      "t154",
+      "t156"
+    ]
+  },
+  {
+    "id": "t156",
+    "title": "云烟成雨",
+    "artist": "房东的猫",
+    "language": "Mandarin",
+    "era": "2010s",
+    "genre": "民谣流行",
+    "moodTags": [
+      "温柔",
+      "青春",
+      "轻松"
+    ],
+    "sceneTags": [
+      "friends",
+      "carKTV",
+      "couples"
+    ],
+    "difficulty": 2,
+    "vocalRangeLowMidi": 49,
+    "vocalRangeHighMidi": 68,
+    "energy": 0.38,
+    "singAlongScore": 0.82,
+    "ktvAvailability": 0.91,
+    "duetFriendly": true,
+    "rapDensity": 0.01,
+    "highNoteRisk": 0.2,
+    "aliases": [
+      "云烟成雨 Live"
+    ],
+    "similarSongIds": [
+      "t155",
+      "t157"
+    ]
+  },
+  {
+    "id": "t157",
+    "title": "奇妙能力歌",
+    "artist": "陈粒",
+    "language": "Mandarin",
+    "era": "2010s",
+    "genre": "民谣流行",
+    "moodTags": [
+      "个性",
+      "轻松",
+      "文艺"
+    ],
+    "sceneTags": [
+      "friends",
+      "carKTV",
+      "soloPractice"
+    ],
+    "difficulty": 2,
+    "vocalRangeLowMidi": 48,
+    "vocalRangeHighMidi": 68,
+    "energy": 0.44,
+    "singAlongScore": 0.76,
+    "ktvAvailability": 0.9,
+    "duetFriendly": false,
+    "rapDensity": 0.02,
+    "highNoteRisk": 0.24,
+    "aliases": [
+      "奇妙能力歌 Live"
+    ],
+    "similarSongIds": [
+      "t156",
+      "t158"
+    ]
+  },
+  {
+    "id": "t158",
+    "title": "盗将行",
+    "artist": "花粥",
+    "language": "Mandarin",
+    "era": "2010s",
+    "genre": "国风流行",
+    "moodTags": [
+      "国风",
+      "轻松",
+      "热度"
+    ],
+    "sceneTags": [
+      "friends",
+      "carKTV"
+    ],
+    "difficulty": 2,
+    "vocalRangeLowMidi": 48,
+    "vocalRangeHighMidi": 68,
+    "energy": 0.52,
+    "singAlongScore": 0.8,
+    "ktvAvailability": 0.9,
+    "duetFriendly": false,
+    "rapDensity": 0.04,
+    "highNoteRisk": 0.24,
+    "aliases": [
+      "盗将行 Live"
+    ],
+    "similarSongIds": [
+      "t157",
+      "t159"
+    ]
+  },
+  {
+    "id": "t159",
+    "title": "安和桥",
+    "artist": "宋冬野",
+    "language": "Mandarin",
+    "era": "2010s",
+    "genre": "民谣流行",
+    "moodTags": [
+      "民谣",
+      "怀旧",
+      "走心"
+    ],
+    "sceneTags": [
+      "friends",
+      "carKTV"
+    ],
+    "difficulty": 2,
+    "vocalRangeLowMidi": 43,
+    "vocalRangeHighMidi": 64,
+    "energy": 0.34,
+    "singAlongScore": 0.8,
+    "ktvAvailability": 0.91,
+    "duetFriendly": false,
+    "rapDensity": 0.01,
+    "highNoteRisk": 0.1,
+    "aliases": [
+      "安和桥 Live"
+    ],
+    "similarSongIds": [
+      "t158",
+      "t160"
+    ]
+  },
+  {
+    "id": "t160",
+    "title": "不说再见",
+    "artist": "好妹妹",
+    "language": "Mandarin",
+    "era": "2010s",
+    "genre": "民谣流行",
+    "moodTags": [
+      "校园",
+      "温暖",
+      "合唱"
+    ],
+    "sceneTags": [
+      "friends",
+      "teamBuilding",
+      "carKTV"
+    ],
+    "difficulty": 2,
+    "vocalRangeLowMidi": 44,
+    "vocalRangeHighMidi": 66,
+    "energy": 0.5,
+    "singAlongScore": 0.86,
+    "ktvAvailability": 0.9,
+    "duetFriendly": true,
+    "rapDensity": 0.01,
+    "highNoteRisk": 0.18,
+    "aliases": [
+      "不说再见 Live"
+    ],
+    "similarSongIds": [
+      "t159",
+      "t161"
+    ]
+  },
+  {
+    "id": "t161",
+    "title": "南方姑娘",
+    "artist": "赵雷",
+    "language": "Mandarin",
+    "era": "2010s",
+    "genre": "民谣流行",
+    "moodTags": [
+      "民谣",
+      "轻松",
+      "走心"
+    ],
+    "sceneTags": [
+      "friends",
+      "carKTV",
+      "couples"
+    ],
+    "difficulty": 1,
+    "vocalRangeLowMidi": 44,
+    "vocalRangeHighMidi": 64,
+    "energy": 0.34,
+    "singAlongScore": 0.78,
+    "ktvAvailability": 0.91,
+    "duetFriendly": false,
+    "rapDensity": 0.01,
+    "highNoteRisk": 0.1,
+    "aliases": [
+      "南方姑娘 Live"
+    ],
+    "similarSongIds": [
+      "t160",
+      "t162"
+    ]
+  },
+  {
+    "id": "t162",
+    "title": "借",
+    "artist": "毛不易",
+    "language": "Mandarin",
+    "era": "2010s",
+    "genre": "民谣流行",
+    "moodTags": [
+      "走心",
+      "低落",
+      "独白"
+    ],
+    "sceneTags": [
+      "friends",
+      "carKTV",
+      "soloPractice"
+    ],
+    "difficulty": 2,
+    "vocalRangeLowMidi": 44,
+    "vocalRangeHighMidi": 65,
+    "energy": 0.32,
+    "singAlongScore": 0.78,
+    "ktvAvailability": 0.92,
+    "duetFriendly": false,
+    "rapDensity": 0.01,
+    "highNoteRisk": 0.14,
+    "aliases": [
+      "借 Live"
+    ],
+    "similarSongIds": [
+      "t161",
+      "t163"
+    ]
+  },
+  {
+    "id": "t163",
+    "title": "贝加尔湖畔",
+    "artist": "李健",
+    "language": "Mandarin",
+    "era": "2010s",
+    "genre": "民谣流行",
+    "moodTags": [
+      "温柔",
+      "高光",
+      "旋律熟"
+    ],
+    "sceneTags": [
+      "friends",
+      "carKTV",
+      "soloPractice"
+    ],
+    "difficulty": 3,
+    "vocalRangeLowMidi": 45,
+    "vocalRangeHighMidi": 69,
+    "energy": 0.36,
+    "singAlongScore": 0.8,
+    "ktvAvailability": 0.93,
+    "duetFriendly": true,
+    "rapDensity": 0.01,
+    "highNoteRisk": 0.32,
+    "aliases": [
+      "贝加尔湖畔 Live"
+    ],
+    "similarSongIds": [
+      "t162",
+      "t164"
+    ]
+  },
+  {
+    "id": "t164",
+    "title": "风吹麦浪",
+    "artist": "李健",
+    "language": "Mandarin",
+    "era": "2010s",
+    "genre": "民谣流行",
+    "moodTags": [
+      "温暖",
+      "轻松",
+      "合唱"
+    ],
+    "sceneTags": [
+      "friends",
+      "carKTV",
+      "birthday"
+    ],
+    "difficulty": 2,
+    "vocalRangeLowMidi": 45,
+    "vocalRangeHighMidi": 68,
+    "energy": 0.48,
+    "singAlongScore": 0.86,
+    "ktvAvailability": 0.94,
+    "duetFriendly": true,
+    "rapDensity": 0.01,
+    "highNoteRisk": 0.24,
+    "aliases": [
+      "风吹麦浪 Live"
+    ],
+    "similarSongIds": [
+      "t163",
+      "t165"
+    ]
+  },
+  {
+    "id": "t165",
+    "title": "阴天",
+    "artist": "莫文蔚",
+    "language": "Mandarin",
+    "era": "1990s",
+    "genre": "情歌",
+    "moodTags": [
+      "走心",
+      "怀旧",
+      "KTV经典"
+    ],
+    "sceneTags": [
+      "friends",
+      "carKTV"
+    ],
+    "difficulty": 3,
+    "vocalRangeLowMidi": 49,
+    "vocalRangeHighMidi": 69,
+    "energy": 0.38,
+    "singAlongScore": 0.82,
+    "ktvAvailability": 0.95,
+    "duetFriendly": false,
+    "rapDensity": 0.01,
+    "highNoteRisk": 0.28,
+    "aliases": [
+      "阴天 Live"
+    ],
+    "similarSongIds": [
+      "t164",
+      "t166"
+    ]
+  },
+  {
+    "id": "t166",
+    "title": "盛夏的果实",
+    "artist": "莫文蔚",
+    "language": "Mandarin",
+    "era": "2000s",
+    "genre": "情歌",
+    "moodTags": [
+      "怀旧",
+      "走心",
+      "旋律熟"
+    ],
+    "sceneTags": [
+      "friends",
+      "carKTV"
+    ],
+    "difficulty": 2,
+    "vocalRangeLowMidi": 49,
+    "vocalRangeHighMidi": 68,
+    "energy": 0.4,
+    "singAlongScore": 0.84,
+    "ktvAvailability": 0.95,
+    "duetFriendly": false,
+    "rapDensity": 0.01,
+    "highNoteRisk": 0.24,
+    "aliases": [
+      "盛夏的果实 Live"
+    ],
+    "similarSongIds": [
+      "t165",
+      "t167"
+    ]
+  },
+  {
+    "id": "t167",
+    "title": "电台情歌",
+    "artist": "莫文蔚",
+    "language": "Mandarin",
+    "era": "1990s",
+    "genre": "情歌",
+    "moodTags": [
+      "怀旧",
+      "温柔",
+      "旋律熟"
+    ],
+    "sceneTags": [
+      "friends",
+      "carKTV",
+      "couples"
+    ],
+    "difficulty": 2,
+    "vocalRangeLowMidi": 49,
+    "vocalRangeHighMidi": 68,
+    "energy": 0.42,
+    "singAlongScore": 0.82,
+    "ktvAvailability": 0.94,
+    "duetFriendly": false,
+    "rapDensity": 0.01,
+    "highNoteRisk": 0.24,
+    "aliases": [
+      "电台情歌 Live"
+    ],
+    "similarSongIds": [
+      "t166",
+      "t168"
+    ]
+  },
+  {
+    "id": "t168",
+    "title": "画心",
+    "artist": "张靓颖",
+    "language": "Mandarin",
+    "era": "2000s",
+    "genre": "情歌",
+    "moodTags": [
+      "高光",
+      "影视",
+      "走心"
+    ],
+    "sceneTags": [
+      "friends",
+      "soloPractice"
+    ],
+    "difficulty": 5,
+    "vocalRangeLowMidi": 50,
+    "vocalRangeHighMidi": 77,
+    "energy": 0.5,
+    "singAlongScore": 0.78,
+    "ktvAvailability": 0.94,
+    "duetFriendly": false,
+    "rapDensity": 0.01,
+    "highNoteRisk": 0.86,
+    "aliases": [
+      "画心 Live"
+    ],
+    "similarSongIds": [
+      "t167",
+      "t169"
+    ]
+  },
+  {
+    "id": "t169",
+    "title": "终于等到你",
+    "artist": "张靓颖",
+    "language": "Mandarin",
+    "era": "2010s",
+    "genre": "情歌",
+    "moodTags": [
+      "温暖",
+      "祝福",
+      "高光"
+    ],
+    "sceneTags": [
+      "birthday",
+      "couples",
+      "friends"
+    ],
+    "difficulty": 4,
+    "vocalRangeLowMidi": 50,
+    "vocalRangeHighMidi": 74,
+    "energy": 0.48,
+    "singAlongScore": 0.82,
+    "ktvAvailability": 0.93,
+    "duetFriendly": false,
+    "rapDensity": 0.01,
+    "highNoteRisk": 0.68,
+    "aliases": [
+      "终于等到你 Live"
+    ],
+    "similarSongIds": [
+      "t168",
+      "t170"
+    ]
+  },
+  {
+    "id": "t170",
+    "title": "如果这就是爱情",
+    "artist": "张靓颖",
+    "language": "Mandarin",
+    "era": "2010s",
+    "genre": "情歌",
+    "moodTags": [
+      "高光",
+      "走心",
+      "KTV经典"
+    ],
+    "sceneTags": [
+      "friends",
+      "soloPractice"
+    ],
+    "difficulty": 5,
+    "vocalRangeLowMidi": 50,
+    "vocalRangeHighMidi": 76,
+    "energy": 0.56,
+    "singAlongScore": 0.78,
+    "ktvAvailability": 0.92,
+    "duetFriendly": false,
+    "rapDensity": 0.01,
+    "highNoteRisk": 0.82,
+    "aliases": [
+      "如果这就是爱情 Live"
+    ],
+    "similarSongIds": [
+      "t169",
+      "t171"
+    ]
+  },
+  {
+    "id": "t171",
+    "title": "给我一个理由忘记",
+    "artist": "A-Lin",
+    "language": "Mandarin",
+    "era": "2010s",
+    "genre": "情歌",
+    "moodTags": [
+      "高光",
+      "走心",
+      "KTV经典"
+    ],
+    "sceneTags": [
+      "friends",
+      "soloPractice"
+    ],
+    "difficulty": 5,
+    "vocalRangeLowMidi": 50,
+    "vocalRangeHighMidi": 77,
+    "energy": 0.54,
+    "singAlongScore": 0.78,
+    "ktvAvailability": 0.94,
+    "duetFriendly": false,
+    "rapDensity": 0.01,
+    "highNoteRisk": 0.86,
+    "aliases": [
+      "给我一个理由忘记 Live"
+    ],
+    "similarSongIds": [
+      "t170",
+      "t172"
+    ]
+  },
+  {
+    "id": "t172",
+    "title": "失恋无罪",
+    "artist": "A-Lin",
+    "language": "Mandarin",
+    "era": "2000s",
+    "genre": "情歌",
+    "moodTags": [
+      "高光",
+      "走心",
+      "KTV经典"
+    ],
+    "sceneTags": [
+      "friends",
+      "soloPractice"
+    ],
+    "difficulty": 5,
+    "vocalRangeLowMidi": 50,
+    "vocalRangeHighMidi": 76,
+    "energy": 0.58,
+    "singAlongScore": 0.78,
+    "ktvAvailability": 0.93,
+    "duetFriendly": false,
+    "rapDensity": 0.01,
+    "highNoteRisk": 0.82,
+    "aliases": [
+      "失恋无罪 Live"
+    ],
+    "similarSongIds": [
+      "t171",
+      "t173"
+    ]
+  },
+  {
+    "id": "t173",
+    "title": "身骑白马",
+    "artist": "徐佳莹",
+    "language": "Mandarin",
+    "era": "2010s",
+    "genre": "国风流行",
+    "moodTags": [
+      "国风",
+      "高光",
+      "走心"
+    ],
+    "sceneTags": [
+      "friends",
+      "soloPractice"
+    ],
+    "difficulty": 4,
+    "vocalRangeLowMidi": 50,
+    "vocalRangeHighMidi": 74,
+    "energy": 0.52,
+    "singAlongScore": 0.78,
+    "ktvAvailability": 0.92,
+    "duetFriendly": false,
+    "rapDensity": 0.01,
+    "highNoteRisk": 0.68,
+    "aliases": [
+      "身骑白马 Live"
+    ],
+    "similarSongIds": [
+      "t172",
+      "t174"
+    ]
+  },
+  {
+    "id": "t174",
+    "title": "失落沙洲",
+    "artist": "徐佳莹",
+    "language": "Mandarin",
+    "era": "2010s",
+    "genre": "情歌",
+    "moodTags": [
+      "走心",
+      "高光",
+      "旋律熟"
+    ],
+    "sceneTags": [
+      "friends",
+      "soloPractice"
+    ],
+    "difficulty": 4,
+    "vocalRangeLowMidi": 50,
+    "vocalRangeHighMidi": 74,
+    "energy": 0.5,
+    "singAlongScore": 0.78,
+    "ktvAvailability": 0.93,
+    "duetFriendly": false,
+    "rapDensity": 0.01,
+    "highNoteRisk": 0.68,
+    "aliases": [
+      "失落沙洲 Live"
+    ],
+    "similarSongIds": [
+      "t173",
+      "t175"
+    ]
+  },
+  {
+    "id": "t175",
+    "title": "时间煮雨",
+    "artist": "郁可唯",
+    "language": "Mandarin",
+    "era": "2010s",
+    "genre": "情歌",
+    "moodTags": [
+      "青春",
+      "影视",
+      "走心"
+    ],
+    "sceneTags": [
+      "friends",
+      "carKTV",
+      "soloPractice"
+    ],
+    "difficulty": 3,
+    "vocalRangeLowMidi": 50,
+    "vocalRangeHighMidi": 72,
+    "energy": 0.42,
+    "singAlongScore": 0.82,
+    "ktvAvailability": 0.93,
+    "duetFriendly": false,
+    "rapDensity": 0.01,
+    "highNoteRisk": 0.48,
+    "aliases": [
+      "时间煮雨 Live"
+    ],
+    "similarSongIds": [
+      "t174",
+      "t176"
+    ]
+  },
+  {
+    "id": "t176",
+    "title": "我愿意",
+    "artist": "王菲",
+    "language": "Mandarin",
+    "era": "1990s",
+    "genre": "情歌",
+    "moodTags": [
+      "经典",
+      "温柔",
+      "高光"
+    ],
+    "sceneTags": [
+      "friends",
+      "birthday",
+      "couples"
+    ],
+    "difficulty": 4,
+    "vocalRangeLowMidi": 50,
+    "vocalRangeHighMidi": 73,
+    "energy": 0.42,
+    "singAlongScore": 0.82,
+    "ktvAvailability": 0.95,
+    "duetFriendly": false,
+    "rapDensity": 0.01,
+    "highNoteRisk": 0.6,
+    "aliases": [
+      "我愿意 Live"
+    ],
+    "similarSongIds": [
+      "t175",
+      "t177"
+    ]
+  },
+  {
+    "id": "t177",
+    "title": "默",
+    "artist": "那英",
+    "language": "Mandarin",
+    "era": "2010s",
+    "genre": "情歌",
+    "moodTags": [
+      "走心",
+      "影视",
+      "高光"
+    ],
+    "sceneTags": [
+      "friends",
+      "soloPractice"
+    ],
+    "difficulty": 4,
+    "vocalRangeLowMidi": 49,
+    "vocalRangeHighMidi": 73,
+    "energy": 0.48,
+    "singAlongScore": 0.8,
+    "ktvAvailability": 0.94,
+    "duetFriendly": false,
+    "rapDensity": 0.01,
+    "highNoteRisk": 0.64,
+    "aliases": [
+      "默 Live"
+    ],
+    "similarSongIds": [
+      "t176",
+      "t178"
+    ]
+  },
+  {
+    "id": "t178",
+    "title": "征服",
+    "artist": "那英",
+    "language": "Mandarin",
+    "era": "1990s",
+    "genre": "情歌",
+    "moodTags": [
+      "高光",
+      "经典",
+      "KTV经典"
+    ],
+    "sceneTags": [
+      "friends",
+      "soloPractice"
+    ],
+    "difficulty": 5,
+    "vocalRangeLowMidi": 49,
+    "vocalRangeHighMidi": 76,
+    "energy": 0.56,
+    "singAlongScore": 0.8,
+    "ktvAvailability": 0.96,
+    "duetFriendly": false,
+    "rapDensity": 0.01,
+    "highNoteRisk": 0.84,
+    "aliases": [
+      "征服 Live"
+    ],
+    "similarSongIds": [
+      "t177",
+      "t179"
+    ]
+  },
+  {
+    "id": "t179",
+    "title": "我很丑可是我很温柔",
+    "artist": "赵传",
+    "language": "Mandarin",
+    "era": "1980s",
+    "genre": "摇滚/乐队",
+    "moodTags": [
+      "经典",
+      "男声低音",
+      "走心"
+    ],
+    "sceneTags": [
+      "friends",
+      "teamBuilding",
+      "soloPractice"
+    ],
+    "difficulty": 3,
+    "vocalRangeLowMidi": 43,
+    "vocalRangeHighMidi": 67,
+    "energy": 0.56,
+    "singAlongScore": 0.84,
+    "ktvAvailability": 0.94,
+    "duetFriendly": false,
+    "rapDensity": 0.01,
+    "highNoteRisk": 0.24,
+    "aliases": [
+      "我很丑可是我很温柔 Live"
+    ],
+    "similarSongIds": [
+      "t178",
+      "t180"
+    ]
+  },
+  {
+    "id": "t180",
+    "title": "我是一只小小鸟",
+    "artist": "赵传",
+    "language": "Mandarin",
+    "era": "1990s",
+    "genre": "摇滚/乐队",
+    "moodTags": [
+      "励志",
+      "高光",
+      "经典"
+    ],
+    "sceneTags": [
+      "friends",
+      "teamBuilding",
+      "soloPractice"
+    ],
+    "difficulty": 4,
+    "vocalRangeLowMidi": 43,
+    "vocalRangeHighMidi": 72,
+    "energy": 0.66,
+    "singAlongScore": 0.84,
+    "ktvAvailability": 0.95,
+    "duetFriendly": false,
+    "rapDensity": 0.01,
+    "highNoteRisk": 0.58,
+    "aliases": [
+      "我是一只小小鸟 Live"
+    ],
+    "similarSongIds": [
+      "t179",
+      "t181"
+    ]
+  },
+  {
+    "id": "t181",
+    "title": "有多少爱可以重来",
+    "artist": "迪克牛仔",
+    "language": "Mandarin",
+    "era": "1990s",
+    "genre": "情歌",
+    "moodTags": [
+      "怀旧",
+      "男声低音",
+      "走心"
+    ],
+    "sceneTags": [
+      "friends",
+      "carKTV"
+    ],
+    "difficulty": 3,
+    "vocalRangeLowMidi": 43,
+    "vocalRangeHighMidi": 68,
+    "energy": 0.52,
+    "singAlongScore": 0.84,
+    "ktvAvailability": 0.94,
+    "duetFriendly": false,
+    "rapDensity": 0.01,
+    "highNoteRisk": 0.3,
+    "aliases": [
+      "有多少爱可以重来 Live"
+    ],
+    "similarSongIds": [
+      "t180",
+      "t182"
+    ]
+  },
+  {
+    "id": "t182",
+    "title": "山丘",
+    "artist": "李宗盛",
+    "language": "Mandarin",
+    "era": "2010s",
+    "genre": "民谣流行",
+    "moodTags": [
+      "男声低音",
+      "走心",
+      "人生感"
+    ],
+    "sceneTags": [
+      "friends",
+      "carKTV",
+      "soloPractice"
+    ],
+    "difficulty": 4,
+    "vocalRangeLowMidi": 42,
+    "vocalRangeHighMidi": 67,
+    "energy": 0.42,
+    "singAlongScore": 0.78,
+    "ktvAvailability": 0.92,
+    "duetFriendly": false,
+    "rapDensity": 0.01,
+    "highNoteRisk": 0.22,
+    "aliases": [
+      "山丘 Live"
+    ],
+    "similarSongIds": [
+      "t181",
+      "t183"
+    ]
+  },
+  {
+    "id": "t183",
+    "title": "凡人歌",
+    "artist": "李宗盛",
+    "language": "Mandarin",
+    "era": "1990s",
+    "genre": "华语流行",
+    "moodTags": [
+      "男声低音",
+      "怀旧",
+      "合唱"
+    ],
+    "sceneTags": [
+      "friends",
+      "teamBuilding",
+      "carKTV"
+    ],
+    "difficulty": 2,
+    "vocalRangeLowMidi": 42,
+    "vocalRangeHighMidi": 65,
+    "energy": 0.58,
+    "singAlongScore": 0.88,
+    "ktvAvailability": 0.94,
+    "duetFriendly": false,
+    "rapDensity": 0.02,
+    "highNoteRisk": 0.16,
+    "aliases": [
+      "凡人歌 Live"
+    ],
+    "similarSongIds": [
+      "t182",
+      "t184"
+    ]
+  },
+  {
+    "id": "t184",
+    "title": "故乡",
+    "artist": "许巍",
+    "language": "Mandarin",
+    "era": "2000s",
+    "genre": "民谣流行",
+    "moodTags": [
+      "公路",
+      "怀旧",
+      "男声低音"
+    ],
+    "sceneTags": [
+      "friends",
+      "carKTV"
+    ],
+    "difficulty": 2,
+    "vocalRangeLowMidi": 44,
+    "vocalRangeHighMidi": 66,
+    "energy": 0.46,
+    "singAlongScore": 0.82,
+    "ktvAvailability": 0.93,
+    "duetFriendly": false,
+    "rapDensity": 0.01,
+    "highNoteRisk": 0.18,
+    "aliases": [
+      "故乡 Live"
+    ],
+    "similarSongIds": [
+      "t183",
+      "t185"
+    ]
+  },
+  {
+    "id": "t185",
+    "title": "好久不见",
+    "artist": "陈奕迅",
+    "language": "Mandarin",
+    "era": "2000s",
+    "genre": "情歌",
+    "moodTags": [
+      "走心",
+      "旋律熟",
+      "低落"
+    ],
+    "sceneTags": [
+      "friends",
+      "carKTV",
+      "couples"
+    ],
+    "difficulty": 2,
+    "vocalRangeLowMidi": 45,
+    "vocalRangeHighMidi": 67,
+    "energy": 0.36,
+    "singAlongScore": 0.86,
+    "ktvAvailability": 0.97,
+    "duetFriendly": false,
+    "rapDensity": 0.01,
+    "highNoteRisk": 0.2,
+    "aliases": [
+      "好久不见 Live"
+    ],
+    "similarSongIds": [
+      "t184",
+      "t186"
+    ]
+  },
+  {
+    "id": "t186",
+    "title": "男人哭吧不是罪",
+    "artist": "刘德华",
+    "language": "Mandarin",
+    "era": "2000s",
+    "genre": "情歌",
+    "moodTags": [
+      "男声低音",
+      "怀旧",
+      "合唱"
+    ],
+    "sceneTags": [
+      "friends",
+      "teamBuilding",
+      "carKTV"
+    ],
+    "difficulty": 2,
+    "vocalRangeLowMidi": 44,
+    "vocalRangeHighMidi": 67,
+    "energy": 0.54,
+    "singAlongScore": 0.88,
+    "ktvAvailability": 0.95,
+    "duetFriendly": false,
+    "rapDensity": 0.01,
+    "highNoteRisk": 0.22,
+    "aliases": [
+      "男人哭吧不是罪 Live"
+    ],
+    "similarSongIds": [
+      "t185",
+      "t187"
+    ]
+  },
+  {
+    "id": "t187",
+    "title": "她来听我的演唱会",
+    "artist": "张学友",
+    "language": "Mandarin",
+    "era": "1990s",
+    "genre": "情歌",
+    "moodTags": [
+      "故事感",
+      "怀旧",
+      "走心"
+    ],
+    "sceneTags": [
+      "friends",
+      "carKTV",
+      "soloPractice"
+    ],
+    "difficulty": 3,
+    "vocalRangeLowMidi": 44,
+    "vocalRangeHighMidi": 68,
+    "energy": 0.42,
+    "singAlongScore": 0.82,
+    "ktvAvailability": 0.95,
+    "duetFriendly": false,
+    "rapDensity": 0.01,
+    "highNoteRisk": 0.28,
+    "aliases": [
+      "她来听我的演唱会 Live"
+    ],
+    "similarSongIds": [
+      "t186",
+      "t188"
+    ]
+  },
+  {
+    "id": "t188",
+    "title": "月亮惹的祸",
+    "artist": "张宇",
+    "language": "Mandarin",
+    "era": "1990s",
+    "genre": "情歌",
+    "moodTags": [
+      "怀旧",
+      "KTV经典",
+      "合唱"
+    ],
+    "sceneTags": [
+      "friends",
+      "teamBuilding",
+      "carKTV"
+    ],
+    "difficulty": 3,
+    "vocalRangeLowMidi": 44,
+    "vocalRangeHighMidi": 69,
+    "energy": 0.58,
+    "singAlongScore": 0.9,
+    "ktvAvailability": 0.97,
+    "duetFriendly": false,
+    "rapDensity": 0.01,
+    "highNoteRisk": 0.34,
+    "aliases": [
+      "月亮惹的祸 Live"
+    ],
+    "similarSongIds": [
+      "t187",
+      "t189"
+    ]
+  },
+  {
+    "id": "t189",
+    "title": "雨一直下",
+    "artist": "张宇",
+    "language": "Mandarin",
+    "era": "1990s",
+    "genre": "情歌",
+    "moodTags": [
+      "走心",
+      "怀旧",
+      "KTV经典"
+    ],
+    "sceneTags": [
+      "friends",
+      "carKTV"
+    ],
+    "difficulty": 3,
+    "vocalRangeLowMidi": 44,
+    "vocalRangeHighMidi": 68,
+    "energy": 0.46,
+    "singAlongScore": 0.84,
+    "ktvAvailability": 0.95,
+    "duetFriendly": false,
+    "rapDensity": 0.01,
+    "highNoteRisk": 0.3,
+    "aliases": [
+      "雨一直下 Live"
+    ],
+    "similarSongIds": [
+      "t188",
+      "t190"
+    ]
+  },
+  {
+    "id": "t190",
+    "title": "童话",
+    "artist": "光良",
+    "language": "Mandarin",
+    "era": "2000s",
+    "genre": "情歌",
+    "moodTags": [
+      "怀旧",
+      "合唱",
+      "KTV经典"
+    ],
+    "sceneTags": [
+      "friends",
+      "birthday",
+      "carKTV",
+      "couples"
+    ],
+    "difficulty": 2,
+    "vocalRangeLowMidi": 45,
+    "vocalRangeHighMidi": 68,
+    "energy": 0.46,
+    "singAlongScore": 0.92,
+    "ktvAvailability": 0.98,
+    "duetFriendly": false,
+    "rapDensity": 0.01,
+    "highNoteRisk": 0.24,
+    "aliases": [
+      "童话 Live"
+    ],
+    "similarSongIds": [
+      "t189",
+      "t191"
+    ]
+  },
+  {
+    "id": "t191",
+    "title": "第一次",
+    "artist": "光良",
+    "language": "Mandarin",
+    "era": "2000s",
+    "genre": "情歌",
+    "moodTags": [
+      "甜蜜",
+      "怀旧",
+      "旋律熟"
+    ],
+    "sceneTags": [
+      "friends",
+      "birthday",
+      "couples",
+      "carKTV"
+    ],
+    "difficulty": 2,
+    "vocalRangeLowMidi": 45,
+    "vocalRangeHighMidi": 67,
+    "energy": 0.42,
+    "singAlongScore": 0.84,
+    "ktvAvailability": 0.94,
+    "duetFriendly": false,
+    "rapDensity": 0.01,
+    "highNoteRisk": 0.22,
+    "aliases": [
+      "第一次 Live"
+    ],
+    "similarSongIds": [
+      "t190",
+      "t192"
+    ]
+  },
+  {
+    "id": "t192",
+    "title": "门没锁",
+    "artist": "品冠",
+    "language": "Mandarin",
+    "era": "2000s",
+    "genre": "情歌",
+    "moodTags": [
+      "怀旧",
+      "温暖",
+      "旋律熟"
+    ],
+    "sceneTags": [
+      "friends",
+      "carKTV",
+      "couples"
+    ],
+    "difficulty": 2,
+    "vocalRangeLowMidi": 45,
+    "vocalRangeHighMidi": 67,
+    "energy": 0.42,
+    "singAlongScore": 0.82,
+    "ktvAvailability": 0.91,
+    "duetFriendly": false,
+    "rapDensity": 0.01,
+    "highNoteRisk": 0.22,
+    "aliases": [
+      "门没锁 Live"
+    ],
+    "similarSongIds": [
+      "t191",
+      "t193"
+    ]
+  },
+  {
+    "id": "t193",
+    "title": "他不爱我",
+    "artist": "莫文蔚",
+    "language": "Mandarin",
+    "era": "1990s",
+    "genre": "情歌",
+    "moodTags": [
+      "走心",
+      "低落",
+      "KTV经典"
+    ],
+    "sceneTags": [
+      "friends",
+      "carKTV"
+    ],
+    "difficulty": 3,
+    "vocalRangeLowMidi": 49,
+    "vocalRangeHighMidi": 69,
+    "energy": 0.38,
+    "singAlongScore": 0.82,
+    "ktvAvailability": 0.95,
+    "duetFriendly": false,
+    "rapDensity": 0.01,
+    "highNoteRisk": 0.28,
+    "aliases": [
+      "他不爱我 Live"
+    ],
+    "similarSongIds": [
+      "t192",
+      "t194"
+    ]
+  },
+  {
+    "id": "t194",
+    "title": "至少还有你",
+    "artist": "林忆莲",
+    "language": "Mandarin",
+    "era": "2000s",
+    "genre": "情歌",
+    "moodTags": [
+      "温暖",
+      "经典",
+      "合唱"
+    ],
+    "sceneTags": [
+      "friends",
+      "birthday",
+      "carKTV",
+      "couples"
+    ],
+    "difficulty": 3,
+    "vocalRangeLowMidi": 49,
+    "vocalRangeHighMidi": 71,
+    "energy": 0.48,
+    "singAlongScore": 0.9,
+    "ktvAvailability": 0.97,
+    "duetFriendly": false,
+    "rapDensity": 0.01,
+    "highNoteRisk": 0.42,
+    "aliases": [
+      "至少还有你 Live"
+    ],
+    "similarSongIds": [
+      "t193",
+      "t195"
+    ]
+  },
+  {
+    "id": "t195",
+    "title": "过火",
+    "artist": "张信哲",
+    "language": "Mandarin",
+    "era": "1990s",
+    "genre": "情歌",
+    "moodTags": [
+      "怀旧",
+      "KTV经典",
+      "走心"
+    ],
+    "sceneTags": [
+      "friends",
+      "carKTV"
+    ],
+    "difficulty": 3,
+    "vocalRangeLowMidi": 45,
+    "vocalRangeHighMidi": 70,
+    "energy": 0.46,
+    "singAlongScore": 0.88,
+    "ktvAvailability": 0.97,
+    "duetFriendly": false,
+    "rapDensity": 0.01,
+    "highNoteRisk": 0.4,
+    "aliases": [
+      "过火 Live"
+    ],
+    "similarSongIds": [
+      "t194",
+      "t196"
+    ]
+  },
+  {
+    "id": "t196",
+    "title": "爱如潮水",
+    "artist": "张信哲",
+    "language": "Mandarin",
+    "era": "1990s",
+    "genre": "情歌",
+    "moodTags": [
+      "怀旧",
+      "KTV经典",
+      "高光"
+    ],
+    "sceneTags": [
+      "friends",
+      "carKTV",
+      "soloPractice"
+    ],
+    "difficulty": 4,
+    "vocalRangeLowMidi": 45,
+    "vocalRangeHighMidi": 72,
+    "energy": 0.52,
+    "singAlongScore": 0.88,
+    "ktvAvailability": 0.97,
+    "duetFriendly": false,
+    "rapDensity": 0.01,
+    "highNoteRisk": 0.58,
+    "aliases": [
+      "爱如潮水 Live"
+    ],
+    "similarSongIds": [
+      "t195",
+      "t197"
+    ]
+  },
+  {
+    "id": "t197",
+    "title": "信仰",
+    "artist": "张信哲",
+    "language": "Mandarin",
+    "era": "2000s",
+    "genre": "情歌",
+    "moodTags": [
+      "高光",
+      "走心",
+      "KTV经典"
+    ],
+    "sceneTags": [
+      "friends",
+      "soloPractice"
+    ],
+    "difficulty": 4,
+    "vocalRangeLowMidi": 45,
+    "vocalRangeHighMidi": 73,
+    "energy": 0.52,
+    "singAlongScore": 0.82,
+    "ktvAvailability": 0.94,
+    "duetFriendly": false,
+    "rapDensity": 0.01,
+    "highNoteRisk": 0.64,
+    "aliases": [
+      "信仰 Live"
+    ],
+    "similarSongIds": [
+      "t196",
+      "t198"
+    ]
+  },
+  {
+    "id": "t198",
+    "title": "死了都要爱",
+    "artist": "信乐团",
+    "language": "Mandarin",
+    "era": "2000s",
+    "genre": "摇滚/乐队",
+    "moodTags": [
+      "高光",
+      "热血",
+      "KTV经典"
+    ],
+    "sceneTags": [
+      "friends",
+      "teamBuilding",
+      "soloPractice"
+    ],
+    "difficulty": 5,
+    "vocalRangeLowMidi": 47,
+    "vocalRangeHighMidi": 78,
+    "energy": 0.92,
+    "singAlongScore": 0.84,
+    "ktvAvailability": 0.96,
+    "duetFriendly": false,
+    "rapDensity": 0.02,
+    "highNoteRisk": 0.94,
+    "aliases": [
+      "死了都要爱 Live"
+    ],
+    "similarSongIds": [
+      "t197",
+      "t199"
+    ]
+  },
+  {
+    "id": "t199",
+    "title": "离歌",
+    "artist": "信乐团",
+    "language": "Mandarin",
+    "era": "2000s",
+    "genre": "摇滚/乐队",
+    "moodTags": [
+      "高光",
+      "走心",
+      "KTV经典"
+    ],
+    "sceneTags": [
+      "friends",
+      "soloPractice"
+    ],
+    "difficulty": 5,
+    "vocalRangeLowMidi": 47,
+    "vocalRangeHighMidi": 77,
+    "energy": 0.72,
+    "singAlongScore": 0.82,
+    "ktvAvailability": 0.95,
+    "duetFriendly": false,
+    "rapDensity": 0.02,
+    "highNoteRisk": 0.9,
+    "aliases": [
+      "离歌 Live"
+    ],
+    "similarSongIds": [
+      "t198",
+      "t200"
+    ]
+  },
+  {
+    "id": "t200",
+    "title": "无地自容",
+    "artist": "黑豹",
+    "language": "Mandarin",
+    "era": "1990s",
+    "genre": "摇滚/乐队",
+    "moodTags": [
+      "摇滚",
+      "热血",
+      "经典"
+    ],
+    "sceneTags": [
+      "friends",
+      "teamBuilding",
+      "soloPractice"
+    ],
+    "difficulty": 4,
+    "vocalRangeLowMidi": 45,
+    "vocalRangeHighMidi": 73,
+    "energy": 0.86,
+    "singAlongScore": 0.82,
+    "ktvAvailability": 0.91,
+    "duetFriendly": false,
+    "rapDensity": 0.03,
+    "highNoteRisk": 0.66,
+    "aliases": [
+      "无地自容 Live"
+    ],
+    "similarSongIds": [
+      "t199"
+    ]
+  },
+  {
+    "id": "t201",
+    "title": "梦回唐朝",
+    "artist": "唐朝",
+    "language": "Mandarin",
+    "era": "1990s",
+    "genre": "摇滚/乐队",
+    "moodTags": [
+      "摇滚",
+      "高光",
+      "经典"
+    ],
+    "sceneTags": [
+      "friends",
+      "soloPractice"
+    ],
+    "difficulty": 5,
+    "vocalRangeLowMidi": 45,
+    "vocalRangeHighMidi": 76,
+    "energy": 0.88,
+    "singAlongScore": 0.76,
+    "ktvAvailability": 0.88,
+    "duetFriendly": false,
+    "rapDensity": 0.03,
+    "highNoteRisk": 0.84,
+    "aliases": [
+      "梦回唐朝 Live"
+    ],
+    "similarSongIds": [
+      "t200"
+    ]
+  },
+  {
+    "id": "t202",
+    "title": "你要跳舞吗",
+    "artist": "新裤子",
+    "language": "Mandarin",
+    "era": "2010s",
+    "genre": "摇滚/乐队",
+    "moodTags": [
+      "热闹",
+      "节奏",
+      "合唱"
+    ],
+    "sceneTags": [
+      "friends",
+      "teamBuilding",
+      "birthday"
+    ],
+    "difficulty": 2,
+    "vocalRangeLowMidi": 45,
+    "vocalRangeHighMidi": 68,
+    "energy": 0.94,
+    "singAlongScore": 0.88,
+    "ktvAvailability": 0.9,
+    "duetFriendly": false,
+    "rapDensity": 0.08,
+    "highNoteRisk": 0.26,
+    "aliases": [
+      "你要跳舞吗 Live"
+    ],
+    "similarSongIds": [
+      "t201"
+    ]
+  },
+  {
+    "id": "t203",
+    "title": "公路之歌",
+    "artist": "痛仰",
+    "language": "Mandarin",
+    "era": "2010s",
+    "genre": "摇滚/乐队",
+    "moodTags": [
+      "公路",
+      "热血",
+      "合唱"
+    ],
+    "sceneTags": [
+      "friends",
+      "teamBuilding",
+      "carKTV"
+    ],
+    "difficulty": 3,
+    "vocalRangeLowMidi": 44,
+    "vocalRangeHighMidi": 70,
+    "energy": 0.78,
+    "singAlongScore": 0.84,
+    "ktvAvailability": 0.88,
+    "duetFriendly": false,
+    "rapDensity": 0.03,
+    "highNoteRisk": 0.42,
+    "aliases": [
+      "公路之歌 Live"
+    ],
+    "similarSongIds": [
+      "t202"
+    ]
+  },
+  {
+    "id": "t204",
+    "title": "小情歌",
+    "artist": "苏打绿",
+    "language": "Mandarin",
+    "era": "2000s",
+    "genre": "华语流行",
+    "moodTags": [
+      "温柔",
+      "青春",
+      "旋律熟"
+    ],
+    "sceneTags": [
+      "friends",
+      "birthday",
+      "couples",
+      "carKTV"
+    ],
+    "difficulty": 2,
+    "vocalRangeLowMidi": 48,
+    "vocalRangeHighMidi": 69,
+    "energy": 0.44,
+    "singAlongScore": 0.86,
+    "ktvAvailability": 0.96,
+    "duetFriendly": true,
+    "rapDensity": 0.01,
+    "highNoteRisk": 0.26,
+    "aliases": [
+      "小情歌 Live"
+    ],
+    "similarSongIds": [
+      "t203"
+    ]
+  },
+  {
+    "id": "t205",
+    "title": "无与伦比的美丽",
+    "artist": "苏打绿",
+    "language": "Mandarin",
+    "era": "2000s",
+    "genre": "华语流行",
+    "moodTags": [
+      "温柔",
+      "高光",
+      "文艺"
+    ],
+    "sceneTags": [
+      "friends",
+      "birthday",
+      "couples"
+    ],
+    "difficulty": 4,
+    "vocalRangeLowMidi": 48,
+    "vocalRangeHighMidi": 73,
+    "energy": 0.46,
+    "singAlongScore": 0.8,
+    "ktvAvailability": 0.92,
+    "duetFriendly": true,
+    "rapDensity": 0.01,
+    "highNoteRisk": 0.62,
+    "aliases": [
+      "无与伦比的美丽 Live"
+    ],
+    "similarSongIds": [
+      "t204"
+    ]
+  },
+  {
+    "id": "t206",
+    "title": "你被写在我的歌里",
+    "artist": "苏打绿",
+    "language": "Mandarin",
+    "era": "2010s",
+    "genre": "甜歌",
+    "moodTags": [
+      "甜蜜",
+      "合唱",
+      "轻松"
+    ],
+    "sceneTags": [
+      "friends",
+      "birthday",
+      "couples"
+    ],
+    "difficulty": 2,
+    "vocalRangeLowMidi": 48,
+    "vocalRangeHighMidi": 69,
+    "energy": 0.58,
+    "singAlongScore": 0.88,
+    "ktvAvailability": 0.93,
+    "duetFriendly": true,
+    "rapDensity": 0.01,
+    "highNoteRisk": 0.28,
+    "aliases": [
+      "你被写在我的歌里 Live"
+    ],
+    "similarSongIds": [
+      "t205"
+    ]
+  },
+  {
+    "id": "t207",
+    "title": "快乐崇拜",
+    "artist": "潘玮柏",
+    "language": "Mandarin",
+    "era": "2000s",
+    "genre": "说唱/节奏型",
+    "moodTags": [
+      "热闹",
+      "合唱",
+      "节奏"
+    ],
+    "sceneTags": [
+      "friends",
+      "teamBuilding",
+      "birthday"
+    ],
+    "difficulty": 3,
+    "vocalRangeLowMidi": 47,
+    "vocalRangeHighMidi": 69,
+    "energy": 0.92,
+    "singAlongScore": 0.88,
+    "ktvAvailability": 0.93,
+    "duetFriendly": true,
+    "rapDensity": 0.54,
+    "highNoteRisk": 0.3,
+    "aliases": [
+      "快乐崇拜 Live"
+    ],
+    "similarSongIds": [
+      "t206"
+    ]
+  },
+  {
+    "id": "t208",
+    "title": "反转地球",
+    "artist": "潘玮柏",
+    "language": "Mandarin",
+    "era": "2000s",
+    "genre": "说唱/节奏型",
+    "moodTags": [
+      "热闹",
+      "节奏",
+      "复古"
+    ],
+    "sceneTags": [
+      "friends",
+      "teamBuilding"
+    ],
+    "difficulty": 4,
+    "vocalRangeLowMidi": 47,
+    "vocalRangeHighMidi": 70,
+    "energy": 0.9,
+    "singAlongScore": 0.76,
+    "ktvAvailability": 0.88,
+    "duetFriendly": false,
+    "rapDensity": 0.62,
+    "highNoteRisk": 0.34,
+    "aliases": [
+      "反转地球 Live"
+    ],
+    "similarSongIds": [
+      "t207"
+    ]
+  },
+  {
+    "id": "t209",
+    "title": "Tell Me",
+    "artist": "潘玮柏",
+    "language": "Mandarin",
+    "era": "2000s",
+    "genre": "说唱/节奏型",
+    "moodTags": [
+      "热闹",
+      "节奏",
+      "合唱"
+    ],
+    "sceneTags": [
+      "friends",
+      "teamBuilding"
+    ],
+    "difficulty": 3,
+    "vocalRangeLowMidi": 47,
+    "vocalRangeHighMidi": 69,
+    "energy": 0.86,
+    "singAlongScore": 0.82,
+    "ktvAvailability": 0.89,
+    "duetFriendly": true,
+    "rapDensity": 0.56,
+    "highNoteRisk": 0.3,
+    "aliases": [
+      "Tell Me Live"
+    ],
+    "similarSongIds": [
+      "t208"
+    ]
+  },
+  {
+    "id": "t210",
+    "title": "差不多先生",
+    "artist": "热狗",
+    "language": "Mandarin",
+    "era": "2000s",
+    "genre": "说唱/节奏型",
+    "moodTags": [
+      "说唱",
+      "节奏",
+      "个性"
+    ],
+    "sceneTags": [
+      "friends",
+      "soloPractice"
+    ],
+    "difficulty": 4,
+    "vocalRangeLowMidi": 43,
+    "vocalRangeHighMidi": 66,
+    "energy": 0.7,
+    "singAlongScore": 0.62,
+    "ktvAvailability": 0.85,
+    "duetFriendly": false,
+    "rapDensity": 0.78,
+    "highNoteRisk": 0.26,
+    "aliases": [
+      "差不多先生 Live"
+    ],
+    "similarSongIds": [
+      "t209"
+    ]
+  },
+  {
+    "id": "t211",
+    "title": "双截棍",
+    "artist": "周杰伦",
+    "language": "Mandarin",
+    "era": "2000s",
+    "genre": "说唱/节奏型",
+    "moodTags": [
+      "节奏",
+      "热闹",
+      "KTV经典"
+    ],
+    "sceneTags": [
+      "friends",
+      "teamBuilding",
+      "soloPractice"
+    ],
+    "difficulty": 5,
+    "vocalRangeLowMidi": 47,
+    "vocalRangeHighMidi": 70,
+    "energy": 0.88,
+    "singAlongScore": 0.78,
+    "ktvAvailability": 0.95,
+    "duetFriendly": false,
+    "rapDensity": 0.72,
+    "highNoteRisk": 0.4,
+    "aliases": [
+      "双截棍 Live"
+    ],
+    "similarSongIds": [
+      "t210"
+    ]
+  },
+  {
+    "id": "t212",
+    "title": "本草纲目",
+    "artist": "周杰伦",
+    "language": "Mandarin",
+    "era": "2000s",
+    "genre": "说唱/节奏型",
+    "moodTags": [
+      "国风",
+      "节奏",
+      "热闹"
+    ],
+    "sceneTags": [
+      "friends",
+      "teamBuilding"
+    ],
+    "difficulty": 4,
+    "vocalRangeLowMidi": 47,
+    "vocalRangeHighMidi": 70,
+    "energy": 0.86,
+    "singAlongScore": 0.82,
+    "ktvAvailability": 0.94,
+    "duetFriendly": false,
+    "rapDensity": 0.68,
+    "highNoteRisk": 0.38,
+    "aliases": [
+      "本草纲目 Live"
+    ],
+    "similarSongIds": [
+      "t211"
+    ]
+  },
+  {
+    "id": "t213",
+    "title": "目不转睛",
+    "artist": "王以太",
+    "language": "Mandarin",
+    "era": "2010s",
+    "genre": "说唱/节奏型",
+    "moodTags": [
+      "节奏",
+      "轻松",
+      "热度"
+    ],
+    "sceneTags": [
+      "friends",
+      "carKTV"
+    ],
+    "difficulty": 3,
+    "vocalRangeLowMidi": 44,
+    "vocalRangeHighMidi": 66,
+    "energy": 0.66,
+    "singAlongScore": 0.7,
+    "ktvAvailability": 0.84,
+    "duetFriendly": false,
+    "rapDensity": 0.58,
+    "highNoteRisk": 0.18,
+    "aliases": [
+      "目不转睛 Live"
+    ],
+    "similarSongIds": [
+      "t212"
+    ]
+  },
+  {
+    "id": "t214",
+    "title": "你的男孩",
+    "artist": "Tizzy T",
+    "language": "Mandarin",
+    "era": "2010s",
+    "genre": "说唱/节奏型",
+    "moodTags": [
+      "节奏",
+      "个性",
+      "热度"
+    ],
+    "sceneTags": [
+      "friends",
+      "soloPractice"
+    ],
+    "difficulty": 4,
+    "vocalRangeLowMidi": 44,
+    "vocalRangeHighMidi": 67,
+    "energy": 0.76,
+    "singAlongScore": 0.66,
+    "ktvAvailability": 0.84,
+    "duetFriendly": false,
+    "rapDensity": 0.72,
+    "highNoteRisk": 0.2,
+    "aliases": [
+      "你的男孩 Live"
+    ],
+    "similarSongIds": [
+      "t213"
+    ]
+  },
+  {
+    "id": "t215",
+    "title": "我的新衣",
+    "artist": "VaVa",
+    "language": "Mandarin",
+    "era": "2010s",
+    "genre": "说唱/节奏型",
+    "moodTags": [
+      "高光",
+      "节奏",
+      "个性"
+    ],
+    "sceneTags": [
+      "friends",
+      "soloPractice"
+    ],
+    "difficulty": 4,
+    "vocalRangeLowMidi": 50,
+    "vocalRangeHighMidi": 72,
+    "energy": 0.82,
+    "singAlongScore": 0.68,
+    "ktvAvailability": 0.83,
+    "duetFriendly": false,
+    "rapDensity": 0.76,
+    "highNoteRisk": 0.48,
+    "aliases": [
+      "我的新衣 Live"
+    ],
+    "similarSongIds": [
+      "t214"
+    ]
+  }
+]
