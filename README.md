@@ -27,9 +27,17 @@ open SingReadyAI.xcodeproj
 命令行验证示例：
 
 ```bash
+./scripts/capture_ui_test_screenshots.sh
+./scripts/validate.sh
+```
+
+单独构建示例：
+
+```bash
 xcodebuild -scheme SingReadyAIApp \
   -project SingReadyAI.xcodeproj \
-  -destination 'platform=iOS Simulator,name=iPhone 17' build
+  -destination 'generic/platform=iOS Simulator' \
+  CODE_SIGNING_ALLOWED=NO build
 ```
 
 如果本机没有 `iPhone 17`，先运行：
@@ -65,6 +73,8 @@ xcodebuild -showdestinations -scheme SingReadyAIApp -project SingReadyAI.xcodepr
 - [GAP_ANALYSIS.md](docs/GAP_ANALYSIS.md)
 - [MANUAL_QA.md](docs/MANUAL_QA.md)
 - [INTERVIEW_SCRIPT.md](docs/INTERVIEW_SCRIPT.md)
+- [QUALITY_AUDIT.md](docs/QUALITY_AUDIT.md)
+- [VISUAL_QA.md](docs/VISUAL_QA.md)
 - [ShareExtensionREADME.md](ShareExtensionREADME.md)
 - [FINAL_REPORT.md](FINAL_REPORT.md)
 

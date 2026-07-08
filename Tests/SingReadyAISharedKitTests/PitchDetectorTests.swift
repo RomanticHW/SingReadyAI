@@ -22,6 +22,57 @@ final class PitchDetectorTests: XCTestCase {
         XCTAssertEqual(detected ?? 0, frequency, accuracy: 5)
     }
 
+    func testAnalyzesCommonSineWaveFrames() {
+        let sampleRate = 8_000.0
+        let detector = PitchDetector()
+
+        let lowFrames = sineFrames(frequency: 220, sampleRate: sampleRate)
+        let middleFrames = sineFrames(frequency: 440, sampleRate: sampleRate)
+        let highFrames = sineFrames(frequency: 660, sampleRate: sampleRate)
+
+        let lowProfile = detector.analyzeFrames(lowFrames, sampleRate: sampleRate)
+        let middleProfile = detector.analyzeFrames(middleFrames, sampleRate: sampleRate)
+        let highProfile = detector.analyzeFrames(highFrames, sampleRate: sampleRate)
+
+        XCTAssertEqual(lowProfile.type, .midMale)
+        XCTAssertGreaterThanOrEqual(lowProfile.stableHighMidi, 56)
+        XCTAssertEqual(middleProfile.type, .midFemale)
+        XCTAssertEqual(Int(middleProfile.averageMidi.rounded()), 69, accuracy: 1)
+        XCTAssertGreaterThanOrEqual(highProfile.stableHighMidi, 75)
+        XCTAssertGreaterThan(highProfile.confidence, 0.55)
+    }
+
+    func testAudioFrameSplitterReturnsOverlappingFrames() {
+        let sampleRate = 8_000.0
+        let samples = sineSamples(frequency: 440, sampleRate: sampleRate, seconds: 1)
+        let splitter = AudioFrameSplitter(frameSize: 1024, hopSize: 512)
+
+        let frames = splitter.split(samples: samples)
+
+        XCTAssertGreaterThan(frames.count, 10)
+        XCTAssertEqual(frames.first?.count, 1024)
+        let windowedEnergy = frames[0].map { abs($0) }.reduce(0, +)
+        let rawEnergy = Array(samples[0..<1024]).map { abs($0) }.reduce(0, +)
+        XCTAssertLessThan(windowedEnergy, rawEnergy)
+    }
+
+    func testAnalyzeFramesReturnsUnknownWhenValidSamplesAreInsufficient() {
+        let profile = PitchDetector().analyzeFrames([], sampleRate: 44_100)
+
+        XCTAssertEqual(profile.type, .unknown)
+        XCTAssertEqual(profile.confidence, 0.1)
+        XCTAssertTrue(profile.note.contains("有效音高样本不足"))
+    }
+
+    func testRejectsHighFrequencyNoiseFrames() {
+        let sampleRate = 8_000.0
+        let frames = sineFrames(frequency: 2_200, sampleRate: sampleRate)
+
+        let profile = PitchDetector().analyzeFrames(frames, sampleRate: sampleRate)
+
+        XCTAssertEqual(profile.type, .unknown)
+    }
+
     func testRejectsOutOfSupportedFrequencyRange() {
         let sampleRate = 44_100.0
         let frequency = 1_200.0
@@ -76,5 +127,17 @@ final class PitchDetectorTests: XCTestCase {
         let risk = PitchDetector().highNoteRisk(for: track, voiceProfile: .simulatedMiddle)
 
         XCTAssertGreaterThan(risk, 0.8)
+    }
+
+    private func sineSamples(frequency: Double, sampleRate: Double, seconds: Double) -> [Float] {
+        let count = Int(sampleRate * seconds)
+        return (0..<count).map { index in
+            Float(sin(2.0 * Double.pi * frequency * Double(index) / sampleRate) * 0.7)
+        }
+    }
+
+    private func sineFrames(frequency: Double, sampleRate: Double) -> [[Float]] {
+        AudioFrameSplitter(frameSize: 1024, hopSize: 512)
+            .split(samples: sineSamples(frequency: frequency, sampleRate: sampleRate, seconds: 1.2))
     }
 }

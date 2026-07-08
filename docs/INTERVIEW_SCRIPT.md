@@ -59,5 +59,5 @@ The recommendation engine combines user hits, alternatives, and catalog expansio
 - Backend proxy for real LLM copywriting or reranking.
 - Real KTV vendor catalog sync where authorized.
 - Cloud account sync of generated plans.
-- More advanced pitch tracking from recorded PCM buffers.
-- UI tests for the full guided workflow.
+- More advanced pitch tracking such as note segmentation and confidence visualization.
+- Broader UI tests for interactive editing gestures beyond the 10-state screenshot flow.

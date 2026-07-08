@@ -133,7 +133,7 @@ final class DemoWorkflowStore: ObservableObject {
     private let jsonExporter = PlaylistJSONExporter()
 
     #if canImport(AVFoundation)
-    private var audioRecorder: AVAudioRecorder?
+    private let voiceRecordingService = VoiceRecordingService()
     #endif
 
     private(set) var catalog: [KTVTrack] = []
@@ -278,28 +278,31 @@ final class DemoWorkflowStore: ObservableObject {
             return
         }
 
-        do {
-            try startRecorder()
-            recordingState = .recording
-            recordingRemainingSeconds = 10
+        let countdownTask = Task { @MainActor in
             for second in stride(from: 10, through: 1, by: -1) {
                 recordingRemainingSeconds = second
-                audioRecorder?.updateMeters()
-                let power = audioRecorder?.averagePower(forChannel: 0) ?? -42
-                recordingLevel = min(1, max(0.06, (Double(power) + 55) / 55))
-                try await Task.sleep(nanoseconds: 1_000_000_000)
+                try? await Task.sleep(nanoseconds: 1_000_000_000)
+                if Task.isCancelled { return }
             }
-            audioRecorder?.stop()
+        }
+
+        do {
+            recordingState = .recording
+            recordingRemainingSeconds = 10
+            recordingLevel = 0.08
+            let profile = try await voiceRecordingService.recordPitchProfile(duration: 10) { [weak self] level in
+                Task { @MainActor in
+                    self?.recordingLevel = level
+                }
+            }
+            countdownTask.cancel()
             recordingState = .analyzing
-            try await Task.sleep(nanoseconds: 600_000_000)
-            var profile = voiceAnalyzer.simulatedProfile()
-            profile.note = "真机录音流程已完成，本地 Demo 使用模拟音高帧生成声线画像；不保存原始音频。"
             voiceProfile = profile
             recordingState = .idle
             statusMessage = "已完成 10 秒声线分析"
             currentStage = .scenario
         } catch {
-            audioRecorder?.stop()
+            countdownTask.cancel()
             recordingState = .failed("录音失败：\(error.localizedDescription)。可使用模拟声线继续。")
         }
         #else
@@ -390,29 +393,7 @@ final class DemoWorkflowStore: ObservableObject {
 
     #if os(iOS) && canImport(AVFoundation)
     private func requestMicrophonePermission() async -> Bool {
-        await withCheckedContinuation { continuation in
-            AVAudioSession.sharedInstance().requestRecordPermission { granted in
-                continuation.resume(returning: granted)
-            }
-        }
-    }
-
-    private func startRecorder() throws {
-        let session = AVAudioSession.sharedInstance()
-        try session.setCategory(.playAndRecord, mode: .measurement, options: [.defaultToSpeaker])
-        try session.setActive(true)
-
-        let url = FileManager.default.temporaryDirectory.appendingPathComponent("singready-voice-\(UUID().uuidString).m4a")
-        let settings: [String: Any] = [
-            AVFormatIDKey: Int(kAudioFormatMPEG4AAC),
-            AVSampleRateKey: 44_100,
-            AVNumberOfChannelsKey: 1,
-            AVEncoderAudioQualityKey: AVAudioQuality.medium.rawValue
-        ]
-        let recorder = try AVAudioRecorder(url: url, settings: settings)
-        recorder.isMeteringEnabled = true
-        recorder.record(forDuration: 10)
-        audioRecorder = recorder
+        await voiceRecordingService.requestPermission()
     }
     #endif
 }

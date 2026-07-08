@@ -118,7 +118,7 @@ public struct PlainTextPlaylistParser: Sendable {
     }
 
     private func parseDelimited(_ line: String, rawLine: String, source: ImportSource) -> ImportedSong? {
-        let delimiters = [" - ", "-", " / ", "/", "｜", "|", "—", "–"]
+        let delimiters = [" - ", " / ", "｜", "|", "—", "–", "/", "-"]
         for delimiter in delimiters where line.contains(delimiter) {
             let parts = line.components(separatedBy: delimiter)
                 .map(cleanPart)
@@ -202,6 +202,7 @@ public struct PlainTextPlaylistParser: Sendable {
         var result = value.trimmingCharacters(in: .whitespacesAndNewlines)
         result = replace(pattern: #"\((live|Live|LIVE|伴奏|翻唱|cover|Cover|现场|版|remix|Remix|剪辑).*?\)"#, in: result, with: "")
         result = replace(pattern: #"（(Live|live|LIVE|伴奏|翻唱|cover|Cover|现场|版|remix|Remix|剪辑).*?）"#, in: result, with: "")
+        result = replace(pattern: #"\s+(Live|live|LIVE|伴奏|翻唱|cover|Cover|现场|民谣版|remix|Remix|剪辑).*$"#, in: result, with: "")
         result = replace(pattern: #"\s+"#, in: result, with: " ")
         return result.trimmingCharacters(in: CharacterSet.whitespacesAndNewlines.union(.punctuationCharacters))
     }
@@ -272,7 +273,8 @@ public struct PlainTextPlaylistParser: Sendable {
             "刘德华", "李荣浩", "毛不易", "蔡依林", "张惠妹", "梁静茹", "张韶涵", "许嵩",
             "薛之谦", "陶喆", "王力宏", "田馥甄", "Beyond", "光良", "莫文蔚", "汪苏泷",
             "刘若英", "李克勤", "张碧晨", "胡夏", "朴树", "赵雷", "王心凌", "袁娅维",
-            "买辣椒也用券", "张国荣", "任贤齐", "周华健", "苏打绿", "凤凰传奇"
+            "买辣椒也用券", "张国荣", "任贤齐", "周华健", "苏打绿", "凤凰传奇",
+            "A-Lin", "S.H.E"
         ].map(SongNormalizer.normalizeArtist).reduce(into: Set<String>()) { $0.insert($1) }
     }
 }

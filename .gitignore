@@ -4,7 +4,9 @@
 
 # SwiftPM / Xcode
 /.build
+/Build
 /DerivedData
+/docs/screenshots/ui-test-attachments/
 *.xcuserstate
 *.xcuserdata
 *.moved-aside
