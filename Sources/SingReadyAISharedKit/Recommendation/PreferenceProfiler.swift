@@ -5,7 +5,17 @@ public struct PreferenceProfiler: Sendable {
 
     public func buildProfile(importedPlaylist: ImportedPlaylist, matches: [MatchResult]) -> PreferenceProfile {
         let matchedTracks = matches.compactMap(\.acceptedTrack)
-        let originalMatchCount = matches.filter(\.hasOriginalReferenceMatch).count
+        let originalMatchCount = matches.reduce(into: 0) { count, match in
+            switch match.disposition {
+            case .acceptedOriginalExact, .acceptedOriginalConfirmed:
+                count += 1
+            case .identityConfirmationRequired,
+                 .alternativeSuggested,
+                 .adoptedAlternative,
+                 .unmatched:
+                break
+            }
+        }
         let totalCount = max(importedPlaylist.songs.count, 1)
 
         let matchesByImportedSongID = Dictionary(

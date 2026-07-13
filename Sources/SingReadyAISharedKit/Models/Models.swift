@@ -360,6 +360,75 @@ public enum MatchConfirmationState: String, Codable, CaseIterable, Sendable {
     case confirmed
 }
 
+public enum SongMatchDisposition: Codable, Sendable {
+    case acceptedOriginalExact(track: KTVTrack)
+    case acceptedOriginalConfirmed(track: KTVTrack)
+    case identityConfirmationRequired(candidates: [KTVTrack])
+    case alternativeSuggested(candidates: [KTVTrack])
+    case adoptedAlternative(track: KTVTrack)
+    case unmatched
+
+    private enum Kind: String, Codable {
+        case acceptedOriginalExact
+        case acceptedOriginalConfirmed
+        case identityConfirmationRequired
+        case alternativeSuggested
+        case adoptedAlternative
+        case unmatched
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case kind
+        case track
+        case candidates
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        switch try container.decode(Kind.self, forKey: .kind) {
+        case .acceptedOriginalExact:
+            self = .acceptedOriginalExact(track: try container.decode(KTVTrack.self, forKey: .track))
+        case .acceptedOriginalConfirmed:
+            self = .acceptedOriginalConfirmed(track: try container.decode(KTVTrack.self, forKey: .track))
+        case .identityConfirmationRequired:
+            self = .identityConfirmationRequired(
+                candidates: try container.decode([KTVTrack].self, forKey: .candidates)
+            )
+        case .alternativeSuggested:
+            self = .alternativeSuggested(
+                candidates: try container.decode([KTVTrack].self, forKey: .candidates)
+            )
+        case .adoptedAlternative:
+            self = .adoptedAlternative(track: try container.decode(KTVTrack.self, forKey: .track))
+        case .unmatched:
+            self = .unmatched
+        }
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        switch self {
+        case let .acceptedOriginalExact(track):
+            try container.encode(Kind.acceptedOriginalExact, forKey: .kind)
+            try container.encode(track, forKey: .track)
+        case let .acceptedOriginalConfirmed(track):
+            try container.encode(Kind.acceptedOriginalConfirmed, forKey: .kind)
+            try container.encode(track, forKey: .track)
+        case let .identityConfirmationRequired(candidates):
+            try container.encode(Kind.identityConfirmationRequired, forKey: .kind)
+            try container.encode(candidates, forKey: .candidates)
+        case let .alternativeSuggested(candidates):
+            try container.encode(Kind.alternativeSuggested, forKey: .kind)
+            try container.encode(candidates, forKey: .candidates)
+        case let .adoptedAlternative(track):
+            try container.encode(Kind.adoptedAlternative, forKey: .kind)
+            try container.encode(track, forKey: .track)
+        case .unmatched:
+            try container.encode(Kind.unmatched, forKey: .kind)
+        }
+    }
+}
+
 public struct MatchResultDisplayPolicy: Sendable {
     public static let batchSize = 5
 
@@ -377,41 +446,170 @@ public struct MatchResultDisplayPolicy: Sendable {
 public struct MatchResult: Codable, Identifiable, Sendable {
     public var id: UUID
     public var importedSong: ImportedSong
-    public var matchedTrack: KTVTrack?
-    public var alternatives: [KTVTrack]
-    public var status: MatchStatus
-    public var confirmationState: MatchConfirmationState
+    public private(set) var disposition: SongMatchDisposition
+    public private(set) var suggestedAlternatives: [KTVTrack]
     public var score: Double
     public var reason: String
 
     public var acceptedTrack: KTVTrack? {
-        confirmationState == .required ? nil : matchedTrack
+        switch disposition {
+        case let .acceptedOriginalExact(track),
+             let .acceptedOriginalConfirmed(track),
+             let .adoptedAlternative(track):
+            return track
+        case .identityConfirmationRequired, .alternativeSuggested, .unmatched:
+            return nil
+        }
+    }
+
+    public var candidateTracks: [KTVTrack] {
+        switch disposition {
+        case let .identityConfirmationRequired(candidates),
+             let .alternativeSuggested(candidates):
+            return candidates
+        case .acceptedOriginalExact,
+             .acceptedOriginalConfirmed,
+             .adoptedAlternative,
+             .unmatched:
+            return []
+        }
+    }
+
+    public var isVerified: Bool {
+        acceptedTrack != nil
+    }
+
+    public var isPending: Bool {
+        switch disposition {
+        case .identityConfirmationRequired, .alternativeSuggested:
+            return true
+        case .acceptedOriginalExact,
+             .acceptedOriginalConfirmed,
+             .adoptedAlternative,
+             .unmatched:
+            return false
+        }
+    }
+
+    public var isUnmatched: Bool {
+        if case .unmatched = disposition {
+            return true
+        }
+        return false
     }
 
     public var hasOriginalReferenceMatch: Bool {
-        guard acceptedTrack != nil else { return false }
-        return status == .exact || status == .fuzzy
+        switch disposition {
+        case .acceptedOriginalExact, .acceptedOriginalConfirmed:
+            return true
+        case .identityConfirmationRequired,
+             .alternativeSuggested,
+             .adoptedAlternative,
+             .unmatched:
+            return false
+        }
     }
 
     public var isAdoptedAlternative: Bool {
-        status == .alternative && acceptedTrack != nil
+        if case .adoptedAlternative = disposition {
+            return true
+        }
+        return false
     }
 
     public var needsAlternativeAdoption: Bool {
-        status == .alternative && !isAdoptedAlternative
+        if case .alternativeSuggested = disposition {
+            return true
+        }
+        return false
+    }
+
+    // Migration-only 只读适配器；Task 16 在生产调用点迁移完成后删除。
+    public var matchedTrack: KTVTrack? {
+        acceptedTrack
+    }
+
+    // Migration-only 只读适配器；候选或建议均由 disposition 单向派生。
+    public var alternatives: [KTVTrack] {
+        candidateTracks.isEmpty ? suggestedAlternatives : candidateTracks
+    }
+
+    // Migration-only 只读适配器；不得作为新的状态判断真源。
+    public var status: MatchStatus {
+        switch disposition {
+        case .acceptedOriginalExact, .acceptedOriginalConfirmed:
+            return .exact
+        case .identityConfirmationRequired:
+            return .fuzzy
+        case .alternativeSuggested, .adoptedAlternative:
+            return .alternative
+        case .unmatched:
+            return .unmatched
+        }
+    }
+
+    // Migration-only 只读适配器；不得与 disposition 分开保存。
+    public var confirmationState: MatchConfirmationState {
+        switch disposition {
+        case .acceptedOriginalConfirmed:
+            return .confirmed
+        case .identityConfirmationRequired:
+            return .required
+        case .acceptedOriginalExact,
+             .alternativeSuggested,
+             .adoptedAlternative,
+             .unmatched:
+            return .notRequired
+        }
     }
 
     enum CodingKeys: String, CodingKey {
         case id
         case importedSong
+        case disposition
+        case suggestedAlternatives
+        case score
+        case reason
+
+        // 仅用于旧快照单向迁移。
         case matchedTrack
         case alternatives
         case status
         case confirmationState
-        case score
-        case reason
     }
 
+    public init(
+        id: UUID = UUID(),
+        importedSong: ImportedSong,
+        disposition: SongMatchDisposition,
+        suggestedAlternatives: [KTVTrack] = [],
+        score: Double,
+        reason: String
+    ) {
+        let normalizedDisposition = Self.normalized(disposition)
+        let normalizedAcceptedTrack: KTVTrack?
+        switch normalizedDisposition {
+        case let .acceptedOriginalExact(track),
+             let .acceptedOriginalConfirmed(track),
+             let .adoptedAlternative(track):
+            normalizedAcceptedTrack = track
+        case .identityConfirmationRequired, .alternativeSuggested, .unmatched:
+            normalizedAcceptedTrack = nil
+        }
+        self.id = id
+        self.importedSong = importedSong
+        self.disposition = normalizedDisposition
+        if let normalizedAcceptedTrack {
+            self.suggestedAlternatives = Self.uniqueTracks(suggestedAlternatives)
+                .filter { $0.id != normalizedAcceptedTrack.id }
+        } else {
+            self.suggestedAlternatives = []
+        }
+        self.score = min(max(score, 0), 1)
+        self.reason = reason
+    }
+
+    // Migration-only 初始化器；旧字段只在此处做一次保守映射。
     public init(
         id: UUID = UUID(),
         importedSong: ImportedSong,
@@ -422,31 +620,55 @@ public struct MatchResult: Codable, Identifiable, Sendable {
         score: Double,
         reason: String
     ) {
-        self.id = id
-        self.importedSong = importedSong
-        if confirmationState == .required {
-            var seenTrackIDs = Set<String>()
-            self.matchedTrack = nil
-            self.alternatives = ([matchedTrack].compactMap(\.self) + alternatives)
-                .filter { $0.matchesTitleIdentity(importedSong.title) }
-                .filter { seenTrackIDs.insert($0.id).inserted }
+        let normalizedConfirmationState: MatchConfirmationState
+        if confirmationState == .notRequired,
+           importedSong.artist?.nilIfBlank == nil,
+           matchedTrack != nil,
+           status == .exact || status == .fuzzy {
+            normalizedConfirmationState = .required
         } else {
-            self.matchedTrack = matchedTrack
-            self.alternatives = alternatives
+            normalizedConfirmationState = confirmationState
         }
-        self.status = status
-        self.confirmationState = confirmationState
-        self.score = min(max(score, 0), 1)
-        self.reason = reason
+        let migration = Self.migrateLegacyState(
+            importedSong: importedSong,
+            matchedTrack: matchedTrack,
+            alternatives: alternatives,
+            status: status,
+            confirmationState: normalizedConfirmationState
+        )
+        self.init(
+            id: id,
+            importedSong: importedSong,
+            disposition: migration.disposition,
+            suggestedAlternatives: migration.suggestedAlternatives,
+            score: score,
+            reason: reason
+        )
     }
 
     public init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         let decodedID = try container.decode(UUID.self, forKey: .id)
         let decodedImportedSong = try container.decode(ImportedSong.self, forKey: .importedSong)
+
+        if container.contains(.disposition) {
+            self.init(
+                id: decodedID,
+                importedSong: decodedImportedSong,
+                disposition: try container.decode(SongMatchDisposition.self, forKey: .disposition),
+                suggestedAlternatives: try container.decodeIfPresent(
+                    [KTVTrack].self,
+                    forKey: .suggestedAlternatives
+                ) ?? [],
+                score: try container.decode(Double.self, forKey: .score),
+                reason: try container.decode(String.self, forKey: .reason)
+            )
+            return
+        }
+
         let decodedMatchedTrack = try container.decodeIfPresent(KTVTrack.self, forKey: .matchedTrack)
-        let decodedAlternatives = try container.decode([KTVTrack].self, forKey: .alternatives)
-        let decodedStatus = try container.decode(MatchStatus.self, forKey: .status)
+        let decodedAlternatives = try container.decodeIfPresent([KTVTrack].self, forKey: .alternatives) ?? []
+        let decodedStatus = try container.decodeIfPresent(MatchStatus.self, forKey: .status) ?? .unmatched
         let decodedConfirmationState = try container.decodeIfPresent(
             MatchConfirmationState.self,
             forKey: .confirmationState
@@ -459,13 +681,18 @@ public struct MatchResult: Codable, Identifiable, Sendable {
         } else {
             normalizedConfirmationState = decodedConfirmationState ?? .notRequired
         }
-        self.init(
-            id: decodedID,
+        let migration = Self.migrateLegacyState(
             importedSong: decodedImportedSong,
             matchedTrack: decodedMatchedTrack,
             alternatives: decodedAlternatives,
             status: decodedStatus,
-            confirmationState: normalizedConfirmationState,
+            confirmationState: normalizedConfirmationState
+        )
+        self.init(
+            id: decodedID,
+            importedSong: decodedImportedSong,
+            disposition: migration.disposition,
+            suggestedAlternatives: migration.suggestedAlternatives,
             score: try container.decode(Double.self, forKey: .score),
             reason: try container.decode(String.self, forKey: .reason)
         )
@@ -475,86 +702,183 @@ public struct MatchResult: Codable, Identifiable, Sendable {
         var container = encoder.container(keyedBy: CodingKeys.self)
         try container.encode(id, forKey: .id)
         try container.encode(importedSong, forKey: .importedSong)
-        try container.encodeIfPresent(matchedTrack, forKey: .matchedTrack)
-        try container.encode(alternatives, forKey: .alternatives)
-        try container.encode(status, forKey: .status)
-        try container.encode(confirmationState, forKey: .confirmationState)
+        try container.encode(disposition, forKey: .disposition)
+        try container.encode(suggestedAlternatives, forKey: .suggestedAlternatives)
         try container.encode(score, forKey: .score)
         try container.encode(reason, forKey: .reason)
     }
 
     public func confirming(track: KTVTrack) -> MatchResult? {
-        guard confirmationState == .required,
-              alternatives.contains(where: { $0.id == track.id }) else {
+        guard case let .identityConfirmationRequired(candidates) = disposition,
+              let confirmedTrack = candidates.first(where: { $0.id == track.id }) else {
             return nil
         }
 
-        var confirmed = self
-        confirmed.matchedTrack = track
-        confirmed.alternatives = []
-        confirmed.status = .exact
-        confirmed.confirmationState = .confirmed
-        confirmed.score = 1
-        confirmed.reason = "已确认歌名和歌手"
-        return confirmed
+        return MatchResult(
+            id: id,
+            importedSong: importedSong,
+            disposition: .acceptedOriginalConfirmed(track: confirmedTrack),
+            score: 1,
+            reason: "已确认歌名和歌手"
+        )
     }
 
     public func adoptingAlternative(track: KTVTrack) -> MatchResult? {
-        guard confirmationState != .required,
-              alternatives.contains(where: { $0.id == track.id }) else {
+        let selectableTracks = candidateTracks + suggestedAlternatives
+        guard let adoptedTrack = selectableTracks.first(where: { $0.id == track.id }),
+              adoptedTrack.id != acceptedTrack?.id else {
             return nil
         }
 
-        var adopted = self
-        let previousTrack = adopted.matchedTrack
-        adopted.matchedTrack = track
-        adopted.alternatives.removeAll { $0.id == track.id }
+        var remainingTracks = selectableTracks.filter { $0.id != adoptedTrack.id }
+        let previousTrack = acceptedTrack
         if let previousTrack,
-           previousTrack.id != track.id,
-           !adopted.alternatives.contains(where: { $0.id == previousTrack.id }) {
-            adopted.alternatives.insert(previousTrack, at: 0)
+           previousTrack.id != adoptedTrack.id,
+           !remainingTracks.contains(where: { $0.id == previousTrack.id }) {
+            remainingTracks.insert(previousTrack, at: 0)
         }
-        adopted.status = .alternative
-        adopted.confirmationState = .notRequired
-        adopted.reason = "已采用替代歌：\(track.title) - \(track.artist)"
-        return adopted
+
+        return MatchResult(
+            id: id,
+            importedSong: importedSong,
+            disposition: .adoptedAlternative(track: adoptedTrack),
+            suggestedAlternatives: remainingTracks,
+            score: score,
+            reason: "已采用替代歌：\(adoptedTrack.title) - \(adoptedTrack.artist)"
+        )
+    }
+
+    private static func normalized(_ disposition: SongMatchDisposition) -> SongMatchDisposition {
+        switch disposition {
+        case let .identityConfirmationRequired(candidates):
+            let candidates = uniqueTracks(candidates)
+            return candidates.isEmpty ? .unmatched : .identityConfirmationRequired(candidates: candidates)
+        case let .alternativeSuggested(candidates):
+            let candidates = uniqueTracks(candidates)
+            return candidates.isEmpty ? .unmatched : .alternativeSuggested(candidates: candidates)
+        case .acceptedOriginalExact,
+             .acceptedOriginalConfirmed,
+             .adoptedAlternative,
+             .unmatched:
+            return disposition
+        }
+    }
+
+    private static func migrateLegacyState(
+        importedSong: ImportedSong,
+        matchedTrack: KTVTrack?,
+        alternatives: [KTVTrack],
+        status: MatchStatus,
+        confirmationState: MatchConfirmationState
+    ) -> (disposition: SongMatchDisposition, suggestedAlternatives: [KTVTrack]) {
+        let allTracks = uniqueTracks(([matchedTrack].compactMap(\.self) + alternatives))
+        let identityCandidates = allTracks.filter { $0.matchesTitleIdentity(importedSong.title) }
+
+        if confirmationState == .required {
+            return pendingIdentityMigration(candidates: identityCandidates)
+        }
+
+        if confirmationState == .confirmed {
+            guard let matchedTrack,
+                  status == .exact || status == .fuzzy else {
+                return pendingIdentityMigration(candidates: identityCandidates)
+            }
+            return (
+                .acceptedOriginalConfirmed(track: matchedTrack),
+                uniqueTracks(alternatives).filter { $0.id != matchedTrack.id }
+            )
+        }
+
+        switch status {
+        case .exact:
+            guard let matchedTrack else {
+                return pendingIdentityMigration(candidates: identityCandidates)
+            }
+            return (
+                .acceptedOriginalExact(track: matchedTrack),
+                uniqueTracks(alternatives).filter { $0.id != matchedTrack.id }
+            )
+        case .fuzzy:
+            return pendingIdentityMigration(candidates: identityCandidates)
+        case .alternative:
+            if let matchedTrack {
+                return (
+                    .adoptedAlternative(track: matchedTrack),
+                    uniqueTracks(alternatives).filter { $0.id != matchedTrack.id }
+                )
+            }
+            let candidates = uniqueTracks(alternatives)
+            return candidates.isEmpty
+                ? (.unmatched, [])
+                : (.alternativeSuggested(candidates: candidates), [])
+        case .unmatched:
+            if matchedTrack != nil {
+                return pendingIdentityMigration(candidates: identityCandidates)
+            }
+            return (.unmatched, [])
+        }
+    }
+
+    private static func pendingIdentityMigration(
+        candidates: [KTVTrack]
+    ) -> (disposition: SongMatchDisposition, suggestedAlternatives: [KTVTrack]) {
+        let candidates = uniqueTracks(candidates)
+        return candidates.isEmpty
+            ? (.unmatched, [])
+            : (.identityConfirmationRequired(candidates: candidates), [])
+    }
+
+    private static func uniqueTracks(_ tracks: [KTVTrack]) -> [KTVTrack] {
+        var seenTrackIDs = Set<String>()
+        return tracks.filter { seenTrackIDs.insert($0.id).inserted }
     }
 }
 
 public struct MatchStatistics: Equatable, Sendable {
-    public var exact: Int
+    public var verified: Int
     public var pending: Int
+    public var unmatched: Int
+    public var originalAccepted: Int
+    public var adoptedAlternative: Int
+
+    // Migration-only 统计适配器；Task 15 完成界面迁移后删除。
+    public var exact: Int
     public var fuzzy: Int
     public var pendingAlternative: Int
-    public var adoptedAlternative: Int
-    public var unmatched: Int
 
     public var total: Int {
-        exact + pending + fuzzy + pendingAlternative + adoptedAlternative + unmatched
+        verified + pending + unmatched
     }
 
     public init(matches: [MatchResult]) {
-        exact = 0
+        verified = 0
         pending = 0
+        unmatched = 0
+        originalAccepted = 0
+        adoptedAlternative = 0
+        exact = 0
         fuzzy = 0
         pendingAlternative = 0
-        adoptedAlternative = 0
-        unmatched = 0
 
         for match in matches {
-            if match.confirmationState == .required {
+            switch match.disposition {
+            case .acceptedOriginalExact:
+                verified += 1
+                originalAccepted += 1
+                exact += 1
+            case .acceptedOriginalConfirmed:
+                verified += 1
+                originalAccepted += 1
+                fuzzy += 1
+            case .identityConfirmationRequired:
                 pending += 1
-            } else if match.isAdoptedAlternative {
-                adoptedAlternative += 1
-            } else if match.needsAlternativeAdoption {
+            case .alternativeSuggested:
+                pending += 1
                 pendingAlternative += 1
-            } else if match.hasOriginalReferenceMatch {
-                if match.status == .exact {
-                    exact += 1
-                } else {
-                    fuzzy += 1
-                }
-            } else {
+            case .adoptedAlternative:
+                verified += 1
+                adoptedAlternative += 1
+            case .unmatched:
                 unmatched += 1
             }
         }

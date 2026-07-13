@@ -2,6 +2,151 @@ import XCTest
 @testable import SingReadyAISharedKit
 
 final class SongMatcherTests: XCTestCase {
+    func testSongMatchDispositionHasExactlySixStableCodableShapes() throws {
+        let original = makeTrack(id: "original", title: "原曲", artist: "原歌手")
+        let candidate = makeTrack(id: "candidate", title: "候选", artist: "候选歌手")
+        let cases: [(disposition: SongMatchDisposition, kind: String, payloadKey: String?)] = [
+            (.acceptedOriginalExact(track: original), "acceptedOriginalExact", "track"),
+            (.acceptedOriginalConfirmed(track: original), "acceptedOriginalConfirmed", "track"),
+            (.identityConfirmationRequired(candidates: [candidate]), "identityConfirmationRequired", "candidates"),
+            (.alternativeSuggested(candidates: [candidate]), "alternativeSuggested", "candidates"),
+            (.adoptedAlternative(track: candidate), "adoptedAlternative", "track"),
+            (.unmatched, "unmatched", nil)
+        ]
+
+        XCTAssertEqual(cases.count, 6)
+        for testCase in cases {
+            let data = try JSONEncoder().encode(testCase.disposition)
+            let object = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
+            let expectedKeys = Set(["kind", testCase.payloadKey].compactMap(\.self))
+
+            XCTAssertEqual(object["kind"] as? String, testCase.kind)
+            XCTAssertEqual(Set(object.keys), expectedKeys)
+
+            let decoded = try JSONDecoder().decode(SongMatchDisposition.self, from: data)
+            XCTAssertEqual(dispositionKind(decoded), testCase.kind)
+            XCTAssertEqual(dispositionTrackIDs(decoded), dispositionTrackIDs(testCase.disposition))
+        }
+    }
+
+    func testMatchResultEncodingWritesOnlyNewDispositionFormatAndPrefersItWhenDecoding() throws {
+        let original = makeTrack(id: "original", title: "原曲", artist: "原歌手")
+        let alternative = makeTrack(id: "alternative", title: "替代", artist: "替代歌手")
+        let result = MatchResult(
+            importedSong: ImportedSong(title: original.title, artist: original.artist, source: .plainText, confidence: 1),
+            disposition: .acceptedOriginalExact(track: original),
+            suggestedAlternatives: [alternative, original, alternative],
+            score: 1,
+            reason: "精确命中"
+        )
+
+        let encoded = try JSONEncoder().encode(result)
+        var object = try XCTUnwrap(JSONSerialization.jsonObject(with: encoded) as? [String: Any])
+
+        XCTAssertNotNil(object["disposition"])
+        XCTAssertEqual((object["suggestedAlternatives"] as? [[String: Any]])?.count, 1)
+        XCTAssertNil(object["matchedTrack"])
+        XCTAssertNil(object["alternatives"])
+        XCTAssertNil(object["status"])
+        XCTAssertNil(object["confirmationState"])
+
+        object["disposition"] = ["kind": "unmatched"]
+        object["matchedTrack"] = try jsonObject(original)
+        object["alternatives"] = []
+        object["status"] = MatchStatus.exact.rawValue
+        object["confirmationState"] = MatchConfirmationState.notRequired.rawValue
+
+        let decoded = try JSONDecoder().decode(
+            MatchResult.self,
+            from: JSONSerialization.data(withJSONObject: object)
+        )
+
+        XCTAssertTrue(decoded.isUnmatched)
+        XCTAssertNil(decoded.acceptedTrack)
+    }
+
+    func testLegacyMatchResultJSONMigratesEveryValidStateAndNormalizesUnsafeCombinations() throws {
+        let original = makeTrack(id: "original", title: "原曲", artist: "原歌手")
+        let candidate = makeTrack(id: "candidate", title: "原曲", artist: "另一歌手")
+        let replacement = makeTrack(id: "replacement", title: "替代", artist: "替代歌手")
+        let importedSong = ImportedSong(
+            title: original.title,
+            artist: original.artist,
+            source: .plainText,
+            confidence: 1
+        )
+        let cases: [(fixture: LegacyMatchResultFixture, expectedKind: String, expectedTrackIDs: [String])] = [
+            (
+                legacyFixture(importedSong: importedSong, matchedTrack: original, status: .exact),
+                "acceptedOriginalExact",
+                [original.id]
+            ),
+            (
+                legacyFixture(
+                    importedSong: importedSong,
+                    matchedTrack: original,
+                    status: .exact,
+                    confirmationState: .confirmed
+                ),
+                "acceptedOriginalConfirmed",
+                [original.id]
+            ),
+            (
+                legacyFixture(
+                    importedSong: importedSong,
+                    alternatives: [candidate],
+                    status: .fuzzy,
+                    confirmationState: .required
+                ),
+                "identityConfirmationRequired",
+                [candidate.id]
+            ),
+            (
+                legacyFixture(importedSong: importedSong, alternatives: [replacement], status: .alternative),
+                "alternativeSuggested",
+                [replacement.id]
+            ),
+            (
+                legacyFixture(importedSong: importedSong, matchedTrack: replacement, status: .alternative),
+                "adoptedAlternative",
+                [replacement.id]
+            ),
+            (
+                legacyFixture(importedSong: importedSong, status: .unmatched),
+                "unmatched",
+                []
+            ),
+            (
+                legacyFixture(importedSong: importedSong, matchedTrack: candidate, status: .fuzzy),
+                "identityConfirmationRequired",
+                [candidate.id]
+            ),
+            (
+                legacyFixture(importedSong: importedSong, status: .exact),
+                "unmatched",
+                []
+            ),
+            (
+                legacyFixture(importedSong: importedSong, matchedTrack: candidate, status: .unmatched),
+                "identityConfirmationRequired",
+                [candidate.id]
+            )
+        ]
+
+        for testCase in cases {
+            let decoded = try JSONDecoder().decode(
+                MatchResult.self,
+                from: JSONEncoder().encode(testCase.fixture)
+            )
+
+            XCTAssertEqual(dispositionKind(decoded.disposition), testCase.expectedKind)
+            XCTAssertEqual(dispositionTrackIDs(decoded.disposition), testCase.expectedTrackIDs)
+            if ["identityConfirmationRequired", "alternativeSuggested", "unmatched"].contains(testCase.expectedKind) {
+                XCTAssertNil(decoded.acceptedTrack, testCase.expectedKind)
+            }
+        }
+    }
+
     @MainActor
     func testPlaylistAnalysisExecutorKeepsMainActorResponsive() async throws {
         let operationStarted = expectation(description: "playlist analysis started")
@@ -144,7 +289,8 @@ final class SongMatcherTests: XCTestCase {
 
         XCTAssertNil(result.matchedTrack)
         XCTAssertEqual(result.alternatives.map(\.id), [track.id])
-        XCTAssertEqual(try encodedConfirmationState(of: result), "required")
+        XCTAssertEqual(result.confirmationState, .required)
+        XCTAssertTrue(result.isPending)
     }
 
     func testMissingArtistMultipleTitleCandidatesRequireConfirmation() throws {
@@ -159,28 +305,22 @@ final class SongMatcherTests: XCTestCase {
 
         XCTAssertNil(result.matchedTrack)
         XCTAssertEqual(Set(result.alternatives.map(\.id)), Set(catalog.map(\.id)))
-        XCTAssertEqual(try encodedConfirmationState(of: result), "required")
+        XCTAssertEqual(result.confirmationState, .required)
+        XCTAssertTrue(result.isPending)
     }
 
     func testLegacyMatchResultJSONDefaultsConfirmationToNotRequired() throws {
         let track = try XCTUnwrap(try KTVCatalogRepository().loadTracks().first)
-        let original = MatchResult(
+        let legacy = legacyFixture(
             importedSong: ImportedSong(title: track.title, artist: track.artist, source: .plainText, confidence: 1),
             matchedTrack: track,
-            alternatives: [],
             status: .exact,
-            score: 1,
-            reason: "旧快照"
+            confirmationState: nil
         )
-        var legacyObject = try XCTUnwrap(
-            JSONSerialization.jsonObject(with: JSONEncoder().encode(original)) as? [String: Any]
-        )
-        legacyObject.removeValue(forKey: "confirmationState")
-        let legacyData = try JSONSerialization.data(withJSONObject: legacyObject)
 
-        let decoded = try JSONDecoder().decode(MatchResult.self, from: legacyData)
+        let decoded = try JSONDecoder().decode(MatchResult.self, from: JSONEncoder().encode(legacy))
 
-        XCTAssertEqual(try encodedConfirmationState(of: decoded), "notRequired")
+        XCTAssertEqual(decoded.confirmationState, .notRequired)
         XCTAssertEqual(decoded.matchedTrack?.id, track.id)
     }
 
@@ -191,7 +331,7 @@ final class SongMatcherTests: XCTestCase {
         let legacyArtists: [String?] = [nil, "   "]
 
         for legacyArtist in legacyArtists {
-            let original = MatchResult(
+            let legacy = legacyFixture(
                 importedSong: ImportedSong(
                     title: matchedTrack.title,
                     artist: matchedTrack.artist,
@@ -201,13 +341,11 @@ final class SongMatcherTests: XCTestCase {
                 matchedTrack: matchedTrack,
                 alternatives: [otherCandidate, matchedTrack, otherCandidate],
                 status: .exact,
-                score: 1,
-                reason: "旧快照"
+                confirmationState: nil
             )
             var legacyObject = try XCTUnwrap(
-                JSONSerialization.jsonObject(with: JSONEncoder().encode(original)) as? [String: Any]
+                JSONSerialization.jsonObject(with: JSONEncoder().encode(legacy)) as? [String: Any]
             )
-            legacyObject.removeValue(forKey: "confirmationState")
             var importedSong = try XCTUnwrap(legacyObject["importedSong"] as? [String: Any])
             if let legacyArtist {
                 importedSong["artist"] = legacyArtist
@@ -231,7 +369,7 @@ final class SongMatcherTests: XCTestCase {
         let identityCandidates = catalog.filter { $0.title == "喜欢你" }
         XCTAssertEqual(identityCandidates.count, 2)
         let unrelated = try XCTUnwrap(catalog.first(where: { $0.title != "喜欢你" }))
-        let original = MatchResult(
+        let legacy = legacyFixture(
             importedSong: ImportedSong(
                 title: "喜欢你",
                 artist: identityCandidates[0].artist,
@@ -241,13 +379,11 @@ final class SongMatcherTests: XCTestCase {
             matchedTrack: identityCandidates[0],
             alternatives: [unrelated, identityCandidates[1]],
             status: .exact,
-            score: 1,
-            reason: "旧快照"
+            confirmationState: nil
         )
         var legacyObject = try XCTUnwrap(
-            JSONSerialization.jsonObject(with: JSONEncoder().encode(original)) as? [String: Any]
+            JSONSerialization.jsonObject(with: JSONEncoder().encode(legacy)) as? [String: Any]
         )
-        legacyObject.removeValue(forKey: "confirmationState")
         var importedSong = try XCTUnwrap(legacyObject["importedSong"] as? [String: Any])
         importedSong.removeValue(forKey: "artist")
         legacyObject["importedSong"] = importedSong
@@ -268,7 +404,7 @@ final class SongMatcherTests: XCTestCase {
         let unrelated = try XCTUnwrap(catalog.first(where: {
             $0.id != matchedTrack.id && $0.id != aliasCandidate.id
         }))
-        let original = MatchResult(
+        let legacy = legacyFixture(
             importedSong: ImportedSong(
                 title: matchedTrack.title,
                 artist: matchedTrack.artist,
@@ -278,13 +414,11 @@ final class SongMatcherTests: XCTestCase {
             matchedTrack: matchedTrack,
             alternatives: [aliasCandidate, unrelated],
             status: .exact,
-            score: 1,
-            reason: "旧快照"
+            confirmationState: nil
         )
         var legacyObject = try XCTUnwrap(
-            JSONSerialization.jsonObject(with: JSONEncoder().encode(original)) as? [String: Any]
+            JSONSerialization.jsonObject(with: JSONEncoder().encode(legacy)) as? [String: Any]
         )
-        legacyObject.removeValue(forKey: "confirmationState")
         var importedSong = try XCTUnwrap(legacyObject["importedSong"] as? [String: Any])
         importedSong.removeValue(forKey: "artist")
         legacyObject["importedSong"] = importedSong
@@ -343,7 +477,7 @@ final class SongMatcherTests: XCTestCase {
         }
     }
 
-    func testUnmatchedSongStaysUnmatchedButOffersAlternatives() throws {
+    func testUnmatchedSongDoesNotExposeUnverifiedAlternatives() throws {
         let catalog = try KTVCatalogRepository().loadTracks()
         let result = SongMatcher().match(
             song: ImportedSong(title: "不存在的测试歌名", artist: "某歌手", source: .plainText, confidence: 0.4),
@@ -352,7 +486,8 @@ final class SongMatcherTests: XCTestCase {
 
         XCTAssertEqual(result.status, .unmatched)
         XCTAssertNil(result.matchedTrack)
-        XCTAssertEqual(result.alternatives.count, 3)
+        XCTAssertTrue(result.candidateTracks.isEmpty)
+        XCTAssertTrue(result.alternatives.isEmpty)
     }
 
     func testAlternativeMatchExplainsRecommendation() throws {
@@ -428,10 +563,92 @@ final class SongMatcherTests: XCTestCase {
         XCTAssertEqual(result.alternatives.map(\.id), [track.id])
     }
 
-    private func encodedConfirmationState(of result: MatchResult) throws -> String? {
-        let object = try XCTUnwrap(
-            JSONSerialization.jsonObject(with: JSONEncoder().encode(result)) as? [String: Any]
-        )
-        return object["confirmationState"] as? String
+    private func dispositionKind(_ disposition: SongMatchDisposition) -> String {
+        switch disposition {
+        case .acceptedOriginalExact:
+            return "acceptedOriginalExact"
+        case .acceptedOriginalConfirmed:
+            return "acceptedOriginalConfirmed"
+        case .identityConfirmationRequired:
+            return "identityConfirmationRequired"
+        case .alternativeSuggested:
+            return "alternativeSuggested"
+        case .adoptedAlternative:
+            return "adoptedAlternative"
+        case .unmatched:
+            return "unmatched"
+        }
     }
+
+    private func dispositionTrackIDs(_ disposition: SongMatchDisposition) -> [String] {
+        switch disposition {
+        case let .acceptedOriginalExact(track),
+             let .acceptedOriginalConfirmed(track),
+             let .adoptedAlternative(track):
+            return [track.id]
+        case let .identityConfirmationRequired(candidates),
+             let .alternativeSuggested(candidates):
+            return candidates.map(\.id)
+        case .unmatched:
+            return []
+        }
+    }
+
+    private func jsonObject<T: Encodable>(_ value: T) throws -> Any {
+        try JSONSerialization.jsonObject(with: JSONEncoder().encode(value))
+    }
+
+    private func legacyFixture(
+        importedSong: ImportedSong,
+        matchedTrack: KTVTrack? = nil,
+        alternatives: [KTVTrack] = [],
+        status: MatchStatus,
+        confirmationState: MatchConfirmationState? = .notRequired
+    ) -> LegacyMatchResultFixture {
+        LegacyMatchResultFixture(
+            id: UUID(),
+            importedSong: importedSong,
+            matchedTrack: matchedTrack,
+            alternatives: alternatives,
+            status: status,
+            confirmationState: confirmationState,
+            score: 0.8,
+            reason: "旧快照"
+        )
+    }
+
+    private func makeTrack(id: String, title: String, artist: String) -> KTVTrack {
+        KTVTrack(
+            id: id,
+            title: title,
+            artist: artist,
+            language: "Mandarin",
+            era: "2010s",
+            genre: "华语流行",
+            moodTags: [],
+            sceneTags: [],
+            difficulty: 2,
+            vocalRangeLowMidi: 48,
+            vocalRangeHighMidi: 67,
+            energy: 0.6,
+            singAlongScore: 0.7,
+            ktvAvailability: 0.7,
+            duetFriendly: false,
+            rapDensity: 0,
+            highNoteRisk: 0.3,
+            aliases: [],
+            similarSongIds: []
+        )
+    }
+}
+
+private struct LegacyMatchResultFixture: Encodable {
+    let id: UUID
+    let importedSong: ImportedSong
+    let matchedTrack: KTVTrack?
+    let alternatives: [KTVTrack]
+    let status: MatchStatus
+    let confirmationState: MatchConfirmationState?
+    let score: Double
+    let reason: String
 }

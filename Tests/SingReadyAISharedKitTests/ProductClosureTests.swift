@@ -2,6 +2,164 @@ import XCTest
 @testable import SingReadyAISharedKit
 
 final class ProductClosureTests: XCTestCase {
+    func testDispositionDerivedPropertiesPartitionAcceptedPendingAndUnmatched() {
+        let original = makeTrack(id: "original", title: "原曲", artist: "原歌手")
+        let candidate = makeTrack(id: "candidate", title: "候选", artist: "候选歌手")
+        let replacement = makeTrack(id: "replacement", title: "替代", artist: "替代歌手")
+        let song = ImportedSong(title: original.title, artist: original.artist, source: .plainText, confidence: 1)
+        let cases: [(result: MatchResult, acceptedID: String?, candidateIDs: [String], verified: Bool, pending: Bool, unmatched: Bool, original: Bool, adopted: Bool)] = [
+            (
+                MatchResult(importedSong: song, disposition: .acceptedOriginalExact(track: original), score: 1, reason: "精确"),
+                original.id, [], true, false, false, true, false
+            ),
+            (
+                MatchResult(importedSong: song, disposition: .acceptedOriginalConfirmed(track: original), score: 1, reason: "已确认"),
+                original.id, [], true, false, false, true, false
+            ),
+            (
+                MatchResult(importedSong: song, disposition: .identityConfirmationRequired(candidates: [candidate, candidate]), score: 0.8, reason: "待确认"),
+                nil, [candidate.id], false, true, false, false, false
+            ),
+            (
+                MatchResult(importedSong: song, disposition: .alternativeSuggested(candidates: [replacement, replacement]), score: 0.7, reason: "可替代"),
+                nil, [replacement.id], false, true, false, false, false
+            ),
+            (
+                MatchResult(importedSong: song, disposition: .adoptedAlternative(track: replacement), score: 0.7, reason: "已采用"),
+                replacement.id, [], true, false, false, false, true
+            ),
+            (
+                MatchResult(importedSong: song, disposition: .unmatched, score: 0, reason: "未找到"),
+                nil, [], false, false, true, false, false
+            )
+        ]
+
+        for testCase in cases {
+            XCTAssertEqual(testCase.result.acceptedTrack?.id, testCase.acceptedID)
+            XCTAssertEqual(testCase.result.candidateTracks.map(\.id), testCase.candidateIDs)
+            XCTAssertEqual(testCase.result.isVerified, testCase.verified)
+            XCTAssertEqual(testCase.result.isPending, testCase.pending)
+            XCTAssertEqual(testCase.result.isUnmatched, testCase.unmatched)
+            XCTAssertEqual(testCase.result.hasOriginalReferenceMatch, testCase.original)
+            XCTAssertEqual(testCase.result.isAdoptedAlternative, testCase.adopted)
+        }
+    }
+
+    func testSuggestedAlternativesAreNormalizedAndExcludedFromAcceptedTrackAndProfile() {
+        let original = makeTrack(id: "original", title: "原曲", artist: "原歌手", difficulty: 2)
+        let suggestion = makeTrack(id: "suggestion", title: "建议替代", artist: "另一歌手", difficulty: 5)
+        let song = ImportedSong(title: original.title, source: .plainText, confidence: 1)
+        let playlist = ImportedPlaylist(
+            source: .plainText,
+            title: "建议隔离",
+            songs: [song],
+            parseConfidence: 1
+        )
+        let result = MatchResult(
+            importedSong: song,
+            disposition: .acceptedOriginalExact(track: original),
+            suggestedAlternatives: [suggestion, original, suggestion],
+            score: 1,
+            reason: "精确"
+        )
+
+        let profile = PreferenceProfiler().buildProfile(importedPlaylist: playlist, matches: [result])
+
+        XCTAssertEqual(result.acceptedTrack?.id, original.id)
+        XCTAssertEqual(result.suggestedAlternatives.map(\.id), [suggestion.id])
+        XCTAssertEqual(profile.averageDifficulty, 2)
+        XCTAssertEqual(profile.topArtists.first?.name, original.artist)
+        XCTAssertEqual(profile.genreDistribution[original.genre], 1)
+    }
+
+    func testDispositionActionsOnlyAllowConstrainedStateTransitions() throws {
+        let first = makeTrack(id: "first", title: "同名歌曲", artist: "歌手A")
+        let second = makeTrack(id: "second", title: "同名歌曲", artist: "歌手B")
+        let outside = makeTrack(id: "outside", title: "候选外", artist: "歌手C")
+        let song = ImportedSong(title: first.title, source: .plainText, confidence: 0.9)
+        let identityPending = MatchResult(
+            importedSong: song,
+            disposition: .identityConfirmationRequired(candidates: [first, second]),
+            score: 0.9,
+            reason: "待确认"
+        )
+        let alternativePending = MatchResult(
+            importedSong: song,
+            disposition: .alternativeSuggested(candidates: [first, second]),
+            score: 0.7,
+            reason: "可替代"
+        )
+
+        let confirmed = try XCTUnwrap(identityPending.confirming(track: first))
+        assertAcceptedOriginalConfirmed(confirmed, trackID: first.id)
+        let adoptedFromIdentity = try XCTUnwrap(identityPending.adoptingAlternative(track: first))
+        assertAdoptedAlternative(adoptedFromIdentity, trackID: first.id)
+        XCTAssertEqual(adoptedFromIdentity.id, identityPending.id)
+        XCTAssertEqual(adoptedFromIdentity.importedSong.id, song.id)
+        let adoptedFromSuggestion = try XCTUnwrap(alternativePending.adoptingAlternative(track: first))
+        assertAdoptedAlternative(adoptedFromSuggestion, trackID: first.id)
+
+        let exact = MatchResult(
+            importedSong: song,
+            disposition: .acceptedOriginalExact(track: first),
+            suggestedAlternatives: [second],
+            score: 1,
+            reason: "精确"
+        )
+        let switchedFromExact = try XCTUnwrap(exact.adoptingAlternative(track: second))
+        assertAdoptedAlternative(switchedFromExact, trackID: second.id)
+        XCTAssertEqual(switchedFromExact.suggestedAlternatives.map(\.id), [first.id])
+
+        let confirmedWithSuggestion = MatchResult(
+            importedSong: song,
+            disposition: .acceptedOriginalConfirmed(track: first),
+            suggestedAlternatives: [second],
+            score: 1,
+            reason: "已确认"
+        )
+        assertAdoptedAlternative(
+            try XCTUnwrap(confirmedWithSuggestion.adoptingAlternative(track: second)),
+            trackID: second.id
+        )
+
+        let adoptedAgain = try XCTUnwrap(switchedFromExact.adoptingAlternative(track: first))
+        assertAdoptedAlternative(adoptedAgain, trackID: first.id)
+
+        let unmatched = MatchResult(importedSong: song, disposition: .unmatched, score: 0, reason: "未找到")
+        XCTAssertNil(identityPending.confirming(track: outside))
+        XCTAssertNil(identityPending.adoptingAlternative(track: outside))
+        XCTAssertNil(alternativePending.adoptingAlternative(track: outside))
+        XCTAssertNil(confirmed.confirming(track: first))
+        XCTAssertNil(switchedFromExact.adoptingAlternative(track: second))
+        XCTAssertNil(unmatched.confirming(track: first))
+        XCTAssertNil(unmatched.adoptingAlternative(track: first))
+    }
+
+    func testDispositionStatisticsUseCompleteNonOverlappingPartitions() {
+        let original = makeTrack(id: "original", title: "原曲", artist: "原歌手")
+        let alternative = makeTrack(id: "alternative", title: "替代", artist: "替代歌手")
+        let song = ImportedSong(title: original.title, artist: original.artist, source: .plainText, confidence: 1)
+        let matches = [
+            MatchResult(importedSong: song, disposition: .acceptedOriginalExact(track: original), score: 1, reason: "精确"),
+            MatchResult(importedSong: song, disposition: .acceptedOriginalConfirmed(track: original), score: 1, reason: "确认"),
+            MatchResult(importedSong: song, disposition: .identityConfirmationRequired(candidates: [original]), score: 0.9, reason: "待确认"),
+            MatchResult(importedSong: song, disposition: .alternativeSuggested(candidates: [alternative]), score: 0.7, reason: "可替代"),
+            MatchResult(importedSong: song, disposition: .adoptedAlternative(track: alternative), score: 0.7, reason: "已采用"),
+            MatchResult(importedSong: song, disposition: .unmatched, score: 0, reason: "未找到")
+        ]
+
+        let statistics = MatchStatistics(matches: matches)
+
+        XCTAssertEqual(statistics.verified, 3)
+        XCTAssertEqual(statistics.pending, 2)
+        XCTAssertEqual(statistics.unmatched, 1)
+        XCTAssertEqual(statistics.originalAccepted, 2)
+        XCTAssertEqual(statistics.adoptedAlternative, 1)
+        XCTAssertEqual(statistics.total, matches.count)
+        XCTAssertEqual(statistics.verified + statistics.pending + statistics.unmatched, matches.count)
+        XCTAssertEqual(statistics.originalAccepted + statistics.adoptedAlternative, statistics.verified)
+    }
+
     func testUnconfirmedMissingArtistCandidateDoesNotContributeToPreferenceProfile() throws {
         let track = try XCTUnwrap(
             try KTVCatalogRepository().loadTracks().first(where: { $0.title == "晴天" })
@@ -51,169 +209,6 @@ final class ProductClosureTests: XCTestCase {
         XCTAssertEqual(profile.topArtists.first?.name, track.artist)
     }
 
-    func testPreferenceProfilerDefensivelyIgnoresRequiredMatchedTrack() {
-        let track = makeTrack(id: "inconsistent", title: "同名歌曲", artist: "候选歌手")
-        let song = ImportedSong(title: track.title, source: .plainText, confidence: 1)
-        let playlist = ImportedPlaylist(
-            source: .plainText,
-            title: "不一致旧数据",
-            songs: [song],
-            parseConfidence: 1
-        )
-        var inconsistent = MatchResult(
-            importedSong: song,
-            matchedTrack: nil,
-            alternatives: [track],
-            status: .fuzzy,
-            confirmationState: .required,
-            score: 0.9,
-            reason: "待确认"
-        )
-        inconsistent.matchedTrack = track
-
-        let profile = PreferenceProfiler().buildProfile(
-            importedPlaylist: playlist,
-            matches: [inconsistent]
-        )
-
-        XCTAssertNil(inconsistent.acceptedTrack)
-        XCTAssertFalse(profile.hasReferenceInsights)
-        XCTAssertEqual(profile.ktvMatchRate, 0)
-        XCTAssertTrue(profile.topArtists.isEmpty)
-    }
-
-    func testAdoptingOrdinaryAlternativePreservesIdentityAndInvalidatesOnlyPlanState() throws {
-        let alternative = makeTrack(id: "alternative", title: "替代歌曲", artist: "替代歌手")
-        let importedSong = ImportedSong(title: "原歌曲", artist: "原歌手", source: .plainText, confidence: 0.8)
-        let result = MatchResult(
-            importedSong: importedSong,
-            matchedTrack: nil,
-            alternatives: [alternative],
-            status: .alternative,
-            score: 0.72,
-            reason: "找到普通替代"
-        )
-
-        let adopted = try XCTUnwrap(result.adoptingAlternative(track: alternative))
-
-        XCTAssertTrue(result.needsAlternativeAdoption)
-        XCTAssertFalse(adopted.needsAlternativeAdoption)
-        XCTAssertEqual(adopted.id, result.id)
-        XCTAssertEqual(adopted.importedSong.id, importedSong.id)
-        XCTAssertEqual(adopted.matchedTrack?.id, alternative.id)
-        XCTAssertEqual(adopted.status, .alternative)
-        XCTAssertEqual(adopted.confirmationState, .notRequired)
-        XCTAssertTrue(adopted.reason.contains("已采用替代歌"))
-        XCTAssertNil(result.adoptingAlternative(track: makeTrack(id: "outside", title: "其他", artist: "其他")))
-    }
-
-    func testAdoptingFuzzyAlternativeKeepsPreviousReferenceAvailable() throws {
-        let previous = makeTrack(id: "previous", title: "相近原参考", artist: "歌手A")
-        let replacement = makeTrack(id: "replacement", title: "替代参考", artist: "歌手B")
-        let result = MatchResult(
-            importedSong: ImportedSong(title: "导入歌名", artist: "歌手A", source: .plainText, confidence: 0.8),
-            matchedTrack: previous,
-            alternatives: [replacement],
-            status: .fuzzy,
-            score: 0.84,
-            reason: "歌名相近"
-        )
-
-        let adopted = try XCTUnwrap(result.adoptingAlternative(track: replacement))
-
-        XCTAssertEqual(adopted.matchedTrack?.id, replacement.id)
-        XCTAssertEqual(adopted.alternatives.map(\.id), [previous.id])
-    }
-
-    func testOriginalReferenceAndAdoptedAlternativeHaveDistinctSemantics() throws {
-        let original = makeTrack(id: "original", title: "原歌", artist: "原歌手")
-        let replacement = makeTrack(id: "replacement", title: "替代歌", artist: "替代歌手")
-        let exact = MatchResult(
-            importedSong: ImportedSong(title: original.title, artist: original.artist, source: .plainText, confidence: 1),
-            matchedTrack: original,
-            alternatives: [],
-            status: .exact,
-            score: 1,
-            reason: "原歌命中"
-        )
-        let pendingAlternative = MatchResult(
-            importedSong: ImportedSong(title: "没有原歌", artist: "原歌手", source: .plainText, confidence: 0.7),
-            matchedTrack: nil,
-            alternatives: [replacement],
-            status: .alternative,
-            score: 0.7,
-            reason: "可替代"
-        )
-        let adopted = try XCTUnwrap(pendingAlternative.adoptingAlternative(track: replacement))
-
-        XCTAssertTrue(exact.hasOriginalReferenceMatch)
-        XCTAssertFalse(exact.isAdoptedAlternative)
-        XCTAssertFalse(pendingAlternative.hasOriginalReferenceMatch)
-        XCTAssertFalse(pendingAlternative.isAdoptedAlternative)
-        XCTAssertFalse(adopted.hasOriginalReferenceMatch)
-        XCTAssertTrue(adopted.isAdoptedAlternative)
-    }
-
-    func testMatchStatisticsPartitionsEveryResultExactlyOnce() {
-        let exactTrack = makeTrack(id: "exact", title: "精确", artist: "歌手A")
-        let fuzzyTrack = makeTrack(id: "fuzzy", title: "相近", artist: "歌手B")
-        let identityTrack = makeTrack(id: "identity", title: "同名", artist: "歌手C")
-        let replacement = makeTrack(id: "replacement", title: "替代", artist: "歌手D")
-        let exact = match(exactTrack)
-        let fuzzy = MatchResult(
-            importedSong: ImportedSong(title: "相近版本", artist: fuzzyTrack.artist, source: .plainText, confidence: 0.8),
-            matchedTrack: fuzzyTrack,
-            alternatives: [],
-            status: .fuzzy,
-            score: 0.85,
-            reason: "歌名相近"
-        )
-        let pending = MatchResult(
-            importedSong: ImportedSong(title: identityTrack.title, source: .plainText, confidence: 0.7),
-            matchedTrack: nil,
-            alternatives: [identityTrack],
-            status: .fuzzy,
-            confirmationState: .required,
-            score: 1,
-            reason: "待确认"
-        )
-        let pendingAlternative = MatchResult(
-            importedSong: ImportedSong(title: "原歌缺失", source: .plainText, confidence: 0.6),
-            matchedTrack: nil,
-            alternatives: [replacement],
-            status: .alternative,
-            score: 0.7,
-            reason: "可替代"
-        )
-        let adoptedAlternative = MatchResult(
-            importedSong: ImportedSong(title: "已替代原歌", source: .plainText, confidence: 0.6),
-            matchedTrack: replacement,
-            alternatives: [],
-            status: .alternative,
-            score: 0.7,
-            reason: "已采用替代"
-        )
-        let unmatched = MatchResult(
-            importedSong: ImportedSong(title: "未找到", source: .plainText, confidence: 0.4),
-            matchedTrack: nil,
-            alternatives: [],
-            status: .unmatched,
-            score: 0,
-            reason: "未找到"
-        )
-        let matches = [exact, fuzzy, pending, pendingAlternative, adoptedAlternative, unmatched]
-
-        let statistics = MatchStatistics(matches: matches)
-
-        XCTAssertEqual(statistics.exact, 1)
-        XCTAssertEqual(statistics.pending, 1)
-        XCTAssertEqual(statistics.fuzzy, 1)
-        XCTAssertEqual(statistics.pendingAlternative, 1)
-        XCTAssertEqual(statistics.adoptedAlternative, 1)
-        XCTAssertEqual(statistics.unmatched, 1)
-        XCTAssertEqual(statistics.total, matches.count)
-    }
-
     func testAdoptedAlternativeContributesToProfileButNotOriginalMatchRate() throws {
         let replacement = makeTrack(
             id: "replacement",
@@ -245,32 +240,6 @@ final class ProductClosureTests: XCTestCase {
         XCTAssertEqual(profile.genreDistribution[replacement.genre], 1)
         XCTAssertEqual(profile.topArtists.first?.name, replacement.artist)
         XCTAssertTrue(profile.hasReferenceInsights)
-    }
-
-    func testRequiredMatchRejectsTrackOutsideItsCandidates() throws {
-        let catalog = try KTVCatalogRepository().loadTracks()
-        let candidate = try XCTUnwrap(catalog.first(where: { $0.title == "晴天" }))
-        let unrelated = try XCTUnwrap(catalog.first(where: { $0.id != candidate.id }))
-        let pending = SongMatcher().match(
-            song: ImportedSong(title: candidate.title, source: .plainText, confidence: 0.9),
-            catalog: [candidate]
-        )
-
-        XCTAssertNil(pending.confirming(track: unrelated))
-    }
-
-    func testConfirmingOneOfMultipleCandidatesClearsOtherIdentityCandidates() throws {
-        let candidates = try KTVCatalogRepository().loadTracks().filter { $0.title == "喜欢你" }
-        XCTAssertEqual(candidates.count, 2)
-        let pending = SongMatcher().match(
-            song: ImportedSong(title: "喜欢你", source: .plainText, confidence: 0.9),
-            catalog: candidates
-        )
-
-        let confirmed = try XCTUnwrap(pending.confirming(track: candidates[0]))
-
-        XCTAssertEqual(confirmed.matchedTrack?.id, candidates[0].id)
-        XCTAssertTrue(confirmed.alternatives.isEmpty)
     }
 
     func testMatchConfirmationTransitionInvalidatesPlanWithoutDiscardingUserSelections() {
@@ -895,6 +864,30 @@ final class ProductClosureTests: XCTestCase {
             score: 1,
             reason: "测试匹配"
         )
+    }
+
+    private func assertAcceptedOriginalConfirmed(
+        _ result: MatchResult,
+        trackID: String,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) {
+        guard case let .acceptedOriginalConfirmed(track) = result.disposition else {
+            return XCTFail("应进入已确认原曲状态", file: file, line: line)
+        }
+        XCTAssertEqual(track.id, trackID, file: file, line: line)
+    }
+
+    private func assertAdoptedAlternative(
+        _ result: MatchResult,
+        trackID: String,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) {
+        guard case let .adoptedAlternative(track) = result.disposition else {
+            return XCTFail("应进入已采用替代状态", file: file, line: line)
+        }
+        XCTAssertEqual(track.id, trackID, file: file, line: line)
     }
 
     private func makeTrack(
