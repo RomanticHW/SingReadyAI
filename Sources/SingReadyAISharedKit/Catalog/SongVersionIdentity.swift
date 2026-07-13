@@ -28,12 +28,7 @@ public struct SongVersionIdentity: Equatable, Sendable {
             let tag = rawTag.trimmingCharacters(in: .whitespacesAndNewlines)
             guard !tag.isEmpty else { continue }
             hasExplicitMarker = true
-            let tagKinds = SongVersionMarkerParser.knownKinds(in: tag)
-            if tagKinds.isEmpty {
-                kinds.insert(.unknown)
-            } else {
-                kinds.formUnion(tagKinds)
-            }
+            kinds.formUnion(SongVersionMarkerParser.kinds(inExplicitSegment: tag))
         }
 
         return SongVersionIdentity(
@@ -57,8 +52,14 @@ public struct SongVersionIdentity: Equatable, Sendable {
         SongVersionMarkerParser.extractTitle(from: value).baseTitle
     }
 
-    static func extractedVersionTags(from value: String) -> [String] {
-        SongVersionMarkerParser.extractedTags(from: value)
+    static func extractTitleAndVersionTags(
+        from value: String
+    ) -> (baseTitle: String, versionTags: [String]) {
+        let extraction = SongVersionMarkerParser.extractTitle(from: value)
+        return (
+            baseTitle: extraction.baseTitle,
+            versionTags: SongVersionMarkerParser.extractedTags(from: extraction)
+        )
     }
 }
 
@@ -117,6 +118,9 @@ private enum SongVersionMarkerParser {
     private static let knownTrailingMarkerRegex = regex(
         #"(?i)\s+(?:(?:live|cover|remix|dj|edit)(?:\s*(?:version|edition|版))?|(?:现场|翻唱|伴奏|剪辑)(?:版)?)(?:\s+(?:(?:live|cover|remix|dj|edit)(?:\s*(?:version|edition|版))?|(?:现场|翻唱|伴奏|剪辑)(?:版)?))*\s*$"#
     )
+    private static let compactEnglishMarkerRegex = regex(
+        #"(?i)(?<![a-z0-9])(?:live|cover|remix|dj|edit)版\s*$"#
+    )
     private static let compactChineseMarkerRegex = regex(
         #"(?:现场|翻唱|伴奏|剪辑)版\s*$"#
     )
@@ -126,6 +130,10 @@ private enum SongVersionMarkerParser {
     private static let unknownEnglishVersionRegex = regex(
         #"(?i)\s+[a-z][a-z0-9'-]*(?:\s+[a-z0-9][a-z0-9'-]*){0,3}\s+(?:version|edition)\s*$"#
     )
+    private static let framingMarkerRegex = regex(
+        #"(?i)(?<![a-z0-9])(?:version|edition)(?![a-z0-9])|版"#
+    )
+    private static let nonSemanticSeparatorRegex = regex(#"[\s\p{P}\p{S}]+"#)
 
     static func extractTitle(from value: String) -> SongVersionTitleExtraction {
         var baseTitle = value
@@ -139,6 +147,8 @@ private enum SongVersionMarkerParser {
 
         if let segment = removeFirstMatch(of: knownTrailingMarkerRegex, from: &baseTitle) {
             markerSegments.append(segment)
+        } else if let segment = removeFirstMatch(of: compactEnglishMarkerRegex, from: &baseTitle) {
+            markerSegments.append(segment)
         } else if let segment = removeFirstMatch(of: compactChineseMarkerRegex, from: &baseTitle) {
             markerSegments.append(segment)
         } else if let segment = removeFirstMatch(of: unknownChineseVersionRegex, from: &baseTitle) {
@@ -147,18 +157,13 @@ private enum SongVersionMarkerParser {
             markerSegments.append(segment)
         }
 
-        let kinds = markerSegments.reduce(into: Set<SongVersionKind>()) { result, segment in
-            let known = knownKinds(in: segment)
-            if known.isEmpty {
-                result.insert(.unknown)
-            } else {
-                result.formUnion(known)
-            }
+        let extractedKinds = markerSegments.reduce(into: Set<SongVersionKind>()) { result, segment in
+            result.formUnion(kinds(inExplicitSegment: segment))
         }
 
         return SongVersionTitleExtraction(
             baseTitle: baseTitle.trimmingCharacters(in: .whitespacesAndNewlines),
-            kinds: kinds,
+            kinds: extractedKinds,
             markerSegments: markerSegments
         )
     }
@@ -167,15 +172,30 @@ private enum SongVersionMarkerParser {
         Set(markerHits(in: value).map(\.kind))
     }
 
-    static func extractedTags(from value: String) -> [String] {
-        let extraction = extractTitle(from: value)
-        var tags = markerHits(in: value).map(\.tag)
-        for segment in extraction.markerSegments where knownKinds(in: segment).isEmpty {
-            let unknownTag = segment.trimmingCharacters(
-                in: CharacterSet.whitespacesAndNewlines.union(.punctuationCharacters)
-            )
-            if !unknownTag.isEmpty {
-                tags.append(unknownTag)
+    static func kinds(inExplicitSegment segment: String) -> Set<SongVersionKind> {
+        let hits = markerHits(in: segment)
+        var kinds = Set(hits.map(\.kind))
+        if hits.isEmpty || semanticResidual(in: segment) != nil {
+            kinds.insert(.unknown)
+        }
+        return kinds
+    }
+
+    static func extractedTags(from extraction: SongVersionTitleExtraction) -> [String] {
+        var tags: [String] = []
+        for segment in extraction.markerSegments {
+            let hits = markerHits(in: segment)
+            tags.append(contentsOf: hits.map(\.tag))
+
+            if hits.isEmpty {
+                let unknownTag = segment.trimmingCharacters(
+                    in: CharacterSet.whitespacesAndNewlines.union(.punctuationCharacters)
+                )
+                if !unknownTag.isEmpty {
+                    tags.append(unknownTag)
+                }
+            } else if let residual = semanticResidual(in: segment) {
+                tags.append(residual)
             }
         }
 
@@ -183,6 +203,17 @@ private enum SongVersionMarkerParser {
         return tags.filter { tag in
             seen.insert(tag.lowercased()).inserted
         }
+    }
+
+    private static func semanticResidual(in segment: String) -> String? {
+        var residual = segment
+        for definition in markerDefinitions {
+            residual = replacingMatches(of: definition.regex, in: residual, with: " ")
+        }
+        residual = replacingMatches(of: framingMarkerRegex, in: residual, with: " ")
+        residual = replacingMatches(of: nonSemanticSeparatorRegex, in: residual, with: " ")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        return residual.rangeOfCharacter(from: .alphanumerics) == nil ? nil : residual
     }
 
     private static func markerHits(in value: String) -> [MarkerHit] {
@@ -232,6 +263,19 @@ private enum SongVersionMarkerParser {
         let segment = String(value[range])
         value.removeSubrange(range)
         return segment
+    }
+
+    private static func replacingMatches(
+        of regex: NSRegularExpression,
+        in value: String,
+        with replacement: String
+    ) -> String {
+        let searchRange = NSRange(value.startIndex..<value.endIndex, in: value)
+        return regex.stringByReplacingMatches(
+            in: value,
+            range: searchRange,
+            withTemplate: replacement
+        )
     }
 
     private static func regex(_ pattern: String) -> NSRegularExpression {

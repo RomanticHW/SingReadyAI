@@ -92,6 +92,54 @@ final class PlainTextPlaylistParserTests: XCTestCase {
         XCTAssertFalse(songs.contains { $0.rawText?.contains("http") == true })
     }
 
+    func testExtractsUnknownVersionFromParsedTitleInEitherDelimitedOrder() throws {
+        let lines = [
+            "后来 特别版 - 刘若英",
+            "刘若英 - 后来 特别版"
+        ]
+
+        for line in lines {
+            let song = try XCTUnwrap(PlainTextPlaylistParser().parseLine(line))
+            let identity = SongVersionIdentity.parse(
+                title: song.title,
+                versionTags: song.versionTags
+            )
+
+            XCTAssertEqual(song.title, "后来", line)
+            XCTAssertEqual(song.artist, "刘若英", line)
+            XCTAssertEqual(song.versionTags, ["特别版"], line)
+            XCTAssertEqual(identity.kinds, [.unknown], line)
+        }
+    }
+
+    func testArtistNameDoesNotCreateVersionTags() throws {
+        let song = try XCTUnwrap(
+            PlainTextPlaylistParser().parseLine("歌名：Let Me Love You 歌手：DJ Snake")
+        )
+
+        XCTAssertEqual(song.title, "Let Me Love You")
+        XCTAssertEqual(song.artist, "DJ Snake")
+        XCTAssertTrue(song.versionTags.isEmpty)
+    }
+
+    func testDedupKeepsDistinctVersionIdentities() {
+        let songs = PlainTextPlaylistParser().parseSongs(
+            """
+            刘若英 - 后来
+            刘若英 - 后来 Live
+            刘若英 - 后来 现场版
+            刘若英 - 后来
+            """
+        )
+
+        XCTAssertEqual(songs.count, 2)
+        let identities = songs.map {
+            SongVersionIdentity.parse(title: $0.title, versionTags: $0.versionTags)
+        }
+        XCTAssertTrue(identities.contains { !$0.hasExplicitMarker })
+        XCTAssertTrue(identities.contains { $0.kinds == [.live] })
+    }
+
     func testRejectsLabeledSongLineWhenTitleIsBlank() {
         let parser = PlainTextPlaylistParser()
 

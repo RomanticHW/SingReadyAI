@@ -20,7 +20,7 @@ public struct PlainTextPlaylistParser: Sendable {
             .components(separatedBy: .newlines)
             .compactMap { parseLine($0, source: source) }
             .filter { song in
-                let key = "\(song.normalizedTitle)#\(song.normalizedArtist ?? "")"
+                let key = deduplicationKey(for: song)
                 guard !seen.contains(key) else { return false }
                 seen.insert(key)
                 return true
@@ -47,20 +47,32 @@ public struct PlainTextPlaylistParser: Sendable {
             return validatedSong(spaced)
         }
 
-        let title = cleanPart(line)
-        guard title.count >= 2 else { return nil }
-        return ImportedSong(
-            title: title,
-            artist: nil,
+        let song = importedSong(
+            rawTitle: line,
+            rawArtist: nil,
             source: source,
-            rawText: rawLine,
-            confidence: 0.5,
-            versionTags: versionTags(in: rawLine)
+            rawLine: rawLine,
+            confidence: 0.5
         )
+        return song.title.count >= 2 ? song : nil
     }
 
     private func validatedSong(_ song: ImportedSong) -> ImportedSong? {
         song.title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : song
+    }
+
+    private func deduplicationKey(for song: ImportedSong) -> String {
+        let identity = SongVersionIdentity.parse(
+            title: song.title,
+            versionTags: song.versionTags
+        )
+        let kinds = identity.kinds.map(\.rawValue).sorted().joined(separator: ",")
+        return [
+            identity.normalizedBaseTitle,
+            song.normalizedArtist ?? "",
+            identity.hasExplicitMarker ? "versioned" : "original",
+            kinds
+        ].joined(separator: "#")
     }
 
     private func parseLabeled(_ line: String, rawLine: String, source: ImportSource) -> ImportedSong? {
@@ -71,13 +83,12 @@ public struct PlainTextPlaylistParser: Sendable {
         ]
         for pattern in patterns {
             guard let match = firstMatch(pattern: pattern, in: line), match.count >= 3 else { continue }
-            return ImportedSong(
-                title: cleanPart(match[1]),
-                artist: cleanPart(match[2]),
+            return importedSong(
+                rawTitle: match[1],
+                rawArtist: match[2],
                 source: source,
-                rawText: rawLine,
-                confidence: 0.95,
-                versionTags: versionTags(in: rawLine)
+                rawLine: rawLine,
+                confidence: 0.95
             )
         }
         return nil
@@ -90,13 +101,12 @@ public struct PlainTextPlaylistParser: Sendable {
         ]
         for pattern in patterns {
             guard let match = firstMatch(pattern: pattern, in: line), match.count >= 3 else { continue }
-            return ImportedSong(
-                title: cleanPart(match[2]),
-                artist: cleanPart(match[1]),
+            return importedSong(
+                rawTitle: match[2],
+                rawArtist: match[1],
                 source: source,
-                rawText: rawLine,
-                confidence: 0.82,
-                versionTags: versionTags(in: rawLine)
+                rawLine: rawLine,
+                confidence: 0.82
             )
         }
         return nil
@@ -109,13 +119,12 @@ public struct PlainTextPlaylistParser: Sendable {
         ]
         for pattern in patterns {
             guard let match = firstMatch(pattern: pattern, in: line), match.count >= 3 else { continue }
-            return ImportedSong(
-                title: cleanPart(match[2]),
-                artist: cleanPart(match[1]),
+            return importedSong(
+                rawTitle: match[2],
+                rawArtist: match[1],
                 source: source,
-                rawText: rawLine,
-                confidence: 0.9,
-                versionTags: versionTags(in: rawLine)
+                rawLine: rawLine,
+                confidence: 0.9
             )
         }
         return nil
@@ -125,20 +134,19 @@ public struct PlainTextPlaylistParser: Sendable {
         let delimiters = [" - ", " / ", "｜", "|", "—", "–", "/", "-"]
         for delimiter in delimiters where line.contains(delimiter) {
             let parts = line.components(separatedBy: delimiter)
-                .map(cleanPart)
+                .map(normalizedPart)
                 .filter { !$0.isEmpty }
             guard parts.count >= 2 else { continue }
 
             let left = parts[0]
             let right = parts[1]
             let parsed = inferTitleArtist(left: left, right: right, delimiter: delimiter)
-            return ImportedSong(
-                title: parsed.title,
-                artist: parsed.artist,
+            return importedSong(
+                rawTitle: parsed.title,
+                rawArtist: parsed.artist,
                 source: source,
-                rawText: rawLine,
-                confidence: parsed.confidence,
-                versionTags: versionTags(in: rawLine)
+                rawLine: rawLine,
+                confidence: parsed.confidence
             )
         }
         return nil
@@ -147,39 +155,39 @@ public struct PlainTextPlaylistParser: Sendable {
     private func parseSpacedArtist(_ line: String, rawLine: String, source: ImportSource) -> ImportedSong? {
         let parts = line
             .split(separator: " ")
-            .map { cleanPart(String($0)) }
+            .map { normalizedPart(String($0)) }
             .filter { !$0.isEmpty }
         guard parts.count >= 2 else { return nil }
 
-        if let last = parts.last, commonArtists.contains(SongNormalizer.normalizeArtist(last)) {
+        if let last = parts.last,
+           commonArtists.contains(SongNormalizer.normalizeArtist(cleanPart(last))) {
             let title = parts.dropLast().joined(separator: " ")
-            return ImportedSong(
-                title: title,
-                artist: last,
+            return importedSong(
+                rawTitle: title,
+                rawArtist: last,
                 source: source,
-                rawText: rawLine,
-                confidence: 0.78,
-                versionTags: versionTags(in: rawLine)
+                rawLine: rawLine,
+                confidence: 0.78
             )
         }
 
-        if let first = parts.first, commonArtists.contains(SongNormalizer.normalizeArtist(first)) {
+        if let first = parts.first,
+           commonArtists.contains(SongNormalizer.normalizeArtist(cleanPart(first))) {
             let title = parts.dropFirst().joined(separator: " ")
-            return ImportedSong(
-                title: title,
-                artist: first,
+            return importedSong(
+                rawTitle: title,
+                rawArtist: first,
                 source: source,
-                rawText: rawLine,
-                confidence: 0.78,
-                versionTags: versionTags(in: rawLine)
+                rawLine: rawLine,
+                confidence: 0.78
             )
         }
         return nil
     }
 
     private func inferTitleArtist(left: String, right: String, delimiter: String) -> (title: String, artist: String?, confidence: Double) {
-        let knownLeftArtist = commonArtists.contains(SongNormalizer.normalizeArtist(left))
-        let knownRightArtist = commonArtists.contains(SongNormalizer.normalizeArtist(right))
+        let knownLeftArtist = commonArtists.contains(SongNormalizer.normalizeArtist(cleanPart(left)))
+        let knownRightArtist = commonArtists.contains(SongNormalizer.normalizeArtist(cleanPart(right)))
         if knownLeftArtist && !knownRightArtist {
             return (right, left, 0.88)
         }
@@ -203,10 +211,32 @@ public struct PlainTextPlaylistParser: Sendable {
     }
 
     private func cleanPart(_ value: String) -> String {
-        var result = SongVersionIdentity.strippingVersionMarkers(from: value)
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-        result = replace(pattern: #"\s+"#, in: result, with: " ")
-        return result.trimmingCharacters(in: CharacterSet.whitespacesAndNewlines.union(.punctuationCharacters))
+        normalizedPart(value).trimmingCharacters(
+            in: CharacterSet.whitespacesAndNewlines.union(.punctuationCharacters)
+        )
+    }
+
+    private func normalizedPart(_ value: String) -> String {
+        let result = replace(pattern: #"\s+"#, in: value, with: " ")
+        return result.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private func importedSong(
+        rawTitle: String,
+        rawArtist: String?,
+        source: ImportSource,
+        rawLine: String,
+        confidence: Double
+    ) -> ImportedSong {
+        let extraction = SongVersionIdentity.extractTitleAndVersionTags(from: rawTitle)
+        return ImportedSong(
+            title: cleanPart(extraction.baseTitle),
+            artist: rawArtist.map(cleanPart),
+            source: source,
+            rawText: rawLine,
+            confidence: confidence,
+            versionTags: extraction.versionTags
+        )
     }
 
     private func isPotentialSongLine(_ line: String) -> Bool {
@@ -222,10 +252,6 @@ public struct PlainTextPlaylistParser: Sendable {
             return false
         }
         return line.rangeOfCharacter(from: .letters) != nil || line.rangeOfCharacter(from: CharacterSet(charactersIn: "\u{4e00}"..."\u{9fff}")) != nil
-    }
-
-    private func versionTags(in value: String) -> [String] {
-        SongVersionIdentity.extractedVersionTags(from: value)
     }
 
     private func firstMatch(pattern: String, in value: String) -> [String]? {
