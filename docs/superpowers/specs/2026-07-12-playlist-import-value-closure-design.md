@@ -402,13 +402,15 @@ flowchart TD
 - 稳定的 `reviewMatchOutcome`：`reviewRemoved / activeAwaitingMatch / pending / unmatched / verifiedOriginal(trackID) / verifiedAdoptedAlternative(trackID)`。
 - 可变的 `planDisposition`：`notGenerated / selectedOriginal(planItemID, trackID)`（X）`/ selectedAlternative(planItemID, trackID)`（R）`/ verifiedNotSelected(resolvedTrackID, reason)`（Q）。
 
+所有 entries 的 `planDisposition`、完整 `supplements` 与 `dispositionPlanBasis` 共同组成不可拆分的 plan projection snapshot，必须一起写入、恢复、失效或替换，禁止按受影响条目局部混写。
+
 五个提交点必须可独立表达：
 
 1. 导入完成：有效条目为 `activeAwaitingMatch + notGenerated`，整理删除条目为 `reviewRemoved + notGenerated`。
 2. 匹配中：完整账本继续显示上一个稳定 `reviewMatchOutcome`；进度只存在于 operation state，不逐条发布半份匹配。
-3. 匹配完成但尚未排歌：原子提交 `verifiedOriginal / verifiedAdoptedAlternative / pending / unmatched`，所有条目仍为 `notGenerated`。
-4. plan stale：`reviewMatchOutcome` 不变，`planDisposition` 保留上一次成功 plan basis 下的 X/R/Q 供解释，但导出、分享和开唱继续关闭。
-5. 重排成功：只有新 plan、basis、全量 dispositions 与 supplements 都通过校验时，才原子替换 `planDisposition`；失败保留旧 stale 映射。
+3. 匹配完成但尚未排歌：没有旧 projection 时，原子提交 `verifiedOriginal / verifiedAdoptedAlternative / pending / unmatched`，并保持“全量 `notGenerated` + 空 supplements + nil basis”。
+4. plan stale：`reviewMatchOutcome` 按新事实提交；旧 projection 若保留，必须连同全部 dispositions、supplements 和旧 basis 原样作为 stale snapshot 保留，导出、分享和开唱继续关闭。
+5. 重排成功：只有新 plan、basis、全量 dispositions 与 supplements 都通过校验时，才原子替换整个 projection；失败保留旧 stale projection 整体不变。
 
 本地补充 Y 使用独立 `PlaylistSupplementEntry`，不伪装成导入条目。两个导入条目可以因 alias、版本归并或重复内容命中同一个 track，但仍保留两个 entry；最终归属固定按 `(importedPlaylistOrder, importedSong.id.uuidString.lowercased())` 取最小者为 X/R，其余必须以 Q 和具体原因解释。锁定、容量截断、alias/版本归并和重排都沿用同一 tie-break；测试将输入随机排列至少 100 次以锁定确定性。
 
@@ -422,9 +424,9 @@ flowchart TD
   - 暂未找到数。
   - 是否允许继续排歌。
 
-`PlaylistPreparationSummary` 永远只从 `reviewMatchOutcome` 派生；当所有条目仍为 `notGenerated` 时，`SongPlanGenerationSummary` 必须为 `nil`，不能把“尚未排歌”伪装成 X/R/Q 均为零。ready/stale 的计划摘要只从对应成功 plan basis 的 `planDisposition` 与 supplements 派生。两种 summary 都不提供接收计数字段的 public initializer。ledger 必须校验 importedSong ID 集合完整相等、双阶段值合法、selected/supplement planItemID 集合与正式 plan.items 完全相等且无重复。旧快照缺少逐条 ledger 时不得从汇总数字反向制造 entries，只能恢复为 stale 并重新分析。
+`PlaylistPreparationSummary` 永远只从 `reviewMatchOutcome` 派生；当 projection 为“所有条目 `notGenerated` + 空 supplements + nil basis”时，`SongPlanGenerationSummary` 必须为 `nil`，不能把“尚未排歌”伪装成 X/R/Q 均为零。ready/stale 的计划摘要只从同一 `dispositionPlanBasis` 对应的全量 dispositions 与 supplements 派生。两种 summary 都不提供接收计数字段的 public initializer。ledger 必须校验 importedSong ID 集合完整相等、双阶段值合法、selected/supplement planItemID 集合与正式 plan.items 完全相等且无重复。旧快照不能证明 projection 三部分属于同一 basis 时，不得从汇总数字反向制造 entries，只能恢复为 stale 并重新分析。
 
-歌名/歌手编辑、整理删除或撤销可以更新 `reviewMatchOutcome` 并把受影响的 `planDisposition` 归为 `notGenerated`。反馈、场景、音区、锁定和结果页移除等 plan controls 只递增对应 revision 并把 plan 转 stale；它们不得改变 `reviewMatchOutcome`，也不得在重排成功前预改 `planDisposition`。
+歌名/歌手编辑、整理删除/撤销或匹配变化可以更新 `reviewMatchOutcome`，但对旧 projection 只能二选一：A）完整保留为 stale snapshot；B）一次把所有 entries 的 disposition 置为 `notGenerated`，同时清空 supplements 与 basis。反馈、场景、音区、锁定和结果页移除等 plan controls 只递增对应 revision 并把 plan 转 stale；它们不得改变 `reviewMatchOutcome`，也不得在重排成功前预改 projection 的任何部分。
 
 ### 7.2 推荐来源
 
@@ -510,11 +512,11 @@ flowchart TD
 #### 阶段提交点
 
 1. **新导入**：链接读取、文本解析或 1–20 张截图 OCR 都先写入临时批次；当前稳定工作流在整批成功前保持不变。只有“至少一张成功且失败明细已保存 + 非空有效歌单 + 整理草稿”同时准备好并成功保存后，才原子替换当前歌单，以 `activeAwaitingMatch/reviewRemoved + notGenerated` 建立新账本并清除旧匹配、画像、计划、外部候选、锁定和移除。全部失败、取消、超限或超时均不影响旧工作流。多截图部分失败时只由 15 分钟页面 retry session 暂存失败原图；重试成功、使用已有结果继续、放弃、取消、离页和到期都按 5.2 清理，进程重启只提供“重新选择失败图片”。
-2. **整理编辑**：歌名、歌手、删除或撤销每次成功提交后递增 `reviewRevision`，更新对应 `reviewMatchOutcome`、将受影响条目的 `planDisposition` 置为 `notGenerated`，取消在途匹配，并立即使旧匹配、画像、计划和外部候选失效。独立保存的实测音区和全局歌曲反馈可以保留。
-3. **批量匹配**：在工作线程中计算完整 matches 与 profile；`processed/total` 只用于当前会话的单调进度显示，账本继续保留上一个稳定 `reviewMatchOutcome`。完成前不发布、不持久化部分 matches 或部分画像。只有请求 token、歌单 ID、`reviewRevision` 和 `catalogRevision` 仍一致时，才一次提交完整 review/match outcomes，`planDisposition` 仍为 `notGenerated`。取消后保留当前整理草稿；若存在 basis 仍一致的上一份完整匹配，可以继续使用，否则回到 `notStarted`。
-4. **计划生成**：先在内存中完成候选隔离、确定性同 track 归属、排序、来源分类和计数校验；只有 `PlanBasis` 仍一致且数量守恒时，才原子发布 plan、basis、全量 `planDisposition` 和 supplements。生成失败时，旧 dispositions 与旧计划仅可作为带“尚未按最新选择更新”提示的 stale 内容查看，不能继续导出、分享或开唱。
-5. **反馈**：candidate profile 持久化成功后才更新内存状态和 `feedbackRevision`，并立即把旧 plan 转 stale；这一步不修改 `reviewMatchOutcome` 或旧 `planDisposition`。重排成功后原子替换 dispositions 与计划；重排失败时保留已持久化反馈和 stale plan、禁止导出/开唱并允许重试。只有反馈持久化失败才完整回滚且不增加 revision。
-6. **移除**：整理阶段的 `reviewRemovedEntries` 以 importedSong ID 属于 `reviewMatchOutcome`，只随 `reviewRevision` 变化；结果页的 `planControlRemovedRecords` 以 trackID 属于计划控制，只随 `trackControlsRevision` 变化并触发 stale/replan，不预改双阶段账本。两套记录、恢复入口和 revision 互不混写。
+2. **整理编辑**：歌名、歌手、删除或撤销每次成功提交后递增 `reviewRevision`，更新对应 `reviewMatchOutcome`，取消在途匹配，并立即使旧匹配、画像、计划和外部候选失效。旧 plan projection 只能整体保留为 stale，或整体重置为“全量 `notGenerated` + 空 supplements + nil basis”；不得只清受影响条目。独立保存的实测音区和全局歌曲反馈可以保留。
+3. **批量匹配**：在工作线程中计算完整 matches 与 profile；`processed/total` 只用于当前会话的单调进度显示，账本继续保留上一个稳定 `reviewMatchOutcome`。完成前不发布、不持久化部分 matches 或部分画像。只有请求 token、歌单 ID、`reviewRevision` 和 `catalogRevision` 仍一致时，才一次提交完整 review/match outcomes；旧 plan projection 同样只能整体 stale 保留或整体清空。取消后保留当前整理草稿；若存在 basis 仍一致的上一份完整匹配，可以继续使用，否则回到 `notStarted`。
+4. **计划生成**：先在内存中完成候选隔离、确定性同 track 归属、排序、来源分类和计数校验；只有 `PlanBasis` 仍一致且数量守恒时，才原子发布 plan 和完整 `planDisposition + supplements + dispositionPlanBasis` projection。生成失败时，旧 projection 与旧计划仅可作为带“尚未按最新选择更新”提示的 stale 内容查看，不能继续导出、分享或开唱。
+5. **反馈**：candidate profile 持久化成功后才更新内存状态和 `feedbackRevision`，并立即把旧 plan 转 stale；这一步不修改 `reviewMatchOutcome` 或旧 projection。重排成功后原子替换整个 projection 与计划；重排失败时保留已持久化反馈和 stale plan、禁止导出/开唱并允许重试。只有反馈持久化失败才完整回滚且不增加 revision。
+6. **移除**：整理阶段的 `reviewRemovedEntries` 以 importedSong ID 属于 `reviewMatchOutcome`，只随 `reviewRevision` 变化；结果页的 `planControlRemovedRecords` 以 trackID 属于计划控制，只随 `trackControlsRevision` 变化并触发 stale/replan。重排发布前 projection 整体不变，成功后整体原子替换，`reviewMatchOutcome` 始终不变。两套记录、恢复入口和 revision 互不混写。
 
 本轮不保存部分匹配检查点。App 在匹配途中被系统终止后，重启只恢复最后一次完整快照：整理内容仍在，但未完成的匹配恢复为 `notStarted`，由用户继续或在进入排歌时自动重跑，绝不把半份结果显示成完成。
 
@@ -634,7 +636,7 @@ flowchart TD
 - 联网失败不影响本地导入、匹配和排歌。
 - 旧快照可以安全恢复，缺少新字段时使用保守文案。
 - 导入、匹配和计划只在完整结果与当前 basis 一致时原子发布；取消、超时和进程终止不得持久化半份结果。
-- 每个 importedSong stable ID 都有且只有一组双阶段 reconciliation：稳定 `reviewMatchOutcome` 与可变 `planDisposition`。导入完成、匹配中、匹配完成未排歌、plan stale 和重排成功五个提交点都可区分；plan controls 不改匹配真相，成功重排才原子替换 dispositions。
+- 每个 importedSong stable ID 都有且只有一组双阶段 reconciliation：稳定 `reviewMatchOutcome` 与可变 `planDisposition`。所有 dispositions、supplements、`dispositionPlanBasis` 是不可拆分 projection；上游变化只能整体 stale 保留或整体清空，plan controls 不改匹配真相，成功重排才整体原子替换 projection。
 - 多个导入条目命中同一 track、alias/版本归并、锁定和容量截断时，按导入顺序再按 UUID 字符串得到唯一 X/R，其余逐条为 Q；随机输入顺序下结果不漂移，summary 只能从对应阶段的 entries/supplements 派生。
 - 旧 raw `sung` 可解码并迁移，UI 只显示“会唱/熟悉”；反馈持久化失败才回滚，重排失败必须保留新反馈并把旧 plan 保持为禁导出、禁开唱的 stale。
 - ready 结果页一次点击进入“进入开唱模式/开始练唱”，stale 不放行，外部候选不进入顺序，文案不承诺播放或设备点歌。
@@ -665,6 +667,7 @@ flowchart TD
 - UI 测试覆盖无异常、部分异常、全部未找到、联网失败、取消、恢复、反馈失败、结果一跳开唱、多截图部分失败/重试/放弃/离页清理/重启重新选择和大字号。
 - Task 16 先建立基线；Task 17–22 完成后必须由 Task 22A 从零重跑 `swift test`、聚焦 iOS 测试、完整 UI、模拟器 Release、两套字号截图、真机和 `./scripts/validate.sh`，Task 16 的旧证据不是权威完成证据。
 - 真机验收至少覆盖分享导入、一次选择 3 张截图并核对跨图去重/失败明细、音区测量、结果一跳开唱、系统分享和重启后第 9 首计划控制恢复。
+- 公开发布证据必须先保存 `GET /v1/apps/{ASC_APP_ID}` 原始响应并证明唯一 app resource 的 `attributes.bundleId` 同时等于候选清单与 IPA Bundle Identifier，随后才按 marketing version/build number 接受唯一 build；app resource 缺失/重复、bundleId 不一致或 evidence manifest 缺少原始响应 SHA-256 均保持 BLOCKED。
 
 ## 12. 实施优先级
 
