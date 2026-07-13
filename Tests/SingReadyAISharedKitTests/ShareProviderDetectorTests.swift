@@ -14,6 +14,38 @@ final class ShareProviderDetectorTests: XCTestCase {
         XCTAssertEqual(detector.detect(urlString: "https://example.com/music/list").source, .genericURL)
     }
 
+    func testProviderHostCanonicalizationHandlesCaseTrailingDotAndRealSubdomains() {
+        let detector = ShareProviderDetector()
+
+        XCTAssertEqual(detector.detect(urlString: "https://MUSIC.APPLE.COM./cn/playlist/demo").source, .appleMusic)
+        XCTAssertEqual(detector.detect(urlString: "https://share.music.163.com./playlist?id=42").source, .netEaseMusic)
+        XCTAssertEqual(detector.detect(urlString: "https://SHARE.I.Y.QQ.COM./v8/playsong.html").source, .qqMusic)
+    }
+
+    func testProviderHostCanonicalizationRejectsLeadingDotAndLookalikes() {
+        let detector = ShareProviderDetector()
+
+        XCTAssertEqual(detector.detect(urlString: "https://.music.apple.com/cn/playlist/demo").source, .genericURL)
+        XCTAssertEqual(detector.detect(urlString: "https://music.apple.com.example.com/playlist").source, .genericURL)
+        XCTAssertEqual(detector.detect(urlString: "https://music163.com/playlist").source, .genericURL)
+        XCTAssertEqual(detector.detect(urlString: "https://y.qq.com.example.com/playlist").source, .genericURL)
+    }
+
+    func testCustomProviderHostsRemainSourceCompatibleAndUseCanonicalMatching() {
+        let customHosts: Set<String> = ["Music.Example.com."]
+        let detector = ShareProviderDetector(netEaseHosts: customHosts)
+
+        XCTAssertEqual(detector.netEaseHosts, customHosts)
+        XCTAssertEqual(
+            detector.detect(urlString: "https://PLAY.MUSIC.EXAMPLE.COM./playlist?id=42").source,
+            .netEaseMusic
+        )
+        XCTAssertEqual(
+            detector.detect(urlString: "https://music.example.com.evil.test/playlist").source,
+            .genericURL
+        )
+    }
+
     func testDetectsPlainTextAndScreenshotPayloads() {
         let detector = ShareProviderDetector()
 

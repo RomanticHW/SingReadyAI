@@ -1,6 +1,7 @@
 name: SingReadyAI
 options:
   minimumXcodeGenVersion: 2.42.0
+  developmentLanguage: zh-Hans
   deploymentTarget:
     iOS: "17.0"
 packages:
@@ -14,28 +15,38 @@ targets:
     sources:
       - SingReadyAI/App
       - SingReadyAI/Features
+    resources:
+      - SingReadyAI/App/PrivacyInfo.xcprivacy
+      - PRIVACY.md
     dependencies:
       - package: SingReadyAISharedKit
         product: SingReadyAISharedKit
       - target: SingReadyAIShareExtension
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.example.SingReadyAI
+        PRODUCT_BUNDLE_IDENTIFIER: com.huangwei.singreadyai
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        TARGETED_DEVICE_FAMILY: 1
         CURRENT_PROJECT_VERSION: 1
         MARKETING_VERSION: 1.0
         GENERATE_INFOPLIST_FILE: YES
         INFOPLIST_KEY_CFBundleDisplayName: 今晚唱什么
-        INFOPLIST_KEY_NSMicrophoneUsageDescription: 用于分析你的声线区间，以推荐更适合 KTV 演唱的歌曲。
+        INFOPLIST_KEY_NSMicrophoneUsageDescription: 用于判断大概音域，帮你避开不好唱的歌。不保存录音。
+        INFOPLIST_KEY_NSPhotoLibraryAddUsageDescription: 用于把歌单海报保存到相册，方便开唱前发给朋友。
+        INFOPLIST_KEY_UIApplicationSceneManifest_Generation: YES
+        INFOPLIST_KEY_UILaunchStoryboardName: LaunchScreen
         INFOPLIST_KEY_UISupportedInterfaceOrientations: UIInterfaceOrientationPortrait
-        INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad: UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight
         CODE_SIGN_ENTITLEMENTS: SingReadyAI/App/SingReadyAI.entitlements
-        DEVELOPMENT_TEAM: ""
+        CODE_SIGN_STYLE: Automatic
+        DEVELOPMENT_TEAM: 7UGQ23VSF7
   SingReadyAIShareExtension:
     type: app-extension
     platform: iOS
     deploymentTarget: "17.0"
     sources:
       - SingReadyAI/ShareExtension
+    resources:
+      - SingReadyAI/ShareExtension/PrivacyInfo.xcprivacy
     info:
       path: SingReadyAI/ShareExtension/Info.plist
       properties:
@@ -53,11 +64,13 @@ targets:
         product: SingReadyAISharedKit
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.example.SingReadyAI.ShareExtension
+        PRODUCT_BUNDLE_IDENTIFIER: com.huangwei.singreadyai.shareextension
+        TARGETED_DEVICE_FAMILY: 1
         CURRENT_PROJECT_VERSION: 1
         MARKETING_VERSION: 1.0
         CODE_SIGN_ENTITLEMENTS: SingReadyAI/ShareExtension/SingReadyAIShareExtension.entitlements
-        DEVELOPMENT_TEAM: ""
+        CODE_SIGN_STYLE: Automatic
+        DEVELOPMENT_TEAM: 7UGQ23VSF7
   SingReadyAITests:
     type: bundle.unit-test
     platform: iOS
@@ -67,6 +80,12 @@ targets:
     dependencies:
       - package: SingReadyAISharedKit
         product: SingReadyAISharedKit
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.huangwei.singreadyai.tests
+        GENERATE_INFOPLIST_FILE: YES
+        CODE_SIGN_STYLE: Automatic
+        DEVELOPMENT_TEAM: 7UGQ23VSF7
   SingReadyAIUITests:
     type: bundle.ui-testing
     platform: iOS
@@ -77,6 +96,18 @@ targets:
       - target: SingReadyAIApp
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.example.SingReadyAI.UITests
+        PRODUCT_BUNDLE_IDENTIFIER: com.huangwei.singreadyai.uitests
+        TARGETED_DEVICE_FAMILY: 1
         TEST_TARGET_NAME: SingReadyAIApp
         GENERATE_INFOPLIST_FILE: YES
+        CODE_SIGN_STYLE: Automatic
+        DEVELOPMENT_TEAM: 7UGQ23VSF7
+schemes:
+  SingReadyAIApp:
+    build:
+      targets:
+        SingReadyAIApp: all
+    test:
+      targets:
+        - SingReadyAITests
+        - SingReadyAIUITests

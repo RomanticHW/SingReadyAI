@@ -7,11 +7,14 @@ enum DesignSystem {
     static let radiusLarge = ComponentTokens.radiusLarge
     static let pageHorizontalPadding = SpacingTokens.page
     static let cardBackground = ColorTokens.panel
+    static let cardBackgroundLow = ColorTokens.panelLow
     static let cardBackgroundSolid = ColorTokens.panelSolid
     static let raisedBackground = ColorTokens.panelRaised
+    static let raisedBackgroundHigh = ColorTokens.panelHigh
     static let border = ColorTokens.stroke
+    static let borderStrong = ColorTokens.strokeStrong
     static let separator = ColorTokens.hairline
-    static let primary = ColorTokens.coral
+    static let primary = ColorTokens.systemBlue
     static let cyan = ColorTokens.cyan
     static let amber = ColorTokens.amber
     static let success = ColorTokens.success
@@ -24,6 +27,7 @@ enum DesignSystem {
     static let background = LinearGradient(
         colors: [
             ColorTokens.stageBlack,
+            ColorTokens.deepViolet,
             ColorTokens.midnight,
             ColorTokens.deepTeal
         ],

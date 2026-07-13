@@ -1,72 +1,110 @@
-# Final Report
+# 交付报告
 
-## Status
+验证日期：2026-07-12
 
-SingReadyAI / 今晚唱什么已从 MVP 升级为可本地完整演示的 iOS Demo。当前版本离线跑通导入、解析确认、KTV 匹配、偏好画像、真实 PCM 声线分析或明确模拟 fallback、场景生成、分段推荐、导出和面试模式。
+## 状态
 
-## Completed
+SingReadyAI / 今晚唱什么当前工作树已形成可本地运行的 iPhone 应用闭环：导入、歌名整理、本地参考匹配、同歌手公开候选、偏好画像、录音音区测量或常见音域参考、场景排歌、反馈重排、状态恢复、分享导出和开唱小抄均有 UI 入口。各功能按需求独立使用，不要求用户顺序完成整套流程。当前冻结源码已完成全量自动化门禁、完整 UI 回归和两套截图复核；代码与模拟器范围内没有仍未处理的已确认 P0、P1 或 P2 问题。
 
-- Rebuilt the app from four MVP tabs into a guided product flow: onboarding, import hub, review, match report, voice setup, scenario builder, result, export center, and interview mode.
-- Added a standalone design system with color, typography, spacing, motion, component, accessibility, and material tokens.
-- Expanded the mock KTV catalog to 215 complete tracks.
-- Upgraded parsing, normalization, source detection, KTV matching, preference profiling, recommendation scoring, score explanations, lock/remove/regenerate, text export, JSON export, and poster preview.
-- Implemented real-device recording through `AVAudioEngine` PCM capture and `PitchDetector` analysis; simulator and permission failure paths keep an explicit simulated profile fallback.
-- Completed Share Extension plist registration, App Group handoff, preview UI, privacy notes, and fallback storage.
-- Added local quality gates, UI test screenshots, visual QA, design docs, performance budget, and recommendation explainability docs.
+## 已完成
 
-## How To Run
+- 从早期四个 Tab 改成按任务组织的产品结构：首页、导入、整理、匹配、声线、场景、结果、导出和开唱提示都能独立进入。
+- 功能页使用原生 `NavigationStack` 管理层级：流程内前进会保留上一页，系统返回按钮和左缘滑动返回可用；从全局功能菜单切换时返回首页，不会串进另一项功能。
+- 建立独立设计系统，覆盖颜色、字体、间距、动效、组件、无障碍和材质 token。
+- 内置 215 首完整元数据作为 early-validation 本地参考曲库，用于验证匹配和推荐逻辑；不把它表述为实时 KTV、地区或门店曲库。
+- 升级导入解析、歌名清洗、来源识别、本地参考匹配、偏好画像、歌单排序、适合理由、锁定/移除/重排、群聊文本、详细 `.txt` 文件和海报预览。
+- 链接导入只直接读取 Apple Music 与网易云音乐官方公开页面，并对重定向逐跳限制官方 HTTPS 主机；QQ 音乐纯链接会立即提示改用分享原文或截图，其他网页不会发起读取。分享载荷同时保留可识别歌名原文时，可继续做本地文本解析。
+- 运行时通过 Apple 公开搜索补充同歌手元数据候选，不声称使用音乐相似度算法；候选的 KTV 收录、音域、难度和现场适配保持待核对。
+- 增加人数策略、演唱建议和本地歌曲反馈，用户标记唱过、喜欢、太高、不熟或适合合唱后，会影响下一次重排。
+- 真机录音通过 `AVAudioEngine` 采集并交给 `PitchDetector` 分析；有效结果标记为“本次唱到的音区”。未录音时使用独立来源的“常见音域参考”，不展示为用户实测，也不生成精确调性结论。
+- 源码、entitlements 与 Bundle 合同已补齐 Share Extension 注册、App Group 传递、预览 UI 和隐私提示；同一 Team 的开发签名与共享容器已在正式标识构建中验证。URL 与文本表示并行提取，单个 provider 表示挂起时仍保留已读原文；共享容器不可用或保存失败时，链接/文本提示手动复制，截图提示回到 App 重新选择，不写成可被主 App 读取的后备存储。
+- 增加版本化当前进度快照：首页可继续未完成整理、参考匹配或场景配置，也可继续调整、导出已经生成的计划。
+- 最近导入按 playlist ID 覆盖整理后的歌名、歌手和删除结果；待处理项和最近导入支持单删，并提供带二次确认的“清除本机记录”。
+- 导入请求绑定当前页面上下文：离开页面、主动取消、全清或超时后都拒绝迟到结果；业务完成与超时使用同一完成仲裁，已完成结果不会被迟到超时覆盖；普通取消不会删除已有计划、历史和反馈。
+- 声线、场景、整理内容或外部候选集合变化会使旧计划失效；已移除歌曲除即时撤销外，也可跨重启逐首或全部恢复。
+- 空歌名在解析、整理 UI 和提交边界三层拦截；截图在解码前限制尺寸与像素量，OCR 使用有界缩略图并清理临时文件。
+- 分享扩展读取中可取消，并对整次 provider 提取设置总时限；超时或存储失败时进入可操作恢复态，不留下暂存截图。待处理分享只有在最近导入或当前快照至少一处同步落盘后才会删除。
+- 已导入但尚未核对的内容可直接进入场景排歌，系统会先基于当前歌单建立匹配，不会用热门歌单覆盖；确认本地匹配或采用替代歌会保留已加载的公开候选。
+- 开唱小抄按朋友、生日、团建、车载、情侣和独自练歌分别生成；车载至少两人并明确驾驶者不操作手机，独自练歌的结果、导出、功能菜单和小抄使用个人练唱文案。
+- 群聊分享使用精简文本；导出页另有真实可分享的 UTF-8 详细 `.txt` 文件，包含分段目标、推荐理由、注意事项和备选歌。
+- 增加本地质量门禁、UI 截图、视觉验收、设计文档、性能预算和适合理由说明。
+
+## 运行方式
 
 ```bash
 swift test
-xcodegen generate
 open SingReadyAI.xcodeproj
 ```
 
-Build in Xcode with `SingReadyAIApp`, iOS 17+.
+在 Xcode 中选择 `SingReadyAIApp`，使用 iOS 17+ 模拟器或真机构建运行。
 
-## Full Verification
+若本机已安装 `xcodegen`，可在打开项目前先运行 `xcodegen generate`；未安装时直接使用仓库内已经验证的 `SingReadyAI.xcodeproj`。
+
+## 完整验证
 
 ```bash
+RESULT_BUNDLE=Build/ScreenshotQA-Large.xcresult \
+EXPORT_DIR=Build/ScreenshotQA-Large \
+SCREENSHOT_DIR=docs/screenshots \
+CONTENT_SIZE=large \
 ./scripts/capture_ui_test_screenshots.sh
+
+RESULT_BUNDLE=Build/ScreenshotQA-AXXXL.xcresult \
+EXPORT_DIR=Build/ScreenshotQA-AXXXL \
+SCREENSHOT_DIR=docs/screenshots-large-text \
+CONTENT_SIZE=accessibility-extra-extra-extra-large \
+./scripts/capture_ui_test_screenshots.sh
+
 ./scripts/validate.sh
 ```
 
-Latest local results:
+两次截图命令分别更新常规字号与最大辅助字号证据，缺少任一套或任一套早于当前源码时，完整门禁都会失败。
 
-- UI screenshot test: passed, 10 critical states exported to `docs/screenshots/`.
-- `swift test`: passed, 50 tests, 0 failures.
-- Catalog validation: passed, 215 tracks.
-- Plist/privacy validation: passed.
-- Documentation consistency validation: passed.
-- Design system validation: passed.
-- Performance budget validation: passed.
-- Screenshot evidence validation: passed.
-- `xcodegen generate`: passed.
-- Generic iOS Simulator build with `CODE_SIGNING_ALLOWED=NO`: passed.
+当前冻结源码的验证结果：
 
-## Demo Path
+- Swift Package：`363/363` 通过。
+- Xcode iOS 单元测试：`357/357` 通过，最新结果包为 `Build/Closure-XcodeUnit-Current.xcresult`。
+- 完整 UI 回归：`108/108` 通过，结果包为 `Build/Closure-FullUI-Current.xcresult`。
+- 交付脚本测试：`60/60` 通过。
+- 当前完整 UI 套件已覆盖 QQ 音乐纯链接恢复、相册选择器、系统分享、分享扩展往返、麦克风拒绝/首次授权和相册拒绝恢复；iOS 26.5 模拟器系统能力聚焦回归 `6/6`，结果包为 `Build/SimulatorSystemFlows.xcresult`。外部分享从 Safari 打开 Apple Music 链接，经 Share Extension 和 App Group 回到主 App 的“整理 Apple Music”入口。
+- 常规字号与最大辅助字号截图分别 `11/11`，共 `22` 张；最终结果包为 `Build/Closure-Final-Screenshot-Large.xcresult` 与 `Build/Closure-Final-Screenshot-AXXXL.xcresult`，来源指纹、命名与尺寸校验通过。
+- 使用产品解析器做实时探针：给定 Apple Music 歌单成功解析 `83` 首；给定网易云短链明确识别为私密歌单；QQ 音乐纯链接立即进入可操作恢复态；Apple 公开搜索可返回同歌手候选。网络结果会随第三方页面与服务变化，不作为离线确定性测试替代品。
+- 通用 iOS Simulator Release 与 device-SDK Release 无签名构建通过；隐私清单、内置隐私政策、Bundle ID、App Group 和 Release 配置门禁通过。正式标识开发签名构建也已在 `苏北Air` 安装并启动。
 
-1. Launch app and complete onboarding.
-2. Use Demo import, paste text, OCR screenshot, or Share Extension pending import.
-3. Review parsed songs and edit low-confidence rows.
-4. Start KTV catalog matching and inspect the match report.
-5. Use simulated voice or real-device 10 second recording.
-6. Choose scene, duration, vibe, chorus preference, and difficulty.
-7. Generate a segmented song plan.
-8. Expand score explanations, lock one song, remove another, and regenerate.
-9. Export text, JSON, and poster preview.
-10. Open Interview Mode.
+文档此前记录的 `77` 个 Swift 测试、每轮 `42` 个 UI 测试和旧版截图只属于修复前历史基线，不再作为当前交付证据。
 
-## Known Limits
+## 使用方式
 
-- Vision OCR quality depends on screenshot clarity and device OCR availability.
-- Share Extension deep-link opening is represented by completing the extension and prompting the user to continue in the app.
-- No real KTV hardware, private music API, audio, lyrics, MV, or copyrighted cover assets are included.
-- Export poster is currently a SwiftUI preview; saving a rendered image can be added later.
+首页按实际需求分成三组，用户每次只做当下需要的事：
 
-## Interview Talk Track
+- 我有歌单：导入或整理歌名，也可以逐首核对本地参考匹配和待确认候选。
+- 唱前准备：测一下音域，或按朋友局、生日局、车载 K 歌等场合排歌。
+- 到了现场：打开今晚歌单、发给朋友，或查看开唱小抄。
 
-- Product value: turns listening preference into singable KTV plans.
-- Leishi fit: mobile pre-entry, playlist import, KTV catalog matching, car karaoke recommendations, voice fit, scene sequencing.
-- iOS depth: Share Extension, App Group, Vision OCR abstraction, AVFoundation PCM recording path, Swift Package business core, SwiftUI workflow, explainable recommendation engine, XcodeGen, UI tests.
-- Engineering quality: offline fixtures, deterministic tests, no private APIs, no iOS-side keys, clear mock/real boundaries.
+顶部功能菜单在任意页面都能直接切换，不需要先完成前面的功能。功能内部继续操作时可以返回上一页；从菜单换到另一项功能时，返回会回首页，避免跨功能层级混在一起。
+
+## 已知边界
+
+- 截图识别效果取决于截图清晰度和设备的系统识别能力；超大像素图片会在完整解码前被拒绝，OCR 使用受限尺寸的缩略图。
+- 分享扩展只处理本次主动分享的内容；App Group 正常时交给主 App，失败时使用手动复制或重新选择截图的恢复路径。
+- 当前不包含真实 KTV 硬件协议、第三方音乐私有接口、音频、歌词、MV 或版权封面。
+- Apple 同歌手候选只保留公开元数据，并跳转到经过约束的公开页面；它不代表相似度算法结论或 KTV 可唱证明。
+- 215 首本地参考曲库是早期验证 fixture，不代表实时平台曲库、地区或场所可唱情况。
+- 只有 Apple Music 与网易云音乐官方公开链接会被直接读取；QQ 音乐纯链接会提示粘贴分享原文或截图，其他网页同样要求使用文本或截图，不会被当作通用网页抓取入口。
+- 海报导出会把当前 SwiftUI 预览渲染成图片，在用户授权后保存到相册。
+
+## 发布前外部事项
+
+- 当前未执行带分发证书的 Archive / Export。主 App、分享扩展与 `group.com.huangwei.singreadyai` 已取得同一 Team 的开发描述文件并完成签名构建；上架仍需分发证书、Archive / Export 和 App Store Connect 配置。
+- `苏北Air` 已重新在线，正式标识 `com.huangwei.singreadyai` 的当前开发构建完成安装、启动与进程核验。按本轮验收约定，后续系统权限和外部分享回归改在 iOS 26.5 模拟器执行并通过 `6/6`；真实录音质量、照片实际落库和第三方 App 原生分享仍保留为人工真机验收项。
+- App 内已捆绑完整离线隐私政策，但远端 `main` 尚未发布可直接访问的政策页面；App Store Connect 上架仍需要长期稳定的公开隐私政策 URL，并需完成应用元数据和 App Privacy 问卷。
+- 找同歌手候选只在用户主动触发后向 Apple iTunes Search 发送歌手名称；单曲搜索链接包含歌名和歌手。第三方对查询数据的保留与 App Store Connect 收集分类仍需发布负责人按最新政策人工确认。
+- 本轮自动化运行在 iOS 26.5；最低声明版本 iOS 17 的运行时兼容性尚未在 iOS 17 模拟器或设备上 smoke。
+- 当前结论是代码、模拟器系统流程和开发签名安装范围内达到高质量交付门槛，不等同于已完成分发 Archive、完整真机人工验收或 App Store 审核。
+
+## 产品表达
+
+- 产品价值：把平时爱听的歌变成今晚更容易唱、也更好接上的 KTV 歌单。
+- 使用场景：KTV 到店前准备、朋友聚会点歌、车载 K 歌、生日局、团建局和个人练歌。
+- iOS 能力：Share Extension、App Group、Vision OCR 抽象、AVFoundation PCM 录音、Swift Package 业务核心、SwiftUI 功能结构和 UI 测试。
+- 实现质量：离线 fixture、确定性规则测试、元数据级同歌手候选、不使用私有接口、iOS 端无密钥、样例与外部数据边界可见。

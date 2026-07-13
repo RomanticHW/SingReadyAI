@@ -4,11 +4,19 @@ public struct PitchDetector: Sendable {
     public init() {}
 
     public func detectPitch(samples: [Float], sampleRate: Double) -> Double? {
+        try? detectPitchCancellable(samples: samples, sampleRate: sampleRate)
+    }
+
+    public func detectPitchCancellable(samples: [Float], sampleRate: Double) throws -> Double? {
         guard sampleRate > 0, samples.count > 8 else { return nil }
-        let doubles = samples.map(Double.init)
-        let rms = sqrt(doubles.map { $0 * $0 }.reduce(0, +) / Double(doubles.count))
+        var squaredEnergy = 0.0
+        for sample in samples {
+            let value = Double(sample)
+            squaredEnergy += value * value
+        }
+        let rms = sqrt(squaredEnergy / Double(samples.count))
         guard rms > 0.01 else { return nil }
-        if let zeroCrossingFrequency = estimatedFrequencyFromZeroCrossings(samples: doubles, sampleRate: sampleRate),
+        if let zeroCrossingFrequency = estimatedFrequencyFromZeroCrossings(samples: samples, sampleRate: sampleRate),
            !(70...1050).contains(zeroCrossingFrequency) {
             return nil
         }
@@ -21,12 +29,15 @@ public struct PitchDetector: Sendable {
         var bestCorrelation = 0.0
         var correlations: [(lag: Int, value: Double)] = []
         for lag in minLag...maxLag {
+            if lag.isMultiple(of: 16) {
+                try Task.checkCancellation()
+            }
             var sum = 0.0
             var energyA = 0.0
             var energyB = 0.0
-            for index in 0..<(doubles.count - lag) {
-                let a = doubles[index]
-                let b = doubles[index + lag]
+            for index in 0..<(samples.count - lag) {
+                let a = Double(samples[index])
+                let b = Double(samples[index + lag])
                 sum += a * b
                 energyA += a * a
                 energyB += b * b
@@ -56,35 +67,26 @@ public struct PitchDetector: Sendable {
         let filtered = midiValues
             .filter { $0.isFinite && (35...90).contains($0) }
             .sorted()
-        guard filtered.count >= 3 else {
-            return VoiceProfile(
-                type: .unknown,
-                minMidi: 0,
-                maxMidi: 0,
-                stableLowMidi: 0,
-                stableHighMidi: 0,
-                averageMidi: 0,
-                confidence: 0.1,
-                note: "有效音高样本不足，请靠近麦克风重试。"
-            )
-        }
+        guard filtered.count >= 12 else { return insufficientRangeProfile() }
         let minMidi = Int(filtered.first!.rounded())
         let maxMidi = Int(filtered.last!.rounded())
-        let stableLow = Int(percentile(filtered, 0.1).rounded())
-        let stableHigh = Int(percentile(filtered, 0.9).rounded())
+        let percentileLow = percentile(filtered, 0.1)
+        let percentileHigh = percentile(filtered, 0.9)
+        guard percentileHigh - percentileLow >= 5 else { return insufficientRangeProfile() }
+        let stableLow = Int(percentileLow.rounded())
+        let stableHigh = Int(percentileHigh.rounded())
         let average = filtered.reduce(0, +) / Double(filtered.count)
-        let type = voiceType(averageMidi: average, stableHigh: stableHigh)
         let confidence = min(0.95, 0.45 + Double(filtered.count) / 80.0)
-        let advice = voiceAdvice(type: type, stableLow: stableLow, stableHigh: stableHigh)
+        let advice = measuredRangeAdvice()
         return VoiceProfile(
-            type: type,
+            type: .unknown,
             minMidi: minMidi,
             maxMidi: maxMidi,
             stableLowMidi: stableLow,
             stableHighMidi: stableHigh,
             averageMidi: average,
             confidence: confidence,
-            note: "稳定音域约 \(stableLow)-\(stableHigh) MIDI，推荐优先选择副歌不长期超过该范围的歌曲。",
+            note: "这是本次唱到的音区，仅作排歌参考，不代表完整音域。",
             suitableSongTypes: advice.suitable,
             avoidSongTypes: advice.avoid,
             singingStrategy: advice.strategy
@@ -110,6 +112,28 @@ public struct PitchDetector: Sendable {
         return sorted[lower] * (1 - fraction) + sorted[upper] * fraction
     }
 
+    private func insufficientRangeProfile() -> VoiceProfile {
+        VoiceProfile(
+            type: .unknown,
+            minMidi: 0,
+            maxMidi: 0,
+            stableLowMidi: 0,
+            stableHighMidi: 0,
+            averageMidi: 0,
+            confidence: 0,
+            note: "这次还不足以确定音区，请从舒服低音逐步唱到舒服高音再试一次。",
+            source: .measured
+        )
+    }
+
+    private func measuredRangeAdvice() -> (suitable: [String], avoid: [String], strategy: [String]) {
+        (
+            ["旋律线平稳", "合唱歌曲", "音区接近本次范围的歌"],
+            ["音域跨度很大", "连续高强度"],
+            ["先用中音区热身", "高低音交替时留意当下状态", "根据现场感受调整或换歌"]
+        )
+    }
+
     private func firstStrongPeak(in correlations: [(lag: Int, value: Double)], threshold: Double) -> Int? {
         guard correlations.count >= 3 else { return nil }
         for index in 1..<(correlations.count - 1) {
@@ -123,7 +147,7 @@ public struct PitchDetector: Sendable {
         return nil
     }
 
-    private func estimatedFrequencyFromZeroCrossings(samples: [Double], sampleRate: Double) -> Double? {
+    private func estimatedFrequencyFromZeroCrossings(samples: [Float], sampleRate: Double) -> Double? {
         guard samples.count > 1, sampleRate > 0 else { return nil }
         var crossings = 0
         for index in 1..<samples.count {
@@ -161,8 +185,8 @@ public struct PitchDetector: Sendable {
         case .lowMale:
             return (
                 ["男声低音", "民谣流行", "怀旧金曲", "车载轻唱"],
-                ["女声高光", "连续升调副歌", "高密度快歌"],
-                ["先选低音区稳定歌曲", "高音曲用降调或安排替代曲", "合唱段可承担低声部"]
+                ["女声高音歌", "连续升调副歌", "高密度快歌"],
+                ["先选低音区稳定歌曲", "高音歌可以降调或换备选歌", "合唱段可承担低声部"]
             )
         case .midMale:
             return (
@@ -172,15 +196,15 @@ public struct PitchDetector: Sendable {
             )
         case .highMale:
             return (
-                ["男声高光", "摇滚/乐队", "KTV 经典", "合唱收尾"],
+                ["男声高音歌", "摇滚/乐队", "KTV 经典", "合唱收尾"],
                 ["过低叙事歌", "密集 Rap"],
-                ["高光歌曲不要连排", "开场先唱稳定旋律", "副歌前保留气息"]
+                ["高难歌不要连排", "开场先唱稳定旋律", "副歌前保留气息"]
             )
         case .lowFemale:
             return (
                 ["女声中低音", "温柔情歌", "车载轻唱", "甜歌"],
                 ["高音爆发歌", "连续真假声切换"],
-                ["优先选择旋律线平稳歌曲", "高音歌准备替代曲", "多人局多用合唱降低压力"]
+                ["优先选择旋律线平稳歌曲", "高音歌准备备选歌", "多人局多用合唱降低压力"]
             )
         case .midFemale:
             return (
@@ -190,15 +214,15 @@ public struct PitchDetector: Sendable {
             )
         case .highFemale:
             return (
-                ["女声高光", "舞台感歌曲", "高能量收尾", "技巧挑战"],
+                ["女声高音歌", "舞台感歌曲", "高能量收尾", "技巧挑战"],
                 ["低音叙事歌", "连续高强度歌曲"],
-                ["高光段集中展示", "每首高难歌后接一首稳妥歌", "注意副歌前换气"]
+                ["难歌集中唱一小段", "每首高难歌后接一首稳妥歌", "注意副歌前换气"]
             )
         case .unknown:
             return (
                 ["稳妥流行", "合唱歌曲", "中低音歌曲"],
-                ["高音风险歌", "技巧挑战歌"],
-                ["先用模拟声线跑流程", "真机环境靠近麦克风重试", "选择替代曲降低风险"]
+                ["太吃高音的歌", "技巧挑战歌"],
+                ["直接用常见音区排", "靠近麦克风再试一次", "先选更稳的备选歌"]
             )
         }
     }

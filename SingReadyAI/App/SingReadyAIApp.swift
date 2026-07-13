@@ -9,6 +9,7 @@ struct SingReadyAIApp: App {
         WindowGroup {
             RootTabView()
                 .environmentObject(store)
+                .preferredColorScheme(.dark)
         }
     }
 }

@@ -1,90 +1,168 @@
-# Manual QA Checklist
+# 手动验收清单
 
-## First Launch
+自动化回归结果见 `FINAL_REPORT.md`。正式标识 `com.huangwei.singreadyai` 的开发签名构建已在 `苏北Air` 安装、启动并核验运行进程；按本轮验收约定，后续系统能力改用 iOS 26.5 模拟器，聚焦回归已通过 `6/6`。本清单中明确标注真机的真实录音质量、照片实际落库和第三方 App 原生分享仍是人工验收项，不由模拟器结果替代。
 
-- Delete the app or reset `singready.hasCompletedOnboarding`.
-- Launch app.
-- Verify three onboarding pages render and `跳过` / `开始使用` enters Import Hub.
+## 首次打开
 
-## Demo Import
+- 删除应用，或重置 `singready.hasCompletedOnboarding`。
+- 启动应用。
+- 确认引导页可以直接点击 `开始使用` 进入首页，也可以点 `看看怎么用` 继续浏览。
+- 在首页滚动到底部，确认 `查看隐私政策` 可点击，并打开应用内随包提供的离线完整隐私政策；页面可完整滚动，第三方服务、政策更新、联系入口和外部链接可访问，系统返回与左缘滑动返回有效。
 
-- Tap `使用 Demo 歌单`.
-- Verify Import Review shows parsed songs.
-- Edit one song title or artist.
-- Delete one low-confidence item if present.
-- Tap `开始匹配 KTV 曲库`.
+## 导航与返回
 
-## Paste Text Import
+- 从首页打开任意功能，使用左缘滑动返回，确认回到首页。
+- 在导入、整理、匹配等同一件事的连续页面中继续操作，再点击系统返回，确认回到刚才那一页。
+- 从顶部功能菜单切换到另一项功能，再点击系统返回，确认回到首页，而不是跳进上一项功能。
+- 确认顶部只保留系统导航标题、返回按钮和功能菜单，没有重复的第二层返回栏。
 
-- Return to Import Hub.
-- Paste mixed formats:
+## 示例歌单导入
+
+- 点击 `用示例歌单`。
+- 确认整理页展示解析出的歌曲。
+- 修改一首歌名或歌手。
+- 如有明显不对的条目，删除一条。
+- 点击 `看看本地参考命中`。
+
+## 粘贴链接或文本导入
+
+- 回到导入页。
+- 粘贴混合格式：
   - `周杰伦 - 晴天`
   - `晴天 - 周杰伦`
   - `陈奕迅《十年》`
   - `01 稻香 周杰伦`
   - `歌名：告白气球 歌手：周杰伦`
   - `分享 周杰伦 的单曲 七里香`
-- Verify URL/noise lines are filtered and low-confidence lines stay editable.
+- 确认链接和杂音行被过滤，不确定的条目仍可编辑。
+- 清空任一歌名，确认显示“补歌名”，且不能进入参考匹配；补回歌名后恢复可继续状态。
+- 在慢速导入中点击 `取消本次导入`，确认已有计划、最近导入和反馈不受影响；离开再返回也不能收到旧请求的迟到结果。
+- 模拟导入总超时，确认回到可重试状态，并且超时后的迟到结果不会进入整理页。
+- 让业务结果刚好在总时限前完成，确认成功页面不会再被迟到的超时任务改写为失败。
+- 已导入歌单但尚未核对时，从首页或功能菜单直接进入场景并排歌；确认仍使用当前导入内容，而不是静默换成热门歌单。
 
-## OCR Import
+## 音乐平台链接导入
 
-- Tap `截图 OCR 识别`.
-- Select a screenshot containing song list text.
-- Verify OCR goes to Import Review, not directly to match.
-- Verify error state for unreadable image or too few recognized songs.
+- 粘贴 Apple Music 公开歌单链接，确认成功解析真实曲目并进入整理页；本轮给定链接的实时探针解析到 `83` 首。
+- 粘贴网易云音乐短链，确认公开歌单可解析；若平台返回私密歌单，显示明确的私密/不可访问提示，不生成虚假歌曲。
+- 只粘贴 QQ 音乐歌单链接，确认立即提示改用分享原文或截图，输入框与整理按钮保持可操作，不出现无反馈等待。
+- 粘贴带至少两行可识别歌名的 QQ 音乐分享原文，确认本地解析歌曲并保留 QQ 音乐来源标签，不访问非公开接口。
+- 粘贴其他公开 HTTPS 网页，确认 App 不发起通用网页读取，并提示目前只直接读取 Apple Music 和网易云公开歌单，可改用歌名文字或截图。
+- 使用 `http://`、带用户名/密码、`localhost`、局域网地址、前导点/相似拼写域名或跳转到非官方主机的链接，确认请求被拒绝且提示可改用文本或截图。
+- 从分享扩展同时分享 URL 与包含歌名的原文，模拟链接读取失败，确认只有在原文确实包含可识别歌名时才继续做本地文本解析。
+- 只提供 URL 且读取失败时，确认不会自动换成示例歌单，也不会凭来源域名生成歌曲。
 
-## Share Import Simulation
+## 截图识别导入
 
-- On a real device, share URL/text/image to the Share Extension.
-- Confirm extension source, preview, privacy note, and fallback state.
-- Open app and verify pending import banner.
-- Tap pending import and continue to Import Review.
+- 点击 `识别截图`。
+- 选择包含歌单文字的截图。
+- 确认识别后进入整理页，而不是直接开始匹配。
+- 使用不可读图片或识别歌曲过少的截图时，确认错误状态可见。
+- 使用超过像素上限或单边尺寸上限的图片，确认在完整解码前被拒绝且提示可操作；执行全清后不留下 `singready-ocr-*` 临时文件。
 
-## Match Report
+## 分享导入
 
-- Verify KTV match rate ring.
-- Verify exact, fuzzy, alternative, unmatched counts.
-- Verify artist, language, era, genre, mood, scene fit, difficulty, high-note risk, and chorus friendliness.
+- 在真机上把 URL、文本或图片分享到分享扩展。
+- App Group 正常时，确认扩展显示来源、预览和隐私提示，并在保存完成后允许结束分享。
+- 打开应用，确认 `还没整理` 提示可见。
+- 点击分享过来的内容，继续到整理页。
+- 模拟共享容器不可用或保存失败：URL/文本应显示“需要手动带回 App”并提供复制操作，不能显示为已保存。
+- 在同样的失败条件下分享截图，确认提示回到 App 重新选择截图；扩展不能声称存在主 App 可继续读取的本地副本。
+- 让 provider 长时间不回调，确认整次读取在总时限后停止、暂存截图被清理，并显示复制文本/URL或重新选择截图的恢复路径。
+- 让同一 provider 的 URL 表示不回调、纯文本立即返回，确认总时限后仍可复制已经读到的文本。
+- 在读取中点击 `取消`，确认扩展立即退出，迟到 provider 回调不能写入待整理队列。
+- 模拟最近导入与当前快照同时写入失败，确认待整理项和引用截图不会被消费；重启后仍可重试。
 
-## Voice
+## KTV 匹配
 
-- Tap `去做声线分析`.
-- Tap `使用模拟声线` in simulator.
-- On device, tap `录音 10 秒分析`, allow microphone, verify countdown and waveform.
-- Deny microphone permission and verify failure state plus mock fallback.
+- 确认页面使用“本地参考曲库”“参考命中”和“待确认候选”，没有把 215 首 fixture 写成某地区或门店实时可点。
+- 确认满匹配时不直接把 `100%` 当成主结论。
+- 确认参考命中、歌名相近、待确认候选和暂时没找到的数量。
+- 确认歌手、语种、年代、曲风、情绪、适合哪些局、好不好唱、高音多不多和合唱好不好接正常展示。
+- 使用缺少歌手的同名歌曲，确认单候选和多候选都要求用户确认；确认前不计入画像和参考匹配率。
+- 点击 `找同歌手备选`，确认隐私提示说明会从最多 4 首种子歌曲中提取歌手，并且只把歌手名称发送到 Apple 公开搜索。
+- 在歌曲详情点击 `搜索`，确认会打开包含歌名和歌手的 Apple Music 搜索，并与隐私政策披露一致。
+- 使用前四首缺歌手、第五首有歌手的未匹配歌单，确认公开搜索会跳过无效种子并查询有歌手歌曲；全部缺歌手时不伪装成网络失败。
+- 确认返回结果标记为同歌手公开候选/待核对，不出现“相似度算法”“KTV 已收录”或基于未知音域、难度的精确结论。
+- 在候选返回后确认一首同名本地匹配、再采用一首替代歌，确认已经取得的公开候选仍保留。
 
-## Scenario
+## 声线
 
-- Test all scenes: friends, birthday, team building, car KTV, couples, solo practice.
-- Adjust people count, duration, vibe, difficulty, and chorus preference.
-- Generate plan.
+- 点击 `测一下音域`。
+- 在模拟器上点击 `先不测`，确认页面明确显示“常见音域参考”和“参考范围”，不显示实测置信度、性别类型或“你的音域”。
+- 在真机上点击 `开始录音`，允许麦克风权限，确认倒计时和波形；有效结果显示“本次唱到的音区”，并说明它不代表完整音域。
+- 确认声线页明确说明原始录音不保存、最近一次有效实测音区结果仅保存在本机；完成一次有效实测后，不导入歌单直接结束 App，冷启动再进入声线页，确认实测结果仍可恢复。
+- 点击 `先不测` 后重启，确认“常见音域参考”不会被当作个人实测记录恢复；若工作流快照只有常见参考但本机另有有效实测结果，确认恢复有效实测结果。
+- 拒绝麦克风权限时，确认失败状态和 `先不测` 路径可见。
+- 开始录音后立刻返回上一页，等待 10 秒，确认不会自动重新打开声线页，也不会弹出录音失败。
+- 首次授权时点击允许，确认权限弹窗造成的 inactive 状态不会取消本次录音；模拟器没有输入设备时应进入明确失败态，而不是停在“正在打开麦克风”。
+- 已有计划后重新测量，确认旧计划失效并要求重新生成；实测页显示记录时间，避免把旧记录误解为刚刚测量。
+- 分别使用实测音区和常见音域参考生成歌单，确认只有有效实测且歌曲音域已知时才出现精确原调/降调建议。
 
-## Result Interaction
+## 场景排歌
 
-- Verify section titles match selected scenario.
-- Expand score explanation.
-- Verify each song has reasons, optional risks, alternatives, tags, difficulty, range, chorus score, and energy.
-- Lock one song and regenerate.
-- Remove one song and verify replacement.
-- Switch scene and regenerate.
+- 测试朋友局、生日局、团建局、车载 K 歌、情侣局和独自练歌。
+- 调整人数、时长、氛围、难度和合唱偏好。
+- 生成歌单。
+- 从尚未核对的整理结果直接进入场景，开始自动核对后点击 `取消核对`；等待原任务时限结束，确认仍停留在场景页且可以重试，不会迟到跳回整理页或结果页。
+- 从尚未核对的整理结果直接进入场景并成功生成，再返回调整场景使旧计划失效；确认首页和冷启动都继续到场景，不退回未解决匹配。
 
-## Export
+## 歌单调整
 
-- Verify text export contains title, scenario, reasons, risk warnings, alternatives.
-- Toggle JSON preview and verify `scenarioConfig`, `voiceProfile`, `scoreBreakdown`.
-- Verify poster preview includes app name, scene, duration, highlights, profile summary, QR/share placeholder.
-- Use ShareLink or copy buttons.
+- 确认分段标题符合所选场景。
+- 展开适合理由。
+- 确认每首歌有理由、可选注意点、备选歌、标签、难度、音域、合唱感和能量。
+- 锁定一首歌并重新排。
+- 确认锁定或标记反馈后，已经展开的详情仍保持展开，当前阅读位置没有跳回列表顶部。
+- 移除一首歌并确认有补位。
+- 重启后确认“已移除歌曲”管理仍可见，并能逐首或全部恢复。
+- 切换场景后重新排。
+- 已有计划时改变场景、声线、整理内容或外部候选，确认旧结果与导出入口不再被当作有效计划。
 
-## Interview Mode
+## 分享导出
 
-- Open `面试模式`.
-- Verify 90-second product script, 3-minute architecture script, 5-minute demo script.
-- Verify Leishi business fit tags are visible.
+- 确认文本导出包含标题、场景、理由、注意点和备选歌。
+- 点击 `分享`，确认群聊文本只包含场景、分段和歌名，不夹带内部评分或长搜索链接。
+- 点击 `分享详细文件`，确认系统分享面板收到命名明确的 UTF-8 `.txt` 文件；文件内容包含场景、声线来源、分段目标、可用的推荐理由、注意点和备选歌。
+- 用常见音域参考导出详细文件，确认文件标记为参考，不出现实测置信度或精确调性建议。
+- 确认海报预览包含应用名、场景、时长、亮点、画像摘要和分享提示。
+- 在真机上点击 `保存海报`，确认相册权限流程。
+- 测试系统分享和复制按钮。
 
-## Error States
+## 进度恢复与本机数据
 
-- Empty import.
-- OCR no text.
-- No microphone permission.
-- No matching songs after deleting all review rows.
-- Export before generating a plan.
+- 在整理页编辑歌名、删除一首歌后直接结束 App；重新启动后，首页应提供 `继续整理这份歌单`，编辑和删除状态保持一致。
+- 完成参考匹配但尚未生成计划后重启，确认首页继续到待确认匹配或场景页，而不是跳回错误阶段。
+- 生成计划后重启，确认首页提供继续调整、直接发给朋友和查看开唱小抄；计划、锁定、移除、声线来源和场景保持一致。
+- 修改已经排好计划的整理内容，确认旧匹配、画像和计划失效，首页回到继续整理；修改场景后，旧计划应失效并要求重新生成。
+- 完成整理后在“最近导入”重新打开同一歌单，确认使用的是修改后的歌名、歌手和删除结果，而不是原始版本。
+- 分别删除一条待整理内容和一条最近导入，确认只删除目标项；若待处理项带截图，对应且未被其他载荷引用的共享图片一并删除。
+- 点击 `清除本机记录`，先取消一次，确认数据保留；再次确认全部清除，确认待整理分享、最近导入、当前进度、歌曲反馈、本机音区结果、共享截图、临时导出文件和隔离文件被移除。
+- 在有效测量即将落盘时执行全部清除，确认清除完成后迟到的测量保存或旧结果回滚都不会让本机音区记录复活。
+- 在冷启动恢复本机实测音区的同时执行全部清除，确认文件和当前内存都保持为空，随后再次冷启动也不会恢复旧音区。
+- 在慢速导入或照片读取进行中执行全部清除，等待任务原本可能完成的时间，确认旧异步结果不会重新写回。
+- 从分享扩展新增内容后让主 App 回到前台，确认待整理列表自动刷新。
+
+## 开唱小抄
+
+- 打开 `开唱小抄`。
+- 朋友、生日、团建分别确认参与者文案正确；情侣局只使用两人语义；独自练歌不出现群聊、大家、合唱、开场或现场指令。
+- 车载场景确认明确写出驾驶者不操作手机、由乘客点歌和切歌；没有乘客时要求安全停车后再操作。
+
+## 异常状态
+
+- 空导入。
+- 截图没有可识别文字。
+- 公开网页不可达、内容过大、重定向到非公开地址或页面内没有歌曲。
+- 没开麦克风权限。
+- 整理页删除所有歌曲后再匹配。
+- 没有生成歌单前进入导出。
+- 最近导入、待处理队列、当前快照或本机音区记录损坏/来自未来版本时，确认隔离后仍可重新使用，并能通过“清除本机记录”移除隔离文件。
+
+## 发布前外部核对
+
+- 使用分发证书核对主 App、分享扩展和 `group.com.huangwei.singreadyai` 的发布配置，并完成 Archive / Export；开发签名 profiles 与共享容器已验证。
+- 在真实设备安装最终源码构建，补测冷启动、分享扩展、录音、保存海报和权限拒绝/恢复流程。
+- 在 App Store Connect 配置应用元数据、App Privacy 回答和长期可公开访问的隐私政策 URL。
+- 人工确认 Apple 公开搜索等第三方服务的数据保留/处理政策，并确保商店隐私回答与应用内披露一致。
+- 在 iOS 17 模拟器或设备补做最低系统版本 smoke；本轮 iOS 26.5 结果不能替代最低版本运行时验证。

@@ -1,8 +1,8 @@
-# Design System
+# 设计系统
 
 ## 目标
 
-SingReadyAI / 今晚唱什么采用 dark-first、cinematic、premium、calm neon 的视觉方向。界面要像认真设计过的 iOS 工具，而不是信息堆叠页：每个页面只有一个主焦点，数据可视化服务于推荐可信度，舞台感背景不抢正文可读性。
+SingReadyAI / 今晚唱什么采用深色、克制舞台感和轻量玻璃材质。界面要像认真设计过的 iOS 工具，而不是信息堆叠页：每个页面只有一个主焦点，数据可视化服务于用户判断，舞台感背景不抢正文可读性。
 
 ## Token
 
@@ -15,18 +15,18 @@ SingReadyAI / 今晚唱什么采用 dark-first、cinematic、premium、calm neon
 ## 组件
 
 - `PremiumBackground`：深色空间背景和克制舞台光。
-- `GlassCard`：带 Reduce Transparency fallback 的玻璃卡片。
+- `GlassCard`：带 Reduce Transparency 兜底样式的玻璃卡片。
 - `HeroHeader`：页面主标题区。
-- `StepProgressRail`：流程进度入口。
+- `StageJumpMenu`：紧凑功能切换入口。
 - `PrimaryGradientButton` / `SecondaryGlassButton`：主次操作。
 - `SourceBadge`、`ConfidenceMeter`、`MatchRateRing`、`MetricPill`、`MetricBar`、`TagCloud`：数据表达。
-- `PreferenceInsightCard`、`VoiceRangeVisualizer`、`LiveWaveformView`、`ScenarioCard`、`SongPlanTimeline`、`SongRecommendationCard`、`ScoreBreakdownView`、`RiskBadge`、`AlternativeSongChips`：核心业务展示。
-- `PosterPreviewView`、`EmptyStateView`、`ErrorStateView`、`LoadingStateView`、`PrivacyNoteView`、`InterviewScriptCard`：状态、导出和面试表达。
+- `PreferenceInsightCard`、`VoiceRangeVisualizer`、`LiveWaveformView`、`ScenarioCard`、`SongPlanTimeline`、`SongRecommendationCard`、`SongFitBreakdownView`、`RiskBadge`、`AlternativeSongChips`：核心业务展示。
+- `PosterPreviewView`、`EmptyStateView`、`ErrorStateView`、`LoadingStateView`、`PrivacyNoteView`、`StartTipCard`：状态、导出和开唱小抄表达。
 
 ## 约束
 
 - 页面文件不直接定义硬编码主色、字号、卡片背景和小圆角。
-- 透明和舞台光必须有 Reduce Transparency fallback。
-- 录音波形、页面切换和结果 reveal 必须有 Reduce Motion fallback 或保持低频。
+- 透明和舞台光必须有 Reduce Transparency 兜底样式。
+- 录音波形、页面切换和结果 reveal 必须有 Reduce Motion 兜底样式或保持低频。
 - 不使用第三方平台 logo、真实音乐封面、歌词、MV 或版权素材。
 - 主要按钮和关键行为必须有可读 label，不能只用颜色传达状态。

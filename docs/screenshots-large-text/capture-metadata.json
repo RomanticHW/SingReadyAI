@@ -1,0 +1,19 @@
+{
+  "captured_at": "2026-07-12T17:26:23.323798+00:00",
+  "content_size": "accessibility-extra-extra-extra-large",
+  "simulator_udid": "7E333C80-B469-4843-A997-80A4B86A1A09",
+  "source_tree_sha256": "04b2bf32d40429eccbe51e8da553370a71c625c268e675643f583ddbea017918",
+  "files": [
+    "01_onboarding.png",
+    "02_home.png",
+    "03_import_hub.png",
+    "04_import_review.png",
+    "05_match_report.png",
+    "06_voice_setup.png",
+    "07_voice_result.png",
+    "08_scenario_builder.png",
+    "09_song_plan_result.png",
+    "10_export_center.png",
+    "11_start_tips.png"
+  ]
+}

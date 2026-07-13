@@ -1,78 +1,114 @@
-# Visual QA
+# 视觉验收
 
-更新时间：2026-07-09 00:27 Asia/Shanghai
+更新时间：2026-07-11
 
 ## 设计目标
 
 - 第一眼是克制的舞台感，避免高饱和霓虹堆叠。
-- 信息层级服务完整流程：导入、确认、匹配、声线、场景、歌单、导出、面试。
-- 数据可视化帮助用户理解推荐，而不是装饰。
+- 信息层级服务独立功能：首页按“我有歌单 / 唱前准备 / 到了现场”分区，导入、匹配、音域、场景、歌单、分享和开唱小抄都能按需进入。
+- 数据可视化帮助用户理解推荐，而不是装饰；对用户可见的结果优先使用自然判断词，不用百分比和评分表压人。
 - 小屏窗口中按钮、标题和说明不能互相遮挡。
 
 ## 截图生成
 
-主截图脚本：
+常规字号与最大辅助字号必须分别生成，使用不同结果包和导出目录，避免第二次覆盖第一次的中间证据：
 
 ```bash
+RESULT_BUNDLE=Build/ScreenshotQA-Large.xcresult \
+EXPORT_DIR=Build/ScreenshotQA-Large \
+SCREENSHOT_DIR=docs/screenshots \
+CONTENT_SIZE=large \
+./scripts/capture_ui_test_screenshots.sh
+
+RESULT_BUNDLE=Build/ScreenshotQA-AXXXL.xcresult \
+EXPORT_DIR=Build/ScreenshotQA-AXXXL \
+SCREENSHOT_DIR=docs/screenshots-large-text \
+CONTENT_SIZE=accessibility-extra-extra-extra-large \
 ./scripts/capture_ui_test_screenshots.sh
 ```
 
-脚本会运行 `SingReadyAIUITests.testScreenshotsForCriticalFlow`，启动 10 个关键状态并导出窗口级截图：
+每次脚本都会运行 `SingReadyAIUITests.testScreenshotsForCriticalFlow`，启动 11 个关键状态并导出窗口级截图。常规字号写入 `docs/screenshots/`，最大辅助字号写入 `docs/screenshots-large-text/`：
 
 - `docs/screenshots/01_onboarding.png`
-- `docs/screenshots/02_import_hub.png`
-- `docs/screenshots/03_import_review.png`
-- `docs/screenshots/04_match_report.png`
-- `docs/screenshots/05_voice_setup.png`
-- `docs/screenshots/06_voice_result.png`
-- `docs/screenshots/07_scenario_builder.png`
-- `docs/screenshots/08_song_plan_result.png`
-- `docs/screenshots/09_export_center.png`
-- `docs/screenshots/10_interview_mode.png`
+- `docs/screenshots/02_home.png`
+- `docs/screenshots/03_import_hub.png`
+- `docs/screenshots/04_import_review.png`
+- `docs/screenshots/05_match_report.png`
+- `docs/screenshots/06_voice_setup.png`
+- `docs/screenshots/07_voice_result.png`
+- `docs/screenshots/08_scenario_builder.png`
+- `docs/screenshots/09_song_plan_result.png`
+- `docs/screenshots/10_export_center.png`
+- `docs/screenshots/11_start_tips.png`
 
 `scripts/capture_screenshots.sh` 保留为模拟器手动截图辅助；最终审查以 UI test 窗口截图为准。
 
+当前最终源码已经重新生成上述常规字号与最大辅助字号各 11 张截图；两套截图均通过完整性、源码指纹、命名和尺寸校验，并完成人工视觉复查。较早生成的同名图片只保留为历史基线，不参与当前结论。
+
 ## 审查 Checklist
 
-- 色彩：coral/cyan 只做强调，背景以午夜黑、深青为主。
+- 色彩：系统蓝/cyan 只做强调，背景以午夜黑、深青为主。
 - 文字：正文不放在高亮背景上，长内容进入 ScrollView。
 - 操作：每页最多一个主操作，次操作用玻璃按钮或图标按钮。
-- 布局：顶部阶段栏可横向滚动，当前阶段始终可见。
+- 布局：顶部功能菜单可从任意页面直达其他功能，当前功能始终可见。
 - 动效：页面切换和声线波形节制，并尊重 Reduce Motion。
 - 透明度：Reduce Transparency 下背景和玻璃材质可降级。
-- 数据：匹配率、分布、声线、评分解释来自模型字段。
+- 数据：匹配率、分布、声线和适合理由来自真实字段。
 
 ## 第一轮发现
 
 - Onboarding 标题被底部按钮遮挡。
-- 导出页启动后继承上一阶段长列表滚动位置，导致“导出中心”标题离屏。
+- 导出页启动后继承上一阶段长列表滚动位置，导致“分享歌单”标题离屏。
 - Onboarding 压缩后底部主按钮仍接近安全区边缘。
 
 ## 已执行修复
 
 - Onboarding 去掉 `PageTabView` 的隐式高度挤压，改为明确头部、中段、分页点、底部主按钮布局。
 - Onboarding 中段图标和标题降级到小屏可承载尺寸，并使用底部 safe-area padding。
-- `ProductFlowShell` 对 `currentPage` 使用 `store.currentStage.id`，阶段切换时重建页面，重置 ScrollView 位置。
-- `StepProgressRail` 使用 `ScrollViewReader`，当前阶段切换后自动居中。
+- `ProductFlowShell` 使用带路径的原生 `NavigationStack`；流程内前进保留上一页，系统返回按钮和左缘滑动返回可用，全局功能切换则重置到首页层级。
+- 移除重复的自定义返回栏。iOS 26 导航栏保持透明，让系统液态玻璃按钮承载返回和功能菜单；iOS 17 至 iOS 18 使用系统材质降级。
+- 顶部入口改为紧凑功能菜单，避免小屏横向导航挤压。
+- 首页入口按“我有歌单 / 唱前准备 / 到了现场”重排，示例歌单不再用高权重红色大卡。
+- 导入页入口卡片统一圆角和玻璃材质，避免按钮、卡片、背景容器各自一套样式。
+- 顶部菜单改为任意页面可直接切换功能；无障碍大字号下使用图标入口，避免文字截断。
+- 用户文案改成真实使用场景表达，例如“先不测”“还没整理”“都能唱”。
+- 整理页改为紧凑歌名单行编辑，减少重复确认文案，用户不需要逐卡阅读。
+- 满匹配时隐藏备选歌任务，避免用户觉得还差一步没有做完。
+- 结果页默认只露“锁定 / 详情”，搜索和复制放进详情，列表浏览更像歌单。
+- 导出页把复制、分享、存海报放到首屏，并把可见按钮压缩成短词，避免标准字号下换行。
+- 大字号下标签改为单列，主次按钮允许两行并自动增高，避免省略号。
+- 匹配、场景和歌单指标从百分比/分数改成“都能唱”“很适合”“适中”“还好”等中文判断，降低工具感。
+- 长 SwiftUI 文件继续拆分，声线偏好和指标组件分别进入独立文件，后续视觉调整不会堆回一个大页面文件。
+- 顶部栏副标题从口号改成当前功能名，用户在任意页面都能知道自己在哪。
+- 导入、声线、场景和开唱小抄继续做中文语气复查，按钮和标题改成“用示例歌单”“整理这段歌单”“适合你唱的范围”“按今晚的局来排”“开场别冷场”等更贴近真实使用场景的说法。
+- 本轮继续把首页、导入、结果和分享文案改成更贴近大陆用户的日常说法，例如“先做哪件事”“选一种方式”“发群里更省事”；分享文本和推荐摘要不再使用报告式长句。
+- 无障碍大字号下，匹配圆环不再把“都能唱”硬塞进小圆环，改为符号显示，并保留完整可访问性标签。
+- 本轮继续把顶部菜单、首页、声线和分享扩展拉回 C 端语气和 iOS 26 质感：`换一项` 改为 `功能`，声线页改为 `先不测`，分享扩展补齐 glass surface，设备族收窄为已验证的 iPhone。
+- 无障碍字号下隐藏 Hero eyebrow，避免顶部当前功能名和页面眉眼重复，给正文和操作按钮留出更多空间。
+- 导出页入口和小抄页眉标统一为“开唱小抄”，避免“开唱提示”这种偏功能说明的旧叫法继续混用。
+- 首页和顶部功能菜单改成“我有歌单 / 唱前准备 / 到了现场”，普通跳转不再自动生成示例歌单；没有前置内容的模块使用空状态承接，让用户知道这件事需要什么。
+- 新增正式 App 图标，并确认冷启动不再显示系统占位图标。
+- 所有共享按钮样式统一补足 44pt 最小点击区域，结果卡片、反馈按钮和场景选项均用 UI 测试读取实际 frame 验证。
+- 导出页分享文本改成群聊可直接阅读的短歌单，不再夹带推荐理由、搜索链接和内部明细。
+- 超大辅助字号下引导页改为可滚动，正文不再用省略号截断。
+- 录音页离开时取消权限或录音任务，异步结果不会把用户重新带回已经离开的页面。
+- 结果页锁定或反馈后保留卡片身份，详情展开状态和滚动位置不会因为重排而重置。
 
-## 连续 Clean Review
+## 历史复查记录
 
-### Clean Review 1
+- 早期版本曾生成常规字号与最大辅助字号各 11 张截图，并记录 42 个 UI 测试和 77 个 Swift 测试通过。
+- 这些截图和计数早于本轮产品闭环修复，只能作为布局演进的历史记录，不能证明当前匹配语义、声线来源、进度恢复、本机数据管理或详细文件入口已经通过视觉验收。
 
-- 运行 `./scripts/capture_ui_test_screenshots.sh`：通过，10 张截图全部生成。
-- 复查 `01_onboarding`：标题、说明、分页点、主按钮完整可见。
-- 复查 `02_import_hub`、`03_import_review`、`04_match_report`：阶段栏和首屏内容无遮挡，长内容可滚动。
-- 复查 `09_export_center`：标题位于顶部，海报预览在首屏下方露出，不再继承旧滚动位置。
-- 复查 `10_interview_mode`：能力标签和首屏文案完整，无按钮重叠。
-- 结论：未发现新问题。
+## 最终源码复查结果
 
-### Clean Review 2
-
-- 运行 `./scripts/validate.sh`：通过，包含截图证据校验和通用模拟器构建。
-- 复核 10 张最终截图拼图 `Build/visual-review-contact-sheet.jpg` 与关键原图：未发现新的裁切、错页、遮挡或空白渲染。
-- 结论：未发现新问题。
+- 常规字号 11 张、最大辅助字号 11 张，共 22 张，均由当前冻结源码重新生成并通过自动校验。
+- 完整 UI 回归 `108/108` 通过；截图路径之外还覆盖首页恢复、未完成整理、QQ 音乐纯链接恢复、待处理/最近项删除、全部清除、全局错误、详细文件入口、权限拒绝和慢任务取消。
+- 常规字号 11 个关键页面已逐张人工复查；最大辅助字号重点复查引导、首页、整理、场景和结果页。未发现文字截断、控件重叠、固定操作遮挡正文或无法滚动的死区。
+- 匹配页保持“本地参考曲库/参考命中/待确认”边界；外部模块保持“Apple 公开搜索/同歌手候选/待核对”，没有“门店可点”或“相似算法”暗示。
+- 声线页明显区分“本次唱到的音区”和“常见音域参考”；辅助字号下来源、范围与操作均完整可达。
+- 通用模拟器与 device-SDK Release 构建通过；正式标识开发签名构建已在 `苏北Air` 安装、启动并核验运行。视觉和系统交互的最终自动化证据仍以 iOS 26.5 模拟器为准，真实录音质量、照片实际落库和第三方 App 原生分享保留为人工真机验收项。
 
 ## 剩余非阻塞增强
 
-- 导出海报当前是 SwiftUI 预览，后续可增加位图渲染和保存。
-- 结果页锁定/移除已有即时重新生成，后续可加入撤销 toast。
+- 导出海报已经支持渲染保存，预览内不再展示未交付占位文案。
+- 若后续支持 iPad，需要单独设计分栏、横屏和大画布布局，不能直接沿用当前 iPhone 画面。

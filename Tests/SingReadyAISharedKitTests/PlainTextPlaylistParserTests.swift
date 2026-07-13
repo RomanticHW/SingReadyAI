@@ -55,9 +55,22 @@ final class PlainTextPlaylistParserTests: XCTestCase {
         XCTAssertLessThan(playlist.songs.first?.confidence ?? 1, 0.7)
     }
 
+    func testKeepsLegitimateLongClassicalTrackTitleFromAppleMusic() {
+        let line = "Piano Sonata No. 14 in C-Sharp Minor, Op. 27 No. 2 \"Moonlight\": I. Adagio sostenuto - 默里・佩拉西亚"
+
+        let song = PlainTextPlaylistParser().parseLine(line, source: .appleMusic)
+
+        XCTAssertEqual(
+            song?.title,
+            "Piano Sonata No. 14 in C-Sharp Minor, Op. 27 No. 2 \"Moonlight\": I. Adagio sostenuto"
+        )
+        XCTAssertEqual(song?.artist, "默里・佩拉西亚")
+        XCTAssertEqual(song?.source, .appleMusic)
+    }
+
     func testDropsNoiseAndKeepsVersionTags() {
         let text = """
-        分享自某音乐 App
+        分享自某音乐软件
         来自网易云音乐的歌单：华语怀旧
         QQ音乐歌单：KTV必点
         https://example.com/share
@@ -77,5 +90,33 @@ final class PlainTextPlaylistParserTests: XCTestCase {
         XCTAssertTrue(songs[1].versionTags.contains("DJ"))
         XCTAssertTrue(songs[1].versionTags.contains("Remix"))
         XCTAssertFalse(songs.contains { $0.rawText?.contains("http") == true })
+    }
+
+    func testRejectsLabeledSongLineWhenTitleIsBlank() {
+        let parser = PlainTextPlaylistParser()
+
+        XCTAssertNil(parser.parseLine("歌名：    歌手：周杰伦"))
+        XCTAssertNil(parser.parseLine("title:    artist: Jay Chou"))
+    }
+
+    func testValidatedOCRPlaylistRejectsRecognizedNoiseWithoutSongs() {
+        XCTAssertThrowsError(
+            try OCRPlaylistParser().parseValidated(
+                recognizedText: "播放全部\n收藏\n下载"
+            )
+        ) { error in
+            XCTAssertEqual(error as? OCRServiceError, .noTextRecognized)
+        }
+    }
+
+    func testValidatedOCRPlaylistKeepsRecognizedSongsAndScreenshotSource() throws {
+        let playlist = try OCRPlaylistParser().parseValidated(
+            recognizedText: "周杰伦 - 晴天\n陈奕迅 - 十年",
+            title: "分享截图"
+        )
+
+        XCTAssertEqual(playlist.title, "分享截图")
+        XCTAssertEqual(playlist.source, .screenshot)
+        XCTAssertEqual(playlist.songs.map(\.title), ["晴天", "十年"])
     }
 }

@@ -3,339 +3,415 @@ import SingReadyAISharedKit
 
 struct MatchReportView: View {
     @EnvironmentObject private var store: DemoWorkflowStore
+    @State private var visibleResultCount = MatchResultDisplayPolicy.batchSize
 
     var body: some View {
         FlowPage {
             if let profile = store.preferenceProfile {
                 HeroHeader(
-                    eyebrow: "KTV 曲库匹配",
-                    title: "可唱率 \(Int(profile.ktvMatchRate * 100))%",
-                    subtitle: profile.summary,
+                    eyebrow: "核对参考匹配",
+                    title: matchHeadline(for: profile.ktvMatchRate),
+                    subtitle: store.recommendationInputSource.matchReportSummary(for: profile),
                     systemImage: "chart.bar.xaxis"
                 )
                 GlassCard {
                     HStack(alignment: .center) {
                         VStack(alignment: .leading, spacing: SpacingTokens.sm) {
-                            Text("匹配结果")
+                            Text("本地参考曲库")
                                 .font(TypographyTokens.section)
                                 .stageText()
+                            Text("参考命中 \(store.matches.filter(\.hasOriginalReferenceMatch).count)/\(store.matches.count)")
+                                .font(TypographyTokens.callout.weight(.semibold))
+                                .foregroundStyle(DesignSystem.cyan)
                             TagCloud(values: profile.profileTags)
                         }
                         Spacer()
                         MatchRateRing(value: profile.ktvMatchRate)
                     }
                 }
-                LazyVGrid(columns: [GridItem(.adaptive(minimum: 140), spacing: SpacingTokens.sm)], spacing: SpacingTokens.sm) {
-                    MetricPill(title: "精确命中", value: "\(store.matchStats.exact)", systemImage: "checkmark.seal")
-                    MetricPill(title: "模糊匹配", value: "\(store.matchStats.fuzzy)", systemImage: "scope")
-                    MetricPill(title: "替代推荐", value: "\(store.matchStats.alternative)", systemImage: "arrow.triangle.branch")
-                    MetricPill(title: "未匹配", value: "\(store.matchStats.unmatched)", systemImage: "questionmark.circle")
-                }
-                PreferenceInsightCard(profile: profile)
-                GlassCard {
-                    Text("场景适配")
+                matchMetricsView
+                VStack(alignment: .leading, spacing: SpacingTokens.sm) {
+                    Text("逐首核对")
                         .font(TypographyTokens.section)
                         .stageText()
-                    ForEach(KTVScenario.allCases, id: \.self) { scenario in
-                        MetricBar(title: scenario.displayName, value: profile.scenarioFitScores[scenario.rawValue] ?? 0)
+                    Text("原歌名、参考命中和待确认候选都列在这里。")
+                        .font(TypographyTokens.caption)
+                        .foregroundStyle(DesignSystem.muted)
+                    LazyVStack(alignment: .leading, spacing: SpacingTokens.sm) {
+                        ForEach(store.matches.prefix(visibleResultCount)) { result in
+                            MatchResultCard(
+                                result: result,
+                                onConfirmIdentity: { trackID in
+                                    store.confirmMatch(resultID: result.id, trackID: trackID)
+                                },
+                                onAdoptAlternative: { trackID in
+                                    store.adoptAlternative(resultID: result.id, trackID: trackID)
+                                }
+                            )
+                        }
+                    }
+                    if visibleResultCount < store.matches.count {
+                        let nextCount = min(
+                            MatchResultDisplayPolicy.batchSize,
+                            store.matches.count - visibleResultCount
+                        )
+                        SecondaryGlassButton(title: "再看 \(nextCount) 首", systemImage: "chevron.down") {
+                            visibleResultCount = MatchResultDisplayPolicy.nextVisibleCount(
+                                currentCount: visibleResultCount,
+                                totalCount: store.matches.count
+                            )
+                        }
+                        .accessibilityIdentifier("match-results-show-more")
                     }
                 }
+                if shouldShowBackupSuggestion {
+                    GlassCard {
+                        HStack(alignment: .top, spacing: SpacingTokens.sm) {
+                            Image(systemName: "link.badge.plus")
+                                .font(.title3.weight(.semibold))
+                                .foregroundStyle(DesignSystem.cyan)
+                            VStack(alignment: .leading, spacing: SpacingTokens.xs) {
+                                Text(externalCandidateTitle)
+                                    .font(TypographyTokens.section)
+                                    .stageText()
+                                Text(store.externalCandidateStatus)
+                                    .font(TypographyTokens.caption)
+                                    .foregroundStyle(DesignSystem.muted)
+                                if !store.externalCandidateTracks.isEmpty {
+                                    TagCloud(
+                                        values: store.externalCandidateTracks.prefix(6).map(externalCandidateTag),
+                                        tint: DesignSystem.amber
+                                    )
+                                }
+                                Text("点击后会从最多 4 首歌中提取歌手，只发送歌手名称到 Apple 公开搜索，用于查找同歌手备选；不会发送录音或完整歌单。")
+                                    .font(TypographyTokens.caption)
+                                    .foregroundStyle(DesignSystem.muted)
+                                    .fixedSize(horizontal: false, vertical: true)
+                                    .accessibilityIdentifier("external-candidate-privacy-note")
+                            }
+                        }
+                        SecondaryGlassButton(
+                            title: store.isExpandingExternalCandidates ? "正在找" : externalCandidateButtonTitle,
+                            systemImage: "wand.and.stars"
+                        ) {
+                            Task { await store.expandSimilarCandidates() }
+                        }
+                        .disabled(store.isExpandingExternalCandidates)
+                        .accessibilityIdentifier("external-candidate-search-button")
+                    }
+                }
+                if profile.hasReferenceInsights {
+                    PreferenceInsightCard(
+                        profile: profile,
+                        inputSource: store.recommendationInputSource
+                    )
+                    GlassCard {
+                        Text("适合哪些局")
+                            .font(TypographyTokens.section)
+                            .stageText()
+                        ForEach(KTVScenario.allCases, id: \.self) { scenario in
+                            MetricBar(title: scenario.displayName, value: profile.scenarioFitScores[scenario.rawValue] ?? 0, valueLabel: fitLabel)
+                        }
+                    }
+                    GlassCard {
+                        Text("想排得更贴自己")
+                            .font(TypographyTokens.section)
+                            .stageText()
+                        MetricBar(title: "好不好唱", value: min(1, profile.averageDifficulty / 5), tint: DesignSystem.amber, valueLabel: difficultyLabel)
+                        MetricBar(title: "高音多不多", value: profile.highNoteRisk, tint: DesignSystem.warning, valueLabel: pressureLabel)
+                        MetricBar(title: "合唱好接", value: profile.chorusFriendliness, tint: DesignSystem.success, valueLabel: fitLabel)
+                        PrimaryGradientButton(title: "测一下音域", systemImage: "waveform") {
+                            store.setStage(.voice)
+                        }
+                        .accessibilityIdentifier("match-insights-measure")
+                        SecondaryGlassButton(title: "先不测，去选场景", systemImage: "person.3.sequence") {
+                            store.continueToScenarioWithoutMeasuring()
+                        }
+                        .accessibilityIdentifier("match-insights-skip")
+                    }
+                } else {
+                    GlassCard {
+                        Text("还没有足够的参考信息")
+                            .font(TypographyTokens.section)
+                            .stageText()
+                        Text("可以先测一下这次唱到的音区；不想测，也能直接按今晚的场景排歌。")
+                            .font(TypographyTokens.callout)
+                            .foregroundStyle(DesignSystem.muted)
+                            .fixedSize(horizontal: false, vertical: true)
+                        PrimaryGradientButton(title: "测一下音区", systemImage: "waveform") {
+                            store.setStage(.voice)
+                        }
+                        .accessibilityIdentifier("match-no-insights-measure")
+                        SecondaryGlassButton(title: "先不测，去选场景", systemImage: "person.3.sequence") {
+                            store.continueToScenarioWithoutMeasuring()
+                        }
+                        .accessibilityIdentifier("match-no-insights-skip")
+                    }
+                }
+            } else if store.importedPlaylist != nil {
                 GlassCard {
-                    Text("下一步")
-                        .font(TypographyTokens.section)
-                        .stageText()
-                    MetricBar(title: "平均难度", value: min(1, profile.averageDifficulty / 5), tint: DesignSystem.amber)
-                    MetricBar(title: "高音风险", value: profile.highNoteRisk, tint: DesignSystem.warning)
-                    MetricBar(title: "合唱友好度", value: profile.chorusFriendliness, tint: DesignSystem.success)
-                    PrimaryGradientButton(title: "去做声线分析", systemImage: "waveform") {
-                        store.currentStage = .voice
+                    EmptyStateView(
+                        systemImage: "checklist",
+                        text: "这份歌单还没完成整理和参考匹配。先确认歌名，再逐首核对本地参考。"
+                    )
+                    SecondaryGlassButton(title: "先整理这份歌单", systemImage: "checklist") {
+                        store.setStage(.review)
                     }
                 }
             } else {
                 GlassCard {
-                    EmptyStateView(systemImage: "chart.bar", text: "完成导入确认后会生成匹配报告。")
-                    SecondaryGlassButton(title: "返回确认", systemImage: "arrow.left") {
-                        store.currentStage = .review
+                    EmptyStateView(systemImage: "chart.bar", text: "把歌单放进来，就能逐首核对本地参考命中和待确认候选。")
+                    SecondaryGlassButton(title: "导入歌单", systemImage: "tray.and.arrow.down") {
+                        store.setStage(.importHub)
                     }
                 }
             }
         }
-    }
-}
-
-struct PreferenceInsightCard: View {
-    let profile: PreferenceProfile
-
-    var body: some View {
-        GlassCard {
-            Text("画像洞察")
-                .font(TypographyTokens.section)
-                .stageText()
-            DistributionBars(title: "语种", values: profile.languageDistribution)
-            DistributionBars(title: "年代", values: profile.eraDistribution)
-            DistributionBars(title: "曲风", values: profile.genreDistribution)
-            DistributionBars(title: "情绪", values: profile.moodTags)
+        .onDisappear {
+            store.cancelExternalCandidateRequest(reportStatus: true)
         }
     }
-}
 
-struct DistributionBars: View {
-    let title: String
-    let values: [String: Double]
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: SpacingTokens.xs) {
-            Text(title)
-                .font(TypographyTokens.callout.weight(.semibold))
-                .stageText()
-            ForEach(values.sorted(by: { $0.value > $1.value }).prefix(5), id: \.key) { key, value in
-                MetricBar(title: key, value: value)
-            }
+    private var visibleMatchMetrics: [(title: String, value: String, systemImage: String)] {
+        let stats = store.matchStats
+        var metrics = [(title: "参考命中", value: "\(stats.exact)", systemImage: "checkmark.seal")]
+        if stats.pending > 0 {
+            metrics.append((title: "待确认", value: "\(stats.pending)", systemImage: "person.crop.circle.badge.questionmark"))
         }
-    }
-}
-
-struct VoiceSetupView: View {
-    @EnvironmentObject private var store: DemoWorkflowStore
-
-    var body: some View {
-        FlowPage {
-            HeroHeader(
-                eyebrow: "声线分析",
-                title: "10 秒找到稳定音域",
-                subtitle: "真机录音只在本机内存处理 PCM 样本；模拟器可选择模拟声线继续演示。",
-                systemImage: "waveform"
-            )
-            GlassCard {
-                recordingContent
-                HStack(spacing: SpacingTokens.sm) {
-                    SecondaryGlassButton(title: "录音分析", systemImage: "record.circle") {
-                        Task { await store.startVoiceRecording() }
-                    }
-                    SecondaryGlassButton(title: "模拟声线", systemImage: "waveform.path") {
-                        store.useSimulatedVoice()
-                    }
-                }
-                PrivacyNoteView(text: "不会保存原始音频；权限拒绝或样本不足时可以使用模拟声线继续。")
-            }
-            if let voice = store.voiceProfile {
-                GlassCard {
-                    Text("分析结果")
-                        .font(TypographyTokens.section)
-                        .stageText()
-                    VoiceRangeVisualizer(profile: voice)
-                    LazyVGrid(columns: [GridItem(.adaptive(minimum: 144), spacing: SpacingTokens.sm)], spacing: SpacingTokens.sm) {
-                        MetricPill(title: "声线类型", value: voice.type.displayName, systemImage: "person.wave.2")
-                        MetricPill(title: "稳定音域", value: "\(voice.stableLowMidi)-\(voice.stableHighMidi)", systemImage: "music.quarternote.3")
-                        MetricPill(title: "置信度", value: "\(Int(voice.confidence * 100))%", systemImage: "gauge.with.dots.needle.bottom.50percent")
-                    }
-                    Text(voice.note)
-                        .font(TypographyTokens.caption)
-                        .foregroundStyle(DesignSystem.muted)
-                    TagCloud(values: voice.suitableSongTypes, tint: DesignSystem.success)
-                    TagCloud(values: voice.avoidSongTypes, tint: DesignSystem.warning)
-                    PrimaryGradientButton(title: "选择 K 歌场景", systemImage: "person.3.sequence") {
-                        store.currentStage = .scenario
-                    }
-                }
-            }
+        if stats.fuzzy > 0 {
+            metrics.append((title: "歌名相近", value: "\(stats.fuzzy)", systemImage: "scope"))
         }
+        if stats.pendingAlternative > 0 {
+            metrics.append((title: "可以替换", value: "\(stats.pendingAlternative)", systemImage: "arrow.triangle.branch"))
+        }
+        if stats.adoptedAlternative > 0 {
+            metrics.append((title: "已采用替代", value: "\(stats.adoptedAlternative)", systemImage: "checkmark.circle"))
+        }
+        if stats.unmatched > 0 {
+            metrics.append((title: "暂时没找到", value: "\(stats.unmatched)", systemImage: "questionmark.circle"))
+        }
+        return metrics
     }
 
     @ViewBuilder
-    private var recordingContent: some View {
-        switch store.recordingState {
-        case .idle:
-            EmptyStateView(systemImage: "mic", text: "可录音 10 秒，也可使用明确标识的模拟声线跑完整流程。")
-        case .requestingPermission:
-            LoadingStateView(text: "正在请求麦克风权限")
-        case .recording:
-            VStack(alignment: .leading, spacing: SpacingTokens.sm) {
-                Text("录音中 · \(store.recordingRemainingSeconds)s")
-                    .font(TypographyTokens.metric)
-                    .stageText()
-                LiveWaveformView(level: store.recordingLevel)
-            }
-        case .analyzing:
-            LoadingStateView(text: "正在分析音高稳定区间")
-        case let .failed(message):
-            ErrorStateView(text: message)
-        }
-    }
-}
-
-struct VoiceRangeVisualizer: View {
-    let profile: VoiceProfile
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: SpacingTokens.xs) {
-            HStack {
-                Text("低 \(profile.stableLowMidi)")
-                Spacer()
-                Text("高 \(profile.stableHighMidi)")
-            }
-            .font(TypographyTokens.caption.monospacedDigit())
-            .foregroundStyle(DesignSystem.muted)
-            GeometryReader { proxy in
-                let low = CGFloat(max(0, profile.stableLowMidi - 40)) / 45
-                let high = CGFloat(max(0, profile.stableHighMidi - 40)) / 45
-                ZStack(alignment: .leading) {
-                    Capsule().fill(DesignSystem.separator)
-                    Capsule().fill(DesignSystem.cyan)
-                        .frame(width: proxy.size.width * max(0.05, high - low))
-                        .offset(x: proxy.size.width * min(max(low, 0), 1))
+    private var matchMetricsView: some View {
+        let metrics = visibleMatchMetrics
+        if metrics.count == 1, let metric = metrics.first {
+            MetricPill(title: metric.title, value: metric.value, systemImage: metric.systemImage)
+        } else {
+            LazyVGrid(columns: [GridItem(.adaptive(minimum: 140), spacing: SpacingTokens.sm)], spacing: SpacingTokens.sm) {
+                ForEach(metrics, id: \.title) { metric in
+                    MetricPill(title: metric.title, value: metric.value, systemImage: metric.systemImage)
+                        .accessibilityElement(children: .combine)
+                        .accessibilityLabel("\(metric.title) \(metric.value)")
+                        .accessibilityIdentifier(
+                            metric.title == "已采用替代"
+                                ? "match-metric-adopted-alternative"
+                                : "match-metric-\(metric.title)"
+                        )
                 }
             }
-            .frame(height: 10)
         }
-        .accessibilityLabel("稳定音域 \(profile.stableLowMidi) 到 \(profile.stableHighMidi) MIDI")
+    }
+
+    private var hasSongsNeedingBackup: Bool {
+        let stats = store.matchStats
+        return stats.pending + stats.fuzzy + stats.pendingAlternative + stats.unmatched > 0
+    }
+
+    private var shouldShowBackupSuggestion: Bool {
+        hasSongsNeedingBackup || !store.externalCandidateTracks.isEmpty || store.isExpandingExternalCandidates
+    }
+
+    private var externalCandidateTitle: String {
+        hasSongsNeedingBackup ? "找同歌手的备选" : "再备几首同歌手歌曲"
+    }
+
+    private var externalCandidateButtonTitle: String {
+        hasSongsNeedingBackup ? "找同歌手备选" : "再找同歌手备选"
+    }
+
+    private func externalCandidateTag(_ track: KTVTrack) -> String {
+        guard track.isProvisionalExternalCandidate else {
+            return "\(track.title) · 本地参考"
+        }
+        let relation = track.externalCandidateMetadata?.relation.displayName ?? "外部候选"
+        return "\(track.title) · \(relation) · 待核对"
+    }
+
+    private func matchHeadline(for rate: Double) -> String {
+        switch rate {
+        case 0.95...:
+            return "本地参考基本都命中"
+        case 0.75..<0.95:
+            return "多数有本地参考"
+        case 0.45..<0.75:
+            return "部分有本地参考"
+        default:
+            return "先核对参考候选"
+        }
+    }
+
+    private func fitLabel(_ value: Double) -> String {
+        switch value {
+        case 0.78...: return "很适合"
+        case 0.55...: return "可以"
+        case 0.32...: return "一般"
+        default: return "不太适合"
+        }
+    }
+
+    private func difficultyLabel(_ value: Double) -> String {
+        switch value {
+        case 0.78...: return "偏难"
+        case 0.55...: return "适中"
+        case 0.32...: return "轻松"
+        default: return "很轻松"
+        }
+    }
+
+    private func pressureLabel(_ value: Double) -> String {
+        switch value {
+        case 0.72...: return "偏多"
+        case 0.45...: return "有一些"
+        case 0.18...: return "还好"
+        default: return "很少"
+        }
     }
 }
 
-struct LiveWaveformView: View {
-    @Environment(\.appAccessibilityFlags) private var flags
-    let level: Double
+private struct MatchResultCard: View {
+    let result: MatchResult
+    let onConfirmIdentity: (String) -> Void
+    let onAdoptAlternative: (String) -> Void
 
     var body: some View {
-        HStack(alignment: .center, spacing: SpacingTokens.xs) {
-            ForEach(0..<18, id: \.self) { index in
-                let phase = Double(index % 6) / 6
-                RoundedRectangle(cornerRadius: 4, style: .continuous)
-                    .fill(DesignSystem.cyan)
-                    .frame(width: 7, height: max(10, 64 * min(1, level + (flags.reduceMotion ? 0 : phase * 0.22))))
+        GlassCard {
+            VStack(alignment: .leading, spacing: SpacingTokens.xs) {
+                Text(result.importedSong.title)
+                    .font(TypographyTokens.section)
+                    .stageText()
+                    .fixedSize(horizontal: false, vertical: true)
+                    .accessibilityIdentifier("match-result-\(result.importedSong.id.uuidString.lowercased())")
+                Text(result.importedSong.artist ?? "未提供歌手")
+                    .font(TypographyTokens.caption)
+                    .foregroundStyle(DesignSystem.muted)
+                Text(stateTitle)
+                    .font(TypographyTokens.caption.weight(.semibold))
+                    .foregroundStyle(stateTint)
+                Text(result.reason)
+                    .font(TypographyTokens.caption)
+                    .foregroundStyle(DesignSystem.muted)
+                    .fixedSize(horizontal: false, vertical: true)
             }
-        }
-        .frame(height: 78)
-        .frame(maxWidth: .infinity)
-        .background(DesignSystem.raisedBackground)
-        .clipShape(RoundedRectangle(cornerRadius: DesignSystem.radiusSmall, style: .continuous))
-        .accessibilityLabel("录音音量波形")
-    }
-}
 
-typealias WaveformView = LiveWaveformView
+            if let track = result.acceptedTrack {
+                Label(referenceLabel(for: track), systemImage: "checkmark.circle")
+                    .font(TypographyTokens.callout)
+                    .foregroundStyle(DesignSystem.ink)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
 
-struct ScenarioBuilderView: View {
-    @EnvironmentObject private var store: DemoWorkflowStore
-
-    var body: some View {
-        FlowPage {
-            HeroHeader(
-                eyebrow: "场景策划",
-                title: "把歌排成一晚的节奏",
-                subtitle: "根据人数、时长、氛围和难度偏好生成分段歌单。",
-                systemImage: "person.3.sequence"
-            )
-            LazyVGrid(columns: [GridItem(.adaptive(minimum: 150), spacing: SpacingTokens.sm)], spacing: SpacingTokens.sm) {
-                ForEach(KTVScenario.allCases, id: \.self) { scenario in
-                    ScenarioCard(scenario: scenario, isSelected: store.scenarioConfig.scenario == scenario) {
-                        store.scenarioConfig.scenario = scenario
+            if result.confirmationState == .required {
+                ForEach(result.alternatives) { candidate in
+                    VStack(alignment: .leading, spacing: SpacingTokens.xs) {
+                        Text("同名候选：\(candidate.title) - \(candidate.artist)")
+                            .font(TypographyTokens.callout)
+                            .foregroundStyle(DesignSystem.ink)
+                            .fixedSize(horizontal: false, vertical: true)
+                        Button {
+                            Haptics.selection()
+                            onConfirmIdentity(candidate.id)
+                        } label: {
+                            Label("确认是这首", systemImage: "checkmark")
+                                .font(TypographyTokens.section)
+                                .frame(maxWidth: .infinity)
+                                .frame(minHeight: ComponentTokens.controlHeight)
+                        }
+                        .buttonStyle(.bordered)
+                        .tint(DesignSystem.cyan)
+                        .accessibilityLabel("确认是这首：\(candidate.title) - \(candidate.artist)")
+                        .accessibilityIdentifier("match-confirm-\(result.importedSong.id.uuidString.lowercased())-\(candidate.id)")
                     }
                 }
-            }
-            GlassCard {
-                Stepper("人数 \(store.scenarioConfig.peopleCount)", value: $store.scenarioConfig.peopleCount, in: 1...16)
-                    .stageText()
-                VStack(alignment: .leading, spacing: SpacingTokens.xs) {
-                    Text("时长 \(store.scenarioConfig.durationMinutes) 分钟")
-                        .stageText()
-                    Slider(value: Binding(get: {
-                        Double(store.scenarioConfig.durationMinutes)
-                    }, set: {
-                        store.scenarioConfig.durationMinutes = Int($0)
-                    }), in: 30...180, step: 15)
-                    .tint(DesignSystem.primary)
+            } else if !ordinaryAlternatives.isEmpty {
+                ForEach(ordinaryAlternatives) { candidate in
+                    VStack(alignment: .leading, spacing: SpacingTokens.xs) {
+                        Text("替代歌候选：\(candidate.title) - \(candidate.artist)")
+                            .font(TypographyTokens.callout)
+                            .foregroundStyle(DesignSystem.ink)
+                            .fixedSize(horizontal: false, vertical: true)
+                        Button {
+                            Haptics.selection()
+                            onAdoptAlternative(candidate.id)
+                        } label: {
+                            Label("采用为替代歌", systemImage: "arrow.triangle.branch")
+                                .font(TypographyTokens.section)
+                                .frame(maxWidth: .infinity)
+                                .frame(minHeight: ComponentTokens.controlHeight)
+                        }
+                        .buttonStyle(.bordered)
+                        .tint(DesignSystem.cyan)
+                        .accessibilityLabel("采用为替代歌：\(candidate.title) - \(candidate.artist)")
+                        .accessibilityIdentifier("match-adopt-\(result.importedSong.id.uuidString.lowercased())-\(candidate.id)")
+                    }
                 }
-                optionBlock("氛围", values: PlaylistVibe.allCases, selected: store.scenarioConfig.vibe, title: \.displayName) {
-                    store.scenarioConfig.vibe = $0
-                }
-                optionBlock("难度", values: DifficultyPreference.allCases, selected: store.scenarioConfig.difficultyPreference, title: \.displayName) {
-                    store.scenarioConfig.difficultyPreference = $0
-                }
-                optionBlock("合唱", values: ChorusPreference.allCases, selected: store.scenarioConfig.chorusPreference, title: \.displayName) {
-                    store.scenarioConfig.chorusPreference = $0
-                }
-            }
-            PrimaryGradientButton(title: "生成今晚歌单", systemImage: "sparkles") {
-                store.generatePlan()
+            } else if result.acceptedTrack == nil {
+                Text("本地参考曲库暂时没有合适候选")
+                    .font(TypographyTokens.callout)
+                    .foregroundStyle(DesignSystem.muted)
+                    .fixedSize(horizontal: false, vertical: true)
             }
         }
     }
 
-    private func optionBlock<Value: Hashable>(_ label: String, values: [Value], selected: Value, title: KeyPath<Value, String>, onSelect: @escaping (Value) -> Void) -> some View {
-        VStack(alignment: .leading, spacing: SpacingTokens.xs) {
-            Text(label)
-                .font(TypographyTokens.section)
-                .stageText()
-            ButtonGrid(values: values, selected: selected, title: title, onSelect: onSelect)
-        }
-    }
-}
-
-struct ScenarioCard: View {
-    let scenario: KTVScenario
-    let isSelected: Bool
-    let action: () -> Void
-
-    var body: some View {
-        Button(action: action) {
-            VStack(alignment: .leading, spacing: SpacingTokens.sm) {
-                Image(systemName: icon)
-                    .font(.title3.weight(.semibold))
-                    .foregroundStyle(isSelected ? DesignSystem.ink : DesignSystem.cyan)
-                Text(scenario.displayName)
-                    .font(TypographyTokens.section)
-                Text("\(scenario.sectionTemplates.count) 段编排")
-                    .font(TypographyTokens.caption)
-                    .foregroundStyle(isSelected ? DesignSystem.ink.opacity(0.78) : DesignSystem.muted)
+    private var stateTitle: String {
+        switch result.confirmationState {
+        case .required:
+            return "待确认"
+        case .confirmed:
+            return "已确认"
+        case .notRequired:
+            if result.status == .alternative, result.acceptedTrack != nil {
+                return "已采用替代"
             }
-            .frame(maxWidth: .infinity, minHeight: 112, alignment: .leading)
-            .padding(SpacingTokens.md)
-            .background(isSelected ? DesignSystem.primary.opacity(0.88) : DesignSystem.raisedBackground)
-            .clipShape(RoundedRectangle(cornerRadius: DesignSystem.radiusSmall, style: .continuous))
-        }
-        .buttonStyle(.plain)
-        .foregroundStyle(DesignSystem.ink)
-        .accessibilityLabel("选择\(scenario.displayName)")
-    }
-
-    private var icon: String {
-        switch scenario {
-        case .friends: return "person.3"
-        case .birthday: return "gift"
-        case .teamBuilding: return "building.2"
-        case .carKTV: return "car"
-        case .couples: return "heart"
-        case .soloPractice: return "music.mic"
+            return result.status.displayName
         }
     }
-}
 
-struct ButtonGrid<Value: Hashable>: View {
-    let values: [Value]
-    let selected: Value
-    let title: KeyPath<Value, String>
-    let onSelect: (Value) -> Void
-
-    var body: some View {
-        LazyVGrid(columns: [GridItem(.adaptive(minimum: 96), spacing: SpacingTokens.xs)], spacing: SpacingTokens.xs) {
-            ForEach(values, id: \.self) { value in
-                Button {
-                    onSelect(value)
-                } label: {
-                    Text(value[keyPath: title])
-                        .font(TypographyTokens.caption.weight(.semibold))
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.78)
-                        .frame(maxWidth: .infinity)
-                        .frame(height: 36)
-                }
-                .buttonStyle(.plain)
-                .foregroundStyle(DesignSystem.ink)
-                .background(selected == value ? DesignSystem.primary.opacity(0.86) : DesignSystem.raisedBackground)
-                .clipShape(RoundedRectangle(cornerRadius: DesignSystem.radiusSmall, style: .continuous))
-                .accessibilityLabel(value[keyPath: title])
+    private var stateTint: Color {
+        switch result.confirmationState {
+        case .required:
+            return DesignSystem.warning
+        case .confirmed:
+            return DesignSystem.success
+        case .notRequired:
+            switch result.status {
+            case .exact:
+                return DesignSystem.success
+            case .fuzzy, .alternative:
+                return DesignSystem.cyan
+            case .unmatched:
+                return DesignSystem.muted
             }
+        }
+    }
+
+    private var ordinaryAlternatives: [KTVTrack] {
+        guard result.status != .exact else { return [] }
+        return result.alternatives.filter { $0.id != result.acceptedTrack?.id }
+    }
+
+    private func referenceLabel(for track: KTVTrack) -> String {
+        switch result.status {
+        case .exact:
+            return "本地参考命中：\(track.title) - \(track.artist)"
+        case .fuzzy:
+            return "歌名相近参考：\(track.title) - \(track.artist)"
+        case .alternative:
+            return "已采用替代歌：\(track.title) - \(track.artist)"
+        case .unmatched:
+            return "本地参考：\(track.title) - \(track.artist)"
         }
     }
 }

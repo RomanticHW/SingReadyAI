@@ -1,6 +1,18 @@
 import Foundation
 
 public struct SongNormalizer: Sendable {
+    private static let parenthesizedVersionRegex = try! NSRegularExpression(
+        pattern: #"\(.*?(live|伴奏|翻唱|cover|现场|版|remix|剪辑).*?\)"#,
+        options: [.caseInsensitive]
+    )
+    private static let fullWidthParenthesizedVersionRegex = try! NSRegularExpression(
+        pattern: #"（.*?(live|伴奏|翻唱|cover|现场|版|remix|剪辑).*?）"#,
+        options: [.caseInsensitive]
+    )
+    private static let punctuationAndWhitespaceRegex = try! NSRegularExpression(
+        pattern: #"[\p{P}\p{S}\s]+"#
+    )
+
     public init() {}
 
     public static func normalizeTitle(_ value: String) -> String {
@@ -14,16 +26,34 @@ public struct SongNormalizer: Sendable {
     public static func similarity(_ lhs: String, _ rhs: String) -> Double {
         let a = normalizeTitle(lhs)
         let b = normalizeTitle(rhs)
-        guard !a.isEmpty, !b.isEmpty else { return 0 }
-        if a == b { return 1 }
-        if a.contains(b) || b.contains(a) {
-            let short = Double(min(a.count, b.count))
-            let long = Double(max(a.count, b.count))
+        return similarityNormalized(a, b)
+    }
+
+    static func similarityNormalized(_ lhs: String, _ rhs: String) -> Double {
+        similarityNormalized(
+            lhs,
+            rhs,
+            lhsCharacters: Array(lhs),
+            rhsCharacters: Array(rhs)
+        )
+    }
+
+    static func similarityNormalized(
+        _ lhs: String,
+        _ rhs: String,
+        lhsCharacters: [Character],
+        rhsCharacters: [Character]
+    ) -> Double {
+        guard !lhs.isEmpty, !rhs.isEmpty else { return 0 }
+        if lhs == rhs { return 1 }
+        if lhs.contains(rhs) || rhs.contains(lhs) {
+            let short = Double(min(lhsCharacters.count, rhsCharacters.count))
+            let long = Double(max(lhsCharacters.count, rhsCharacters.count))
             let ratio = short / long
             return ratio < 0.45 ? ratio : max(0.82, ratio)
         }
-        let distance = levenshtein(Array(a), Array(b))
-        let maxCount = max(a.count, b.count)
+        let distance = levenshtein(lhsCharacters, rhsCharacters)
+        let maxCount = max(lhsCharacters.count, rhsCharacters.count)
         guard maxCount > 0 else { return 0 }
         return max(0, 1 - Double(distance) / Double(maxCount))
     }
@@ -37,17 +67,18 @@ public struct SongNormalizer: Sendable {
         result = result.replacingOccurrences(of: "聽", with: "听")
         result = result.replacingOccurrences(of: "氣", with: "气")
         if removeVersionWords {
-            result = regexReplace(#"\(.*?(live|伴奏|翻唱|cover|现场|版|remix|剪辑).*?\)"#, in: result, with: "")
-            result = regexReplace(#"（.*?(live|伴奏|翻唱|cover|现场|版|remix|剪辑).*?）"#, in: result, with: "")
+            result = regexReplace(parenthesizedVersionRegex, in: result, with: "")
+            result = regexReplace(fullWidthParenthesizedVersionRegex, in: result, with: "")
         }
-        result = regexReplace(#"[\p{P}\p{S}\s]+"#, in: result, with: "")
+        result = regexReplace(punctuationAndWhitespaceRegex, in: result, with: "")
         return result
     }
 
-    private static func regexReplace(_ pattern: String, in value: String, with replacement: String) -> String {
-        guard let regex = try? NSRegularExpression(pattern: pattern, options: [.caseInsensitive]) else {
-            return value
-        }
+    private static func regexReplace(
+        _ regex: NSRegularExpression,
+        in value: String,
+        with replacement: String
+    ) -> String {
         let range = NSRange(value.startIndex..<value.endIndex, in: value)
         return regex.stringByReplacingMatches(in: value, options: [], range: range, withTemplate: replacement)
     }
@@ -70,5 +101,15 @@ public struct SongNormalizer: Sendable {
             previous = current
         }
         return previous[b.count]
+    }
+}
+
+extension KTVTrack {
+    func matchesTitleIdentity(_ importedTitle: String) -> Bool {
+        let normalizedImportedTitle = SongNormalizer.normalizeTitle(importedTitle)
+        guard !normalizedImportedTitle.isEmpty else { return false }
+        return ([title] + aliases).contains {
+            SongNormalizer.normalizeTitle($0) == normalizedImportedTitle
+        }
     }
 }

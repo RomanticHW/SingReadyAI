@@ -32,19 +32,19 @@ public struct PlainTextPlaylistParser: Sendable {
         guard isPotentialSongLine(line) else { return nil }
 
         if let labeled = parseLabeled(line, rawLine: rawLine, source: source) {
-            return labeled
+            return validatedSong(labeled)
         }
         if let sharedSingle = parseSharedSingle(line, rawLine: rawLine, source: source) {
-            return sharedSingle
+            return validatedSong(sharedSingle)
         }
         if let bracketed = parseBracketed(line, rawLine: rawLine, source: source) {
-            return bracketed
+            return validatedSong(bracketed)
         }
         if let delimited = parseDelimited(line, rawLine: rawLine, source: source) {
-            return delimited
+            return validatedSong(delimited)
         }
         if let spaced = parseSpacedArtist(line, rawLine: rawLine, source: source) {
-            return spaced
+            return validatedSong(spaced)
         }
 
         let title = cleanPart(line)
@@ -57,6 +57,10 @@ public struct PlainTextPlaylistParser: Sendable {
             confidence: 0.5,
             versionTags: versionTags(in: rawLine)
         )
+    }
+
+    private func validatedSong(_ song: ImportedSong) -> ImportedSong? {
+        song.title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : song
     }
 
     private func parseLabeled(_ line: String, rawLine: String, source: ImportSource) -> ImportedSong? {
@@ -208,7 +212,7 @@ public struct PlainTextPlaylistParser: Sendable {
     }
 
     private func isPotentialSongLine(_ line: String) -> Bool {
-        guard line.count >= 2, line.count <= 80 else { return false }
+        guard line.count >= 2, line.count <= 200 else { return false }
         let lower = line.lowercased()
         let noiseKeywords = [
             "http://", "https://", "打开app", "打开 app", "分享自", "复制链接",

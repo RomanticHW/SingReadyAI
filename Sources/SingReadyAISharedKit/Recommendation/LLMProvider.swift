@@ -13,7 +13,8 @@ public struct LocalRuleLLMProvider: LLMProvider {
     }
 
     public func summarize(profile: PreferenceProfile, voice: VoiceProfile) async throws -> String {
-        "\(profile.summary) 声线判断为\(voice.type.displayName)，建议优先选择音域稳定、合唱参与度高的歌曲。"
+        guard voice.hasValidMeasuredRange else { return profile.summary }
+        return "\(profile.summary) 本次唱到的音区只作排歌参考，现场可以先试唱再决定是否移调。"
     }
 }
 
@@ -33,6 +34,6 @@ public enum RemoteLLMError: Error, LocalizedError {
     case backendProxyRequired
 
     public var errorDescription: String? {
-        "真实模型调用应通过后端代理完成，iOS 端不应硬编码 API Key。"
+        "这次没写出来，稍后再试。"
     }
 }

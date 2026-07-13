@@ -2,13 +2,16 @@ import SwiftUI
 
 struct OnboardingView: View {
     let onFinish: () -> Void
+    @Environment(\.accessibilityReduceMotion) private var accessibilityReduceMotion
+    @Environment(\.accessibilityReduceTransparency) private var accessibilityReduceTransparency
+    @AccessibilityFocusState private var accessibilityFocusedPage: Int?
     @State private var page = 0
 
     private let pages: [(title: String, subtitle: String, image: String, tint: Color)] = [
-        ("把喜欢听的歌变成适合唱的歌", "从分享链接、粘贴文本或截图开始，先确认歌名，再匹配 KTV 可唱度。", "music.note.list", DesignSystem.primary),
-        ("用声线和曲库降低点歌风险", "10 秒录音只在本机内存分析音域，也可以明确选择模拟声线跑演示。", "waveform.path.ecg", DesignSystem.cyan),
-        ("为不同场景编排气氛", "朋友局、生日局、团建局、车载 K 歌都有不同节奏和合唱策略。", "sparkles", DesignSystem.amber),
-        ("隐私边界清楚可解释", "只读取你主动分享的内容，不连接硬件，也不抓取音乐平台私有数据。", "lock.shield", DesignSystem.success)
+        ("把喜欢听的歌变成适合唱的歌", "分享链接、粘贴文本或截图都可以。整理歌名、核对本地参考、排歌，都能直接做。", "music.note.list", DesignSystem.primary),
+        ("想测就测，不想测也能排", "唱 10 秒大概看一下哪段更舒服，赶时间就先按常见音域排。", "waveform.path.ecg", DesignSystem.cyan),
+        ("不同场合用不同顺序", "朋友局、生日局、团建局、车载 K 歌，都按现场气氛来排。", "sparkles", DesignSystem.amber),
+        ("只处理你给的内容", "只读取你主动分享的内容，不会翻其他歌单，也不会保存录音。", "lock.shield", DesignSystem.success)
     ]
 
     var body: some View {
@@ -17,21 +20,42 @@ struct OnboardingView: View {
             VStack(spacing: 0) {
                 header
                 Spacer(minLength: SpacingTokens.sm)
-                ZStack {
-                    onboardingPage(pages[page])
-                        .id(page)
-                        .transition(.opacity.combined(with: .scale(scale: 0.98)))
+                ScrollView {
+                    ZStack {
+                        onboardingPage(pages[page])
+                            .id(page)
+                            .accessibilityIdentifier("onboarding-page-\(page)")
+                            .accessibilityFocused($accessibilityFocusedPage, equals: page)
+                            .transition(.opacity.combined(with: .scale(scale: 0.98)))
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, SpacingTokens.sm)
                 }
+                .scrollIndicators(.hidden)
                 .padding(.horizontal, SpacingTokens.page)
                 .gesture(pageSwipeGesture)
                 Spacer(minLength: SpacingTokens.sm)
                 pageIndicator
                     .padding(.bottom, SpacingTokens.sm)
-                PrimaryGradientButton(title: page == pages.count - 1 ? "开始使用" : "下一页", systemImage: "arrow.right", action: advancePage)
+                VStack(spacing: SpacingTokens.sm) {
+                    PrimaryGradientButton(title: "开始使用", systemImage: "arrow.right", action: onFinish)
+                    if page < pages.count - 1 {
+                        SecondaryGlassButton(title: page == 0 ? "看看怎么用" : "再看一页", systemImage: "chevron.right") {
+                            advancePage()
+                        }
+                    }
+                }
                 .padding(.horizontal, SpacingTokens.page)
                 .safeAreaPadding(.bottom, SpacingTokens.lg)
             }
         }
+        .environment(
+            \.appAccessibilityFlags,
+             AccessibilityFlags(
+                reduceMotion: accessibilityReduceMotion,
+                reduceTransparency: accessibilityReduceTransparency
+             )
+        )
     }
 
     private var header: some View {
@@ -40,10 +64,6 @@ struct OnboardingView: View {
                 .font(TypographyTokens.title)
                 .foregroundStyle(DesignSystem.ink)
             Spacer()
-            Button("跳过", action: onFinish)
-                .font(TypographyTokens.callout.weight(.semibold))
-                .foregroundStyle(DesignSystem.cyan)
-                .accessibilityLabel("跳过引导")
         }
         .padding(.horizontal, SpacingTokens.page)
         .padding(.top, SpacingTokens.lg)
@@ -53,41 +73,36 @@ struct OnboardingView: View {
         HStack(spacing: SpacingTokens.xs) {
             ForEach(pages.indices, id: \.self) { index in
                 Button {
-                    withAnimation(MotionTokens.micro) { page = index }
+                    changePage(to: index, animation: MotionTokens.micro)
                 } label: {
                     Capsule()
-                        .fill(index == page ? DesignSystem.primary : DesignSystem.separator)
+                        .fill(index == page ? DesignSystem.cyan : DesignSystem.separator)
                         .frame(width: index == page ? 28 : 8, height: 8)
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(PressedScaleButtonStyle(scale: 0.92))
+                .frame(
+                    minWidth: ComponentTokens.minTouchTarget,
+                    minHeight: ComponentTokens.minTouchTarget
+                )
+                .contentShape(Rectangle())
                 .accessibilityLabel("引导第 \(index + 1) 页")
+                .accessibilityValue(index == page ? "当前页" : "")
             }
         }
     }
 
     private func onboardingPage(_ item: (title: String, subtitle: String, image: String, tint: Color)) -> some View {
         VStack(spacing: SpacingTokens.lg) {
-            ZStack {
-                Circle()
-                    .fill(item.tint.opacity(0.16))
-                    .frame(width: 152, height: 152)
-                Image(systemName: item.image)
-                    .font(.system(size: 62, weight: .semibold))
-                    .symbolRenderingMode(.hierarchical)
-                    .foregroundStyle(item.tint)
-            }
+            BrandSignalVisual(systemImage: item.image, tint: item.tint, scale: .showcase)
             VStack(spacing: SpacingTokens.sm) {
                 Text(item.title)
                     .font(TypographyTokens.title)
-                    .lineLimit(3)
-                    .minimumScaleFactor(0.86)
                     .multilineTextAlignment(.center)
                     .foregroundStyle(DesignSystem.ink)
                     .frame(maxWidth: 360)
                     .fixedSize(horizontal: false, vertical: true)
                 Text(item.subtitle)
                     .font(TypographyTokens.callout)
-                    .lineLimit(4)
                     .multilineTextAlignment(.center)
                     .foregroundStyle(DesignSystem.muted)
                     .frame(maxWidth: 360)
@@ -115,12 +130,25 @@ struct OnboardingView: View {
         if page == pages.count - 1 {
             onFinish()
         } else {
-            withAnimation(MotionTokens.page) { page += 1 }
+            changePage(to: page + 1, animation: MotionTokens.page)
         }
     }
 
     private func retreatPage() {
         guard page > 0 else { return }
-        withAnimation(MotionTokens.page) { page -= 1 }
+        changePage(to: page - 1, animation: MotionTokens.page)
+    }
+
+    private func changePage(to newPage: Int, animation: Animation) {
+        guard page != newPage else { return }
+        if accessibilityReduceMotion {
+            page = newPage
+        } else {
+            withAnimation(animation) { page = newPage }
+        }
+        Task { @MainActor in
+            await Task.yield()
+            accessibilityFocusedPage = newPage
+        }
     }
 }

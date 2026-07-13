@@ -4,14 +4,41 @@ public struct PreferenceProfiler: Sendable {
     public init() {}
 
     public func buildProfile(importedPlaylist: ImportedPlaylist, matches: [MatchResult]) -> PreferenceProfile {
-        let matchedTracks = matches.compactMap(\.matchedTrack)
-        let matchedCount = matchedTracks.count
+        let matchedTracks = matches.compactMap(\.acceptedTrack)
+        let originalMatchCount = matches.filter(\.hasOriginalReferenceMatch).count
         let totalCount = max(importedPlaylist.songs.count, 1)
 
-        let topArtists = count(importedPlaylist.songs.compactMap(\.artist))
+        let matchesByImportedSongID = Dictionary(
+            matches.map { ($0.importedSong.id, $0) },
+            uniquingKeysWith: { first, _ in first }
+        )
+        let profileArtists = importedPlaylist.songs.compactMap { song in
+            song.artist?.nilIfBlank
+                ?? matchesByImportedSongID[song.id]?.acceptedTrack?.artist.nilIfBlank
+        }
+        let topArtists = count(profileArtists)
             .sorted { $0.value == $1.value ? $0.key < $1.key : $0.value > $1.value }
             .prefix(5)
             .map { (name: $0.key, count: $0.value) }
+
+        guard !matchedTracks.isEmpty else {
+            return PreferenceProfile(
+                topArtists: topArtists,
+                languageDistribution: [:],
+                eraDistribution: [:],
+                genreDistribution: [:],
+                moodTags: [:],
+                sceneAffinity: [:],
+                ktvMatchRate: 0,
+                averageDifficulty: 0,
+                averageSingAlongScore: 0,
+                highNoteRisk: 0,
+                chorusFriendliness: 0,
+                scenarioFitScores: [:],
+                profileTags: [],
+                summary: "还没有可用的本地参考匹配，先逐首核对待确认和未命中歌曲。"
+            )
+        }
 
         let language = distribution(matchedTracks.map(\.language))
         let era = distribution(matchedTracks.map(\.era))
@@ -21,7 +48,7 @@ public struct PreferenceProfiler: Sendable {
         let avgDifficulty = average(matchedTracks.map { Double($0.difficulty) })
         let avgSingAlong = average(matchedTracks.map(\.singAlongScore))
         let highRisk = average(matchedTracks.map(\.highNoteRisk))
-        let matchRate = Double(matchedCount) / Double(totalCount)
+        let matchRate = Double(originalMatchCount) / Double(totalCount)
         let chorusFriendliness = average(matchedTracks.map { track in
             max(track.singAlongScore, track.duetFriendly ? 0.82 : 0)
         })
@@ -37,9 +64,11 @@ public struct PreferenceProfiler: Sendable {
             result[scenario.rawValue] = average(values)
         }
 
-        let favoriteArtist = topArtists.first?.name ?? "你常听的歌手"
+        let favoriteArtist = topArtists.first?.name
         let topGenre = genre.max(by: { $0.value < $1.value })?.key ?? "流行"
         let topMood = moods.max(by: { $0.value < $1.value })?.key ?? "熟悉旋律"
+        let displayGenre = userFacingTag(topGenre)
+        let displayMood = moodSummaryPhrase(topMood)
         let bestScenario = scenarioFitScores
             .compactMap { key, value in KTVScenario(rawValue: key).map { ($0.displayName, value) } }
             .max { $0.1 < $1.1 }?.0 ?? "朋友局"
@@ -51,7 +80,8 @@ public struct PreferenceProfiler: Sendable {
             highRisk: highRisk,
             avgDifficulty: avgDifficulty
         )
-        let summary = "你的歌单偏向\(topGenre)和\(topMood)，\(favoriteArtist)出现较多，适合\(bestScenario)。建议开场避免连续慢歌，用高传唱度歌曲热场。"
+        let artistSentence = favoriteArtist.map { "\($0)也经常出现。" } ?? ""
+        let summary = "你平时听的\(genreSummaryPhrase(displayGenre))偏多，\(displayMood)也不少。\(artistSentence)如果今晚是\(bestScenario)，先用大家熟的歌把气氛带起来。"
 
         return PreferenceProfile(
             topArtists: topArtists,
@@ -79,12 +109,37 @@ public struct PreferenceProfiler: Sendable {
         highRisk: Double,
         avgDifficulty: Double
     ) -> [String] {
-        var tags = [topGenre, topMood]
-        tags.append(matchRate >= 0.75 ? "KTV 命中高" : "需要替代曲")
-        tags.append(chorusFriendliness >= 0.78 ? "合唱友好" : "偏个人表达")
-        tags.append(highRisk >= 0.65 ? "高音风险偏高" : "声线压力可控")
-        tags.append(avgDifficulty >= 3.8 ? "适合挑战" : "适合稳唱")
+        var tags = [userFacingTag(topGenre), userFacingTag(topMood)]
+        tags.append(matchRate >= 0.75 ? "常见 K 歌参考较多" : "本地参考较少")
+        tags.append(chorusFriendliness >= 0.78 ? "适合合唱" : "适合独唱")
+        tags.append(highRisk >= 0.65 ? "高音要留意" : "唱起来不吃力")
+        tags.append(avgDifficulty >= 3.8 ? "适合挑战" : "稳一点")
         return Array(NSOrderedSet(array: tags).compactMap { $0 as? String }.prefix(8))
+    }
+
+    private func userFacingTag(_ value: String) -> String {
+        switch value {
+        case "旋律熟": return "熟悉旋律"
+        case "高光": return "想唱"
+        default: return value
+        }
+    }
+
+    private func moodSummaryPhrase(_ value: String) -> String {
+        switch value {
+        case "旋律熟": return "大家熟的歌"
+        case "合唱": return "适合合唱的歌"
+        default: return "\(userFacingTag(value))的歌"
+        }
+    }
+
+    private func genreSummaryPhrase(_ value: String) -> String {
+        switch value {
+        case "流行":
+            return "流行歌"
+        default:
+            return "\(value)歌"
+        }
     }
 
     private func count(_ values: [String]) -> [String: Int] {

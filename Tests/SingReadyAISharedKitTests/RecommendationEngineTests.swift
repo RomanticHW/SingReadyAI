@@ -27,7 +27,8 @@ final class RecommendationEngineTests: XCTestCase {
         XCTAssertFalse(plan.sections.first?.items.first?.track.difficulty == 5)
         XCTAssertTrue(plan.sections.flatMap(\.items).allSatisfy { $0.scoreBreakdown.finalScore > 0 })
         XCTAssertEqual(plan.scenarioConfig?.peopleCount, 5)
-        XCTAssertEqual(plan.voiceProfile?.type, .midMale)
+        XCTAssertEqual(plan.voiceProfile?.type, .unknown)
+        XCTAssertEqual(plan.voiceProfile?.source, .commonReference)
     }
 
     func testCarKTVReducesDifficultSongs() throws {
@@ -171,8 +172,19 @@ final class RecommendationEngineTests: XCTestCase {
         let plan = makePlan(fixture: fixture, scenario: .birthday)
 
         XCTAssertEqual(plan.scenario, .birthday)
-        XCTAssertEqual(plan.voiceProfile?.type, .midMale)
+        XCTAssertEqual(plan.voiceProfile?.type, .unknown)
+        XCTAssertEqual(plan.voiceProfile?.source, .commonReference)
         XCTAssertNotNil(plan.preferenceSummary)
+    }
+
+    func testPlanSummaryUsesSelectedScenarioInsteadOfProfileBestScenario() throws {
+        let fixture = try makeFixture()
+        let friendsPlan = makePlan(fixture: fixture, scenario: .friends)
+        let carPlan = makePlan(fixture: fixture, scenario: .carKTV)
+
+        XCTAssertTrue(friendsPlan.preferenceSummary?.contains("朋友局") == true)
+        XCTAssertFalse(friendsPlan.preferenceSummary?.contains("车载 K 歌") == true)
+        XCTAssertTrue(carPlan.preferenceSummary?.contains("车里") == true)
     }
 
     func testEverySectionHasGoalAndItems() throws {
@@ -315,6 +327,53 @@ final class RecommendationEngineTests: XCTestCase {
         XCTAssertTrue(plan.sections.flatMap(\.items).allSatisfy { $0.scoreBreakdown.riskPenalty >= 0 })
     }
 
+    func test真实曲库高负载推荐中位耗时不超过一秒() throws {
+        let fixture = try makePerformanceFixture()
+        XCTAssertGreaterThanOrEqual(
+            fixture.catalog.count - fixture.externalCandidateCount,
+            200,
+            "性能门槛应覆盖完整真实曲库规模"
+        )
+        XCTAssertEqual(fixture.matches.count, 90, "性能门槛应覆盖 90 条匹配输入")
+        XCTAssertEqual(fixture.externalCandidateCount, 16, "性能门槛应覆盖外部候选上限")
+        for _ in 0..<3 {
+            _ = generatePerformancePlan(fixture)
+        }
+
+        var elapsedSeconds: [Double] = []
+        var outputCounts: [Int] = []
+        for _ in 0..<7 {
+            let start = DispatchTime.now().uptimeNanoseconds
+            let plan = generatePerformancePlan(fixture)
+            let end = DispatchTime.now().uptimeNanoseconds
+            elapsedSeconds.append(Double(end - start) / 1_000_000_000)
+            outputCounts.append(plan.sections.flatMap(\.items).count)
+        }
+
+        let sortedSeconds = elapsedSeconds.sorted()
+        let medianSeconds = sortedSeconds[sortedSeconds.count / 2]
+        let maximumSeconds = try XCTUnwrap(sortedSeconds.last)
+        print(
+            String(
+                format: "推荐性能采样：真实曲库 %d 首，匹配 %d 条，外部候选 %d 首，中位 %.4f 秒，最大 %.4f 秒",
+                fixture.catalog.count - fixture.externalCandidateCount,
+                fixture.matches.count,
+                fixture.externalCandidateCount,
+                medianSeconds,
+                maximumSeconds
+            )
+        )
+        XCTAssertEqual(Set(outputCounts), [30], "180 分钟上限场景应稳定产出 30 首排歌")
+        XCTAssertLessThan(
+            medianSeconds,
+            1,
+            String(
+                format: "真实曲库高负载推荐的 7 次采样中位耗时应小于 1 秒，当前为 %.4f 秒",
+                medianSeconds
+            )
+        )
+    }
+
     private func makeFixture(useQQPlaylist: Bool = false) throws -> Fixture {
         let catalog = try KTVCatalogRepository().loadTracks()
         let playlist = useQQPlaylist
@@ -352,6 +411,116 @@ final class RecommendationEngineTests: XCTestCase {
         )
     }
 
+    private func makePerformanceFixture() throws -> RecommendationPerformanceFixture {
+        let realCatalog = try KTVCatalogRepository().loadTracks()
+        let matchedTracks = Array(realCatalog.prefix(90))
+        let songs = matchedTracks.map { track in
+            ImportedSong(
+                title: track.title,
+                artist: track.artist,
+                source: .plainText,
+                confidence: 1
+            )
+        }
+        let matches = zip(songs.indices, songs).map { index, song in
+            MatchResult(
+                importedSong: song,
+                matchedTrack: matchedTracks[index],
+                alternatives: [
+                    realCatalog[(index + 1) % realCatalog.count],
+                    realCatalog[(index + 2) % realCatalog.count]
+                ],
+                status: .exact,
+                score: 1,
+                reason: "真实曲库精确命中"
+            )
+        }
+        let playlist = ImportedPlaylist(
+            source: .plainText,
+            title: "性能预算歌单",
+            songs: songs,
+            parseConfidence: 1
+        )
+        let profile = PreferenceProfiler().buildProfile(
+            importedPlaylist: playlist,
+            matches: matches
+        )
+        let externalCandidateCount = 16
+        let externalCandidates = (0..<externalCandidateCount).map { index in
+            makePerformanceExternalCandidate(
+                basedOn: realCatalog[index % realCatalog.count],
+                index: index
+            )
+        }
+
+        return RecommendationPerformanceFixture(
+            engine: RecommendationEngine(),
+            matches: matches,
+            profile: profile,
+            scenario: ScenarioConfig(
+                scenario: .friends,
+                peopleCount: 20,
+                durationMinutes: 180,
+                vibe: .balanced,
+                chorusPreference: .moreChorus,
+                difficultyPreference: .balanced
+            ),
+            catalog: realCatalog + externalCandidates,
+            lockedTrackIDs: Set(matchedTracks.prefix(30).map(\.id)),
+            externalCandidateCount: externalCandidateCount
+        )
+    }
+
+    private func generatePerformancePlan(
+        _ fixture: RecommendationPerformanceFixture
+    ) -> SongPlan {
+        fixture.engine.generatePlan(
+            matches: fixture.matches,
+            preferenceProfile: fixture.profile,
+            voiceProfile: .simulatedMiddle,
+            scenario: fixture.scenario,
+            catalog: fixture.catalog,
+            inputSource: .userImport,
+            lockedTrackIDs: fixture.lockedTrackIDs
+        )
+    }
+
+    private func makePerformanceExternalCandidate(
+        basedOn track: KTVTrack,
+        index: Int
+    ) -> KTVTrack {
+        KTVTrack(
+            id: "performance-external-\(index)",
+            title: "公开候选 \(index) \(track.title)",
+            artist: track.artist,
+            language: track.language,
+            era: track.era,
+            genre: track.genre,
+            moodTags: track.moodTags,
+            sceneTags: track.sceneTags,
+            difficulty: track.difficulty,
+            vocalRangeLowMidi: track.vocalRangeLowMidi,
+            vocalRangeHighMidi: track.vocalRangeHighMidi,
+            energy: track.energy,
+            singAlongScore: track.singAlongScore,
+            ktvAvailability: track.ktvAvailability,
+            duetFriendly: track.duetFriendly,
+            rapDensity: track.rapDensity,
+            highNoteRisk: track.highNoteRisk,
+            aliases: [],
+            similarSongIds: [],
+            externalURL: URL(string: "https://music.apple.com/cn/song/\(index)"),
+            catalogSource: .externalSimilar,
+            confidenceNote: "公开候选，现场数据待核对",
+            externalCandidateMetadata: ExternalCandidateMetadata(
+                relation: .similarTrack,
+                relevance: 0.9,
+                reasons: ["公开相似曲目"],
+                provider: .iTunes
+            )
+        )
+    }
+
     private func average(_ values: [Double]) -> Double {
         values.reduce(0, +) / Double(max(values.count, 1))
     }
@@ -362,5 +531,15 @@ final class RecommendationEngineTests: XCTestCase {
         let matches: [MatchResult]
         let profile: PreferenceProfile
         let engine: RecommendationEngine
+    }
+
+    private struct RecommendationPerformanceFixture {
+        let engine: RecommendationEngine
+        let matches: [MatchResult]
+        let profile: PreferenceProfile
+        let scenario: ScenarioConfig
+        let catalog: [KTVTrack]
+        let lockedTrackIDs: Set<String>
+        let externalCandidateCount: Int
     }
 }

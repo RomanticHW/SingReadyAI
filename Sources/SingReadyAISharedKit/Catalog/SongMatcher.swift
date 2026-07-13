@@ -4,121 +4,294 @@ public struct SongMatcher: Sendable {
     public init() {}
 
     public func match(playlist: ImportedPlaylist, catalog: [KTVTrack]) -> [MatchResult] {
-        playlist.songs.map { match(song: $0, catalog: catalog) }
+        var session = CatalogMatchSession(catalog: catalog)
+        var results: [MatchResult] = []
+        results.reserveCapacity(playlist.songs.count)
+        for song in playlist.songs {
+            results.append(session.match(song: song, cancellationCheck: {}))
+        }
+        return results
+    }
+
+    public func matchCancellable(
+        playlist: ImportedPlaylist,
+        catalog: [KTVTrack]
+    ) throws -> [MatchResult] {
+        try Task.checkCancellation()
+        var session = CatalogMatchSession(catalog: catalog)
+        try Task.checkCancellation()
+        var results: [MatchResult] = []
+        results.reserveCapacity(playlist.songs.count)
+        for song in playlist.songs {
+            try Task.checkCancellation()
+            results.append(
+                try session.match(
+                    song: song,
+                    cancellationCheck: { try Task.checkCancellation() }
+                )
+            )
+        }
+        try Task.checkCancellation()
+        return results
     }
 
     public func match(song: ImportedSong, catalog: [KTVTrack]) -> MatchResult {
-        if let exactTrack = quickExactMatch(song: song, catalog: catalog) {
+        var session = CatalogMatchSession(catalog: catalog)
+        return session.match(song: song, cancellationCheck: {})
+    }
+}
+
+public struct PlaylistAnalysisOutput: Sendable {
+    public let matches: [MatchResult]
+    public let preferenceProfile: PreferenceProfile
+
+    public init(matches: [MatchResult], preferenceProfile: PreferenceProfile) {
+        self.matches = matches
+        self.preferenceProfile = preferenceProfile
+    }
+}
+
+public actor PlaylistAnalysisExecutor {
+    private let matcher: SongMatcher
+    private let profiler: PreferenceProfiler
+    private let beforeAnalysis: @Sendable () -> Void
+
+    public init(
+        matcher: SongMatcher = SongMatcher(),
+        profiler: PreferenceProfiler = PreferenceProfiler()
+    ) {
+        self.matcher = matcher
+        self.profiler = profiler
+        beforeAnalysis = {}
+    }
+
+    init(beforeAnalysis: @escaping @Sendable () -> Void) {
+        matcher = SongMatcher()
+        profiler = PreferenceProfiler()
+        self.beforeAnalysis = beforeAnalysis
+    }
+
+    public func analyze(
+        playlist: ImportedPlaylist,
+        catalog: [KTVTrack]
+    ) throws -> PlaylistAnalysisOutput {
+        try Task.checkCancellation()
+        beforeAnalysis()
+        try Task.checkCancellation()
+        let matches = try matcher.matchCancellable(
+            playlist: playlist,
+            catalog: catalog
+        )
+        try Task.checkCancellation()
+        let preferenceProfile = profiler.buildProfile(
+            importedPlaylist: playlist,
+            matches: matches
+        )
+        try Task.checkCancellation()
+        return PlaylistAnalysisOutput(
+            matches: matches,
+            preferenceProfile: preferenceProfile
+        )
+    }
+}
+
+private struct CatalogMatchSession {
+    private let index: CatalogMatchIndex
+    private var smartAlternativeCache: [String: [KTVTrack]] = [:]
+
+    init(catalog: [KTVTrack]) {
+        index = CatalogMatchIndex(catalog: catalog)
+    }
+
+    mutating func match(
+        song: ImportedSong,
+        cancellationCheck: () throws -> Void
+    ) rethrows -> MatchResult {
+        let query = SongMatchQuery(song: song)
+
+        if query.normalizedArtist == nil,
+           let candidateIndices = index.titleCandidateIndices[query.normalizedTitle.value],
+           !candidateIndices.isEmpty {
+            let titleCandidates = candidateIndices.map { index.entries[$0].track }
             return MatchResult(
                 importedSong: song,
-                matchedTrack: exactTrack,
-                alternatives: smartAlternatives(for: exactTrack, in: catalog),
-                status: .exact,
+                matchedTrack: nil,
+                alternatives: titleCandidates,
+                status: .fuzzy,
+                confirmationState: .required,
                 score: 1,
-                reason: reason(song: song, track: exactTrack)
+                reason: titleCandidates.count == 1
+                    ? "歌名相同但缺少歌手，请确认这个候选"
+                    : "找到多首同名歌曲，请确认歌手"
             )
         }
 
-        let ranked = catalog
-            .map { track in
-                (track: track, score: score(song: song, track: track), reason: reason(song: song, track: track))
-            }
-            .sorted { $0.score > $1.score }
-
-        guard let best = ranked.first else {
-            return MatchResult(importedSong: song, matchedTrack: nil, alternatives: [], status: .unmatched, score: 0, reason: "曲库为空")
+        if let exactEntry = quickExactMatch(query: query) {
+            return MatchResult(
+                importedSong: song,
+                matchedTrack: exactEntry.track,
+                alternatives: try smartAlternatives(
+                    for: exactEntry,
+                    cancellationCheck: cancellationCheck
+                ),
+                status: .exact,
+                score: 1,
+                reason: reason(query: query, entry: exactEntry)
+            )
         }
 
+        var topCandidates: [RankedCandidate] = []
+        topCandidates.reserveCapacity(4)
+        for entry in index.entries {
+            if entry.catalogOrder.isMultiple(of: 32) {
+                try cancellationCheck()
+            }
+            insertTopCandidate(
+                RankedCandidate(
+                    entryIndex: entry.catalogOrder,
+                    score: score(query: query, entry: entry)
+                ),
+                into: &topCandidates,
+                limit: 4
+            )
+        }
+
+        guard let bestCandidate = topCandidates.first else {
+            return MatchResult(
+                importedSong: song,
+                matchedTrack: nil,
+                alternatives: [],
+                status: .unmatched,
+                score: 0,
+                reason: "本地参考曲库为空"
+            )
+        }
+
+        let bestEntry = index.entries[bestCandidate.entryIndex]
         let status: MatchStatus
         let matchedTrack: KTVTrack?
-        if best.score >= 0.95 {
+        if bestCandidate.score >= 0.95 {
             status = .exact
-            matchedTrack = best.track
-        } else if best.score >= 0.78 {
+            matchedTrack = bestEntry.track
+        } else if bestCandidate.score >= 0.78 {
             status = .fuzzy
-            matchedTrack = best.track
-        } else if best.score >= 0.60 {
+            matchedTrack = bestEntry.track
+        } else if bestCandidate.score >= 0.60 {
             status = .alternative
-            matchedTrack = best.track
+            matchedTrack = nil
         } else {
             status = .unmatched
             matchedTrack = nil
         }
 
-        let alternatives = ranked
-            .filter { $0.track.id != matchedTrack?.id }
-            .prefix(3)
-            .map(\.track)
+        var alternatives: [KTVTrack] = []
+        alternatives.reserveCapacity(3)
+        for candidate in topCandidates {
+            let track = index.entries[candidate.entryIndex].track
+            guard track.id != matchedTrack?.id else { continue }
+            alternatives.append(track)
+            if alternatives.count == 3 { break }
+        }
 
         return MatchResult(
             importedSong: song,
             matchedTrack: matchedTrack,
             alternatives: alternatives,
             status: status,
-            score: best.score,
-            reason: status == .unmatched ? "未找到足够接近的 KTV 曲库歌曲" : best.reason
+            score: bestCandidate.score,
+            reason: status == .unmatched
+                ? "本地参考曲库中未找到足够接近的歌曲"
+                : reason(query: query, entry: bestEntry)
         )
     }
 
-    private func quickExactMatch(song: ImportedSong, catalog: [KTVTrack]) -> KTVTrack? {
-        catalog.first { track in
-            titleMatchesExactly(song: song, track: track) && artistMatches(song.artist, track: track)
+    private func quickExactMatch(query: SongMatchQuery) -> CatalogMatchEntry? {
+        guard let candidateIndices = index.titleCandidateIndices[query.normalizedTitle.value] else {
+            return nil
+        }
+        return candidateIndices.lazy
+            .map { index.entries[$0] }
+            .first { artistMatches(query.normalizedArtist, entry: $0) }
+    }
+
+    private func artistMatches(
+        _ artist: NormalizedMatchText?,
+        entry: CatalogMatchEntry
+    ) -> Bool {
+        guard let artist else { return true }
+        if entry.artistAliasValues.contains(artist.value) { return true }
+        return entry.normalizedArtistAliases.contains {
+            artist.value.contains($0.value) || $0.value.contains(artist.value)
         }
     }
 
-    private func titleMatchesExactly(song: ImportedSong, track: KTVTrack) -> Bool {
-        let importedTitle = song.normalizedTitle
-        return ([track.title] + track.aliases).contains {
-            SongNormalizer.normalizeTitle($0) == importedTitle
+    private mutating func smartAlternatives(
+        for source: CatalogMatchEntry,
+        cancellationCheck: () throws -> Void
+    ) rethrows -> [KTVTrack] {
+        if let cached = smartAlternativeCache[source.track.id] {
+            return cached
         }
+
+        let similarEntries = index.entries.filter {
+            source.similarSongIDs.contains($0.track.id)
+        }
+        if similarEntries.count >= 3 {
+            let result = Array(similarEntries.prefix(3).map(\.track))
+            smartAlternativeCache[source.track.id] = result
+            return result
+        }
+
+        let similarIDs = Set(similarEntries.map { $0.track.id })
+        let remainingCount = 3 - similarEntries.count
+        var relatedCandidates: [RelatedCandidate] = []
+        relatedCandidates.reserveCapacity(remainingCount)
+        for entry in index.entries {
+            if entry.catalogOrder.isMultiple(of: 32) {
+                try cancellationCheck()
+            }
+            guard entry.track.id != source.track.id,
+                  !similarIDs.contains(entry.track.id),
+                  entry.track.artist == source.track.artist
+                    || entry.track.genre == source.track.genre
+                    || !entry.sceneTags.isDisjoint(with: source.sceneTags) else {
+                continue
+            }
+            insertRelatedCandidate(
+                RelatedCandidate(
+                    entryIndex: entry.catalogOrder,
+                    hasSameArtist: entry.track.artist == source.track.artist,
+                    hasSameGenre: entry.track.genre == source.track.genre,
+                    singAlongScore: entry.track.singAlongScore
+                ),
+                into: &relatedCandidates,
+                limit: remainingCount
+            )
+        }
+
+        let result = Array(similarEntries.map(\.track))
+            + relatedCandidates.map { index.entries[$0.entryIndex].track }
+        smartAlternativeCache[source.track.id] = result
+        return result
     }
 
-    private func artistMatches(_ artist: String?, track: KTVTrack) -> Bool {
-        guard let artist = artist?.nilIfBlank else { return true }
-        let imported = SongNormalizer.normalizeArtist(artist)
-        let aliases = artistAliases(for: track.artist)
-        return aliases.contains(imported)
-            || aliases.contains { imported.contains($0) || $0.contains(imported) }
-    }
+    private func score(query: SongMatchQuery, entry: CatalogMatchEntry) -> Double {
+        let titleScore = entry.normalizedTitleIdentities.map {
+            similarity(query.normalizedTitle, $0)
+        }.max() ?? 0
 
-    private func smartAlternatives(for track: KTVTrack, in catalog: [KTVTrack]) -> [KTVTrack] {
-        let similar = catalog.filter { track.similarSongIds.contains($0.id) }
-        if similar.count >= 3 { return Array(similar.prefix(3)) }
-        let sceneTags = Set(track.sceneTags)
-        let related = catalog
-            .filter { candidate in
-                let candidateSceneTags = Set(candidate.sceneTags)
-                return candidate.id != track.id
-                    && (track.similarSongIds.contains(candidate.id)
-                        || candidate.artist == track.artist
-                        || candidate.genre == track.genre
-                        || !candidateSceneTags.isDisjoint(with: sceneTags))
-            }
-            .sorted { lhs, rhs in
-                if lhs.artist == track.artist, rhs.artist != track.artist { return true }
-                if lhs.genre == track.genre, rhs.genre != track.genre { return true }
-                return lhs.singAlongScore > rhs.singAlongScore
-            }
-        return Array((similar + related).reduce(into: [KTVTrack]()) { result, candidate in
-            if result.contains(where: { $0.id == candidate.id }) == false {
-                result.append(candidate)
-            }
-        }.prefix(3))
-    }
-
-    private func score(song: ImportedSong, track: KTVTrack) -> Double {
-        let titleScores = ([track.title] + track.aliases).map { SongNormalizer.similarity(song.title, $0) }
-        let titleScore = titleScores.max() ?? 0
         let artistScore: Double
-        if let artist = song.artist?.nilIfBlank {
-            let imported = SongNormalizer.normalizeArtist(artist)
-            let catalogArtists = artistAliases(for: track.artist)
-            if catalogArtists.contains(imported) {
+        if let importedArtist = query.normalizedArtist {
+            if entry.artistAliasValues.contains(importedArtist.value) {
                 artistScore = 1
-            } else if catalogArtists.contains(where: { imported.contains($0) || $0.contains(imported) }) {
+            } else if entry.normalizedArtistAliases.contains(where: {
+                importedArtist.value.contains($0.value) || $0.value.contains(importedArtist.value)
+            }) {
                 artistScore = 0.86
             } else {
-                artistScore = catalogArtists.map { SongNormalizer.similarity(imported, $0) }.max() ?? 0
+                artistScore = entry.normalizedArtistAliases.map {
+                    similarity(importedArtist, $0)
+                }.max() ?? 0
             }
         } else {
             artistScore = titleScore >= 0.95 ? 0.9 : 0.55
@@ -126,53 +299,211 @@ public struct SongMatcher: Sendable {
         return min(1, titleScore * 0.75 + artistScore * 0.25)
     }
 
-    private func reason(song: ImportedSong, track: KTVTrack) -> String {
-        let importedTitle = SongNormalizer.normalizeTitle(song.title)
-        let trackTitle = SongNormalizer.normalizeTitle(track.title)
-        let importedArtist = song.artist.map(SongNormalizer.normalizeArtist)
-        let catalogArtists = artistAliases(for: track.artist)
-
-        if importedTitle == trackTitle, let importedArtist, catalogArtists.contains(importedArtist) {
-            return "精确命中：歌名和歌手都与 KTV 曲库一致"
+    private func reason(query: SongMatchQuery, entry: CatalogMatchEntry) -> String {
+        if query.normalizedTitle.value == entry.normalizedPrimaryTitle.value,
+           let importedArtist = query.normalizedArtist,
+           entry.artistAliasValues.contains(importedArtist.value) {
+            return "歌名和歌手在本地参考曲库中命中"
         }
-        if importedTitle == trackTitle {
-            return "歌名精确命中，歌手信息缺失或接近"
+        if query.normalizedTitle.value == entry.normalizedPrimaryTitle.value {
+            return "歌名对上了，歌手可能少写了"
         }
-        if track.aliases.contains(where: { SongNormalizer.normalizeTitle($0) == SongNormalizer.normalizeTitle(song.title) }) {
-            return "别名命中：分享版本名与曲库歌曲别名一致"
+        if entry.normalizedAliases.contains(where: {
+            $0.value == query.normalizedTitle.value
+        }) {
+            return "常见别名也能找到这首"
         }
-        if let importedArtist, catalogArtists.contains(importedArtist) {
-            return "同歌手匹配：歌名近似，适合作为 KTV 可唱版本"
+        if let importedArtist = query.normalizedArtist,
+           entry.artistAliasValues.contains(importedArtist.value) {
+            return "同歌手的相近版本，可作为本地参考候选"
         }
-        if track.ktvAvailability >= 0.9, track.singAlongScore >= 0.8 {
-            return "同风格替代：曲库可唱度和合唱分较高"
+        if entry.track.ktvAvailability >= 0.9,
+           entry.track.singAlongScore >= 0.8 {
+            return "在常见 K 歌参考中较常见，也适合大家一起接"
         }
-        return "歌名和歌手相似度达到可推荐阈值，可作为备选"
+        return "歌名和歌手相似，可以先放进备选"
     }
 
-    private func artistAliases(for artist: String) -> Set<String> {
-        let normalized = SongNormalizer.normalizeArtist(artist)
-        var aliases: Set<String> = [normalized]
-        let map: [String: [String]] = [
-            "周杰伦": ["jaychou", "jay"],
-            "陈奕迅": ["eason", "easonchan"],
-            "邓紫棋": ["gem", "gem邓紫棋"],
-            "五月天": ["mayday"],
-            "张学友": ["jackycheung"],
-            "刘德华": ["andylautak-wah", "andy lau"],
-            "王菲": ["fayewong"],
-            "田馥甄": ["hebe"],
-            "林俊杰": ["jjlin"],
-            "孙燕姿": ["stefaniesun"],
-            "蔡依林": ["jolin", "jolintsai"],
-            "梁静茹": ["fishleong"],
-            "张惠妹": ["amei", "amei张惠妹"],
-            "张韶涵": ["angelachang"],
-            "beyond": ["beyond"]
-        ]
-        for candidate in map[normalized] ?? [] {
-            aliases.insert(SongNormalizer.normalizeArtist(candidate))
-        }
-        return aliases
+    private func similarity(
+        _ lhs: NormalizedMatchText,
+        _ rhs: NormalizedMatchText
+    ) -> Double {
+        SongNormalizer.similarityNormalized(
+            lhs.value,
+            rhs.value,
+            lhsCharacters: lhs.characters,
+            rhsCharacters: rhs.characters
+        )
     }
+}
+
+private struct CatalogMatchIndex {
+    let entries: [CatalogMatchEntry]
+    let titleCandidateIndices: [String: [Int]]
+
+    init(catalog: [KTVTrack]) {
+        entries = catalog.enumerated().map { offset, track in
+            CatalogMatchEntry(track: track, catalogOrder: offset)
+        }
+        var titleCandidateIndices: [String: [Int]] = [:]
+        for entry in entries {
+            for identity in entry.titleIdentityValues where !identity.isEmpty {
+                titleCandidateIndices[identity, default: []].append(entry.catalogOrder)
+            }
+        }
+        self.titleCandidateIndices = titleCandidateIndices
+    }
+}
+
+private struct CatalogMatchEntry {
+    let track: KTVTrack
+    let catalogOrder: Int
+    let normalizedPrimaryTitle: NormalizedMatchText
+    let normalizedAliases: [NormalizedMatchText]
+    let normalizedTitleIdentities: [NormalizedMatchText]
+    let titleIdentityValues: Set<String>
+    let normalizedArtistAliases: [NormalizedMatchText]
+    let artistAliasValues: Set<String>
+    let sceneTags: Set<String>
+    let similarSongIDs: Set<String>
+
+    init(track: KTVTrack, catalogOrder: Int) {
+        self.track = track
+        self.catalogOrder = catalogOrder
+        normalizedPrimaryTitle = .title(track.title)
+        normalizedAliases = track.aliases.map(NormalizedMatchText.title)
+        var titleIdentities: [NormalizedMatchText] = []
+        var seenTitleIdentities = Set<String>()
+        for value in [normalizedPrimaryTitle] + normalizedAliases
+        where seenTitleIdentities.insert(value.value).inserted {
+            titleIdentities.append(value)
+        }
+        normalizedTitleIdentities = titleIdentities
+        titleIdentityValues = seenTitleIdentities
+        normalizedArtistAliases = normalizedArtistAliasesForTrack(track.artist)
+            .map(NormalizedMatchText.normalized)
+        artistAliasValues = Set(normalizedArtistAliases.map(\.value))
+        sceneTags = Set(track.sceneTags)
+        similarSongIDs = Set(track.similarSongIds)
+    }
+}
+
+private struct SongMatchQuery {
+    let song: ImportedSong
+    let normalizedTitle: NormalizedMatchText
+    let normalizedArtist: NormalizedMatchText?
+
+    init(song: ImportedSong) {
+        self.song = song
+        normalizedTitle = .title(song.title)
+        if let artist = song.artist?.nilIfBlank {
+            normalizedArtist = .artist(artist)
+        } else {
+            normalizedArtist = nil
+        }
+    }
+}
+
+private struct NormalizedMatchText: Sendable {
+    let value: String
+    let characters: [Character]
+
+    static func title(_ rawValue: String) -> NormalizedMatchText {
+        normalized(SongNormalizer.normalizeTitle(rawValue))
+    }
+
+    static func artist(_ rawValue: String) -> NormalizedMatchText {
+        normalized(SongNormalizer.normalizeArtist(rawValue))
+    }
+
+    static func normalized(_ value: String) -> NormalizedMatchText {
+        NormalizedMatchText(value: value, characters: Array(value))
+    }
+}
+
+private struct RankedCandidate {
+    let entryIndex: Int
+    let score: Double
+}
+
+private func insertTopCandidate(
+    _ candidate: RankedCandidate,
+    into candidates: inout [RankedCandidate],
+    limit: Int
+) {
+    guard limit > 0 else { return }
+    let insertionIndex = candidates.firstIndex {
+        candidate.score > $0.score
+    } ?? candidates.endIndex
+    guard insertionIndex < limit || candidates.count < limit else { return }
+    candidates.insert(candidate, at: insertionIndex)
+    if candidates.count > limit {
+        candidates.removeLast()
+    }
+}
+
+private struct RelatedCandidate {
+    let entryIndex: Int
+    let hasSameArtist: Bool
+    let hasSameGenre: Bool
+    let singAlongScore: Double
+}
+
+private func insertRelatedCandidate(
+    _ candidate: RelatedCandidate,
+    into candidates: inout [RelatedCandidate],
+    limit: Int
+) {
+    guard limit > 0 else { return }
+    let insertionIndex = candidates.firstIndex {
+        relatedCandidate(candidate, ranksBefore: $0)
+    } ?? candidates.endIndex
+    guard insertionIndex < limit || candidates.count < limit else { return }
+    candidates.insert(candidate, at: insertionIndex)
+    if candidates.count > limit {
+        candidates.removeLast()
+    }
+}
+
+private func relatedCandidate(
+    _ lhs: RelatedCandidate,
+    ranksBefore rhs: RelatedCandidate
+) -> Bool {
+    if lhs.hasSameArtist != rhs.hasSameArtist {
+        return lhs.hasSameArtist
+    }
+    if lhs.hasSameGenre != rhs.hasSameGenre {
+        return lhs.hasSameGenre
+    }
+    if lhs.singAlongScore != rhs.singAlongScore {
+        return lhs.singAlongScore > rhs.singAlongScore
+    }
+    return lhs.entryIndex < rhs.entryIndex
+}
+
+private let artistAliasCandidates: [String: [String]] = [
+    "周杰伦": ["jaychou", "jay"],
+    "陈奕迅": ["eason", "easonchan"],
+    "邓紫棋": ["gem", "gem邓紫棋"],
+    "五月天": ["mayday"],
+    "张学友": ["jackycheung"],
+    "刘德华": ["andylautak-wah", "andy lau"],
+    "王菲": ["fayewong"],
+    "田馥甄": ["hebe"],
+    "林俊杰": ["jjlin"],
+    "孙燕姿": ["stefaniesun"],
+    "蔡依林": ["jolin", "jolintsai"],
+    "梁静茹": ["fishleong"],
+    "张惠妹": ["amei", "amei张惠妹"],
+    "张韶涵": ["angelachang"],
+    "beyond": ["beyond"]
+]
+
+private func normalizedArtistAliasesForTrack(_ artist: String) -> [String] {
+    let normalizedArtist = SongNormalizer.normalizeArtist(artist)
+    var aliases = Set([normalizedArtist])
+    for candidate in artistAliasCandidates[normalizedArtist] ?? [] {
+        aliases.insert(SongNormalizer.normalizeArtist(candidate))
+    }
+    return aliases.sorted()
 }
