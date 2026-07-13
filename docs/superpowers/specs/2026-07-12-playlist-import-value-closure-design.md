@@ -141,7 +141,11 @@ flowchart TD
 - 文本输入说明：`一行一首，带上歌手会识别得更准。`
 - 截图说明：`可一次选择最多 20 张歌单截图，歌名识别只在本机进行。`
 
-多截图是本轮早期闭环与公开发布的强制能力。批次按用户选择顺序编号，OCR 并发最多 2 个，跨图歌曲按标准 semantic key 保留首次出现顺序。页面显示 `正在识别 i/n`；部分失败时明确显示 `已识别 m/n 张`、失败序号和重试入口，不能静默丢图。只有当前 generation 的完整批次至少一张成功、合并结果非空并通过导入校验后，才原子替换整理候选；全部失败、取消、超限、超时或旧批次迟到均保留上一份稳定工作流。原图只存在于受控临时目录，任务结束即删除，不进入工作流快照。
+多截图是本轮早期闭环与公开发布的强制能力。所有限制只读取同一 `ScreenshotBatchImportLimits`：`maxImageCount = 20`、`maximumTotalBytes = 120 MiB`、`maximumTotalPixels = 160_000_000`、`maximumConcurrency = 2`。数量、每张 `width × height`、总字节和总像素都使用 `reportingOverflow` 在 OCR 前完成 preflight；任一溢出或超限立即拒绝并保留上一份稳定工作流。边界合同必须证明 20 张、每张 6 MiB 且 8,000,000 像素的最坏合法批次恰好通过，增加 1 byte、1 pixel 或第 21 张都失败。
+
+批次按用户选择顺序编号，跨图歌曲按标准 semantic key 保留首次出现顺序。页面显示 `正在识别 i/n`；部分失败时明确显示 `已识别 m/n 张`、失败序号和重试入口，不能静默丢图。只有当前 generation 的完整批次至少一张成功、合并结果非空并通过导入校验后，才原子替换整理候选；全部失败、取消、超限、超时或旧批次迟到均保留上一份稳定工作流。
+
+原图只存在于受控临时目录，不进入工作流快照。成功图片完成读取后立即删除；失败图片只由当前导入页面的 15 分钟 `ScreenshotBatchRetrySession` 持有，以便逐张重试。重试成功即删除对应文件；全部成功、用户选择“使用已识别结果继续”、明确放弃、取消、离开页面或 session 到期时必须清理全部剩余文件。session 不持久化，异常终止后的 orphan cleaner 删除残留；重启只恢复失败数量/序号并提示“重新选择失败图片”，不承诺对旧临时文件直接重试。
 
 ### 5.3 解析与整理
 
@@ -393,16 +397,20 @@ flowchart TD
 
 ### 7.1 逐导入条目账本与派生摘要
 
-每个 parser 去重后的 `ImportedSong.id` 必须在 `PlaylistReconciliationLedger` 中且只出现一次。`PlaylistReconciliationEntry` 以 importedSong stable ID 唯一，不以最终 trackID 去重；互斥 outcome 至少包含：
+每个 parser 去重后的 `ImportedSong.id` 必须在 `PlaylistReconciliationLedger` 中且只出现一次。`PlaylistReconciliationEntry` 以 importedSong stable ID 唯一，不以最终 trackID 去重，并将两个不同时序的事实拆开保存：
 
-- `reviewRemoved`
-- `selectedOriginal(planItemID, trackID)`，记为 X
-- `selectedAdoptedAlternative(planItemID, trackID)`，记为 R
-- `verifiedNotSelected(resolvedTrackID, reason)`，记为 Q
-- `pending`
-- `unmatched`
+- 稳定的 `reviewMatchOutcome`：`reviewRemoved / activeAwaitingMatch / pending / unmatched / verifiedOriginal(trackID) / verifiedAdoptedAlternative(trackID)`。
+- 可变的 `planDisposition`：`notGenerated / selectedOriginal(planItemID, trackID)`（X）`/ selectedAlternative(planItemID, trackID)`（R）`/ verifiedNotSelected(resolvedTrackID, reason)`（Q）。
 
-本地补充 Y 使用独立 `PlaylistSupplementEntry`，不伪装成导入条目。两个导入条目可以因 alias、版本归并或重复内容命中同一个 track，但仍保留两个 entry；只有一个可以对应最终 planItem，其他条目必须以 Q 和具体原因解释。容量截断也必须逐条落到 Q，不能只减少汇总数字。
+五个提交点必须可独立表达：
+
+1. 导入完成：有效条目为 `activeAwaitingMatch + notGenerated`，整理删除条目为 `reviewRemoved + notGenerated`。
+2. 匹配中：完整账本继续显示上一个稳定 `reviewMatchOutcome`；进度只存在于 operation state，不逐条发布半份匹配。
+3. 匹配完成但尚未排歌：原子提交 `verifiedOriginal / verifiedAdoptedAlternative / pending / unmatched`，所有条目仍为 `notGenerated`。
+4. plan stale：`reviewMatchOutcome` 不变，`planDisposition` 保留上一次成功 plan basis 下的 X/R/Q 供解释，但导出、分享和开唱继续关闭。
+5. 重排成功：只有新 plan、basis、全量 dispositions 与 supplements 都通过校验时，才原子替换 `planDisposition`；失败保留旧 stale 映射。
+
+本地补充 Y 使用独立 `PlaylistSupplementEntry`，不伪装成导入条目。两个导入条目可以因 alias、版本归并或重复内容命中同一个 track，但仍保留两个 entry；最终归属固定按 `(importedPlaylistOrder, importedSong.id.uuidString.lowercased())` 取最小者为 X/R，其余必须以 Q 和具体原因解释。锁定、容量截断、alias/版本归并和重排都沿用同一 tie-break；测试将输入随机排列至少 100 次以锁定确定性。
 
 增加由 ledger 单次遍历派生的展示模型，避免各页面自行拼接或反向手填数字：
 
@@ -414,7 +422,9 @@ flowchart TD
   - 暂未找到数。
   - 是否允许继续排歌。
 
-`PlaylistPreparationSummary` 和 `SongPlanGenerationSummary` 不提供接收计数字段的 public initializer，只能由 ledger 派生。ledger 必须校验 importedSong ID 集合完整相等、每个 outcome 互斥、selected/supplement planItemID 集合与正式 plan.items 完全相等且无重复。旧快照缺少逐条 ledger 时不得从汇总数字反向制造 entries，只能恢复为 stale 并重新分析。
+`PlaylistPreparationSummary` 永远只从 `reviewMatchOutcome` 派生；当所有条目仍为 `notGenerated` 时，`SongPlanGenerationSummary` 必须为 `nil`，不能把“尚未排歌”伪装成 X/R/Q 均为零。ready/stale 的计划摘要只从对应成功 plan basis 的 `planDisposition` 与 supplements 派生。两种 summary 都不提供接收计数字段的 public initializer。ledger 必须校验 importedSong ID 集合完整相等、双阶段值合法、selected/supplement planItemID 集合与正式 plan.items 完全相等且无重复。旧快照缺少逐条 ledger 时不得从汇总数字反向制造 entries，只能恢复为 stale 并重新分析。
+
+歌名/歌手编辑、整理删除或撤销可以更新 `reviewMatchOutcome` 并把受影响的 `planDisposition` 归为 `notGenerated`。反馈、场景、音区、锁定和结果页移除等 plan controls 只递增对应 revision 并把 plan 转 stale；它们不得改变 `reviewMatchOutcome`，也不得在重排成功前预改 `planDisposition`。
 
 ### 7.2 推荐来源
 
@@ -499,12 +509,12 @@ flowchart TD
 
 #### 阶段提交点
 
-1. **新导入**：链接读取、文本解析或 1–20 张截图 OCR 都先写入临时批次；当前稳定工作流在整批成功前保持不变。只有“至少一张成功且失败明细已保存 + 非空有效歌单 + 整理草稿”同时准备好并成功保存后，才原子替换当前歌单并清除旧匹配、画像、计划、外部候选、锁定和移除。全部失败、取消、超限、超时或进程终止均丢弃临时结果，不影响旧工作流。
-2. **整理编辑**：歌名、歌手、删除或撤销每次成功提交后递增 `reviewRevision`，取消在途匹配，并立即使旧匹配、画像、计划和外部候选失效。独立保存的实测音区和全局歌曲反馈可以保留。
-3. **批量匹配**：在工作线程中计算完整 matches 与 profile；`processed/total` 只用于当前会话的单调进度显示。完成前不发布、不持久化部分 matches 或部分画像。只有请求 token、歌单 ID、`reviewRevision` 和 `catalogRevision` 仍一致时，才一次提交完整结果。取消后保留当前整理草稿；若存在 basis 仍一致的上一份完整匹配，可以继续使用，否则回到 `notStarted`。
-4. **计划生成**：先在内存中完成候选隔离、排序、来源分类和计数校验；只有 `PlanBasis` 仍一致且数量守恒时才原子发布。生成失败时，旧计划仅可作为带“尚未按最新选择更新”提示的 stale 内容查看，不能继续导出或分享。
-5. **反馈**：candidate profile 持久化成功后才更新内存状态和 `feedbackRevision`，并立即把旧 plan 转 stale。重排成功后替换计划；重排失败时保留已持久化反馈和 stale plan、禁止导出/开唱并允许重试。只有反馈持久化失败才完整回滚且不增加 revision。
-6. **移除**：整理阶段的 `reviewRemovedEntries` 以 importedSong ID 属于逐条导入账本，只随 `reviewRevision` 变化；结果页的 `planControlRemovedRecords` 以 trackID 属于计划控制，只随 `trackControlsRevision` 变化并触发 stale/replan。两套记录、恢复入口和 revision 互不混写。
+1. **新导入**：链接读取、文本解析或 1–20 张截图 OCR 都先写入临时批次；当前稳定工作流在整批成功前保持不变。只有“至少一张成功且失败明细已保存 + 非空有效歌单 + 整理草稿”同时准备好并成功保存后，才原子替换当前歌单，以 `activeAwaitingMatch/reviewRemoved + notGenerated` 建立新账本并清除旧匹配、画像、计划、外部候选、锁定和移除。全部失败、取消、超限或超时均不影响旧工作流。多截图部分失败时只由 15 分钟页面 retry session 暂存失败原图；重试成功、使用已有结果继续、放弃、取消、离页和到期都按 5.2 清理，进程重启只提供“重新选择失败图片”。
+2. **整理编辑**：歌名、歌手、删除或撤销每次成功提交后递增 `reviewRevision`，更新对应 `reviewMatchOutcome`、将受影响条目的 `planDisposition` 置为 `notGenerated`，取消在途匹配，并立即使旧匹配、画像、计划和外部候选失效。独立保存的实测音区和全局歌曲反馈可以保留。
+3. **批量匹配**：在工作线程中计算完整 matches 与 profile；`processed/total` 只用于当前会话的单调进度显示，账本继续保留上一个稳定 `reviewMatchOutcome`。完成前不发布、不持久化部分 matches 或部分画像。只有请求 token、歌单 ID、`reviewRevision` 和 `catalogRevision` 仍一致时，才一次提交完整 review/match outcomes，`planDisposition` 仍为 `notGenerated`。取消后保留当前整理草稿；若存在 basis 仍一致的上一份完整匹配，可以继续使用，否则回到 `notStarted`。
+4. **计划生成**：先在内存中完成候选隔离、确定性同 track 归属、排序、来源分类和计数校验；只有 `PlanBasis` 仍一致且数量守恒时，才原子发布 plan、basis、全量 `planDisposition` 和 supplements。生成失败时，旧 dispositions 与旧计划仅可作为带“尚未按最新选择更新”提示的 stale 内容查看，不能继续导出、分享或开唱。
+5. **反馈**：candidate profile 持久化成功后才更新内存状态和 `feedbackRevision`，并立即把旧 plan 转 stale；这一步不修改 `reviewMatchOutcome` 或旧 `planDisposition`。重排成功后原子替换 dispositions 与计划；重排失败时保留已持久化反馈和 stale plan、禁止导出/开唱并允许重试。只有反馈持久化失败才完整回滚且不增加 revision。
+6. **移除**：整理阶段的 `reviewRemovedEntries` 以 importedSong ID 属于 `reviewMatchOutcome`，只随 `reviewRevision` 变化；结果页的 `planControlRemovedRecords` 以 trackID 属于计划控制，只随 `trackControlsRevision` 变化并触发 stale/replan，不预改双阶段账本。两套记录、恢复入口和 revision 互不混写。
 
 本轮不保存部分匹配检查点。App 在匹配途中被系统终止后，重启只恢复最后一次完整快照：整理内容仍在，但未完成的匹配恢复为 `notStarted`，由用户继续或在进入排歌时自动重跑，绝不把半份结果显示成完成。
 
@@ -543,7 +553,7 @@ flowchart TD
 - 1000 首混合 fixture 的版本化工作流快照必须完成编码、落盘、读取和解码回环，并保持在现有 16 MB 读取边界内；超限数据不得写成成功保存。
 - 匹配在后台工作线程执行；测试在工作被人为阻塞时验证主线程 100 毫秒内仍能响应 heartbeat。
 - 文本入口继续遵守 5 万字符和 1000 行上限，超限时必须在开始匹配前明确提示，并保留上一次稳定结果。
-- 一批最多 20 张截图，OCR 并发最多 2；批次总像素/总字节超限时在识别前拒绝且不改稳定工作流。多图不承诺覆盖任意长度歌单，超长歌单仍优先引导公开链接或文本。
+- 截图批次只使用 `ScreenshotBatchImportLimits(maxImageCount: 20, maximumTotalBytes: 120 MiB, maximumTotalPixels: 160_000_000, maximumConcurrency: 2)`；所有乘法和累加都用 `reportingOverflow`，在 OCR 前拒绝溢出或超限且不改稳定工作流。自动化必须覆盖恰好 20 张、120 MiB、160,000,000 pixels 的合法边界，分别增加 1 byte、1 pixel 和第 21 张的失败边界，以及 20 张最坏合法组合。多图不承诺覆盖任意长度歌单，超长歌单仍优先引导公开链接或文本。
 
 ### 8.2 操作目标
 
@@ -624,10 +634,12 @@ flowchart TD
 - 联网失败不影响本地导入、匹配和排歌。
 - 旧快照可以安全恢复，缺少新字段时使用保守文案。
 - 导入、匹配和计划只在完整结果与当前 basis 一致时原子发布；取消、超时和进程终止不得持久化半份结果。
-- 每个 importedSong stable ID 都有且只有一个 reconciliation outcome；多个导入条目命中同一 track、alias/版本归并和容量截断时仍能逐条解释，summary 只能从 entries/supplements 派生。
+- 每个 importedSong stable ID 都有且只有一组双阶段 reconciliation：稳定 `reviewMatchOutcome` 与可变 `planDisposition`。导入完成、匹配中、匹配完成未排歌、plan stale 和重排成功五个提交点都可区分；plan controls 不改匹配真相，成功重排才原子替换 dispositions。
+- 多个导入条目命中同一 track、alias/版本归并、锁定和容量截断时，按导入顺序再按 UUID 字符串得到唯一 X/R，其余逐条为 Q；随机输入顺序下结果不漂移，summary 只能从对应阶段的 entries/supplements 派生。
 - 旧 raw `sung` 可解码并迁移，UI 只显示“会唱/熟悉”；反馈持久化失败才回滚，重排失败必须保留新反馈并把旧 plan 保持为禁导出、禁开唱的 stale。
 - ready 结果页一次点击进入“进入开唱模式/开始练唱”，stale 不放行，外部候选不进入顺序，文案不承诺播放或设备点歌。
-- 一次选择最多 20 张截图，稳定合并、跨图去重、部分失败明示、全批原子发布；取消、全失败和迟到批次不覆盖稳定工作流。
+- 一次选择最多 20 张截图，限制固定为 120 MiB、160,000,000 pixels、并发 2，并以 overflow-safe preflight 验证精确边界；稳定合并、跨图去重、部分失败明示、全批原子发布，取消、全失败和迟到批次不覆盖稳定工作流。
+- 部分失败图片只在 15 分钟页面 retry session 内保留；重试成功、使用已有结果继续、放弃、取消、离页和到期都清理临时文件，重启只允许重新选择失败图片，不承诺直接重试。
 
 ### 11.2 规模验收
 
@@ -636,7 +648,7 @@ flowchart TD
 - 零异常时，1000 首歌单也不要求用户逐首点击。
 - 有 20 首异常时，用户最多只需要处理主动选择的 20 首；也可以零处理继续排歌。
 - 取消或切换歌单后，旧任务不得覆盖新状态。
-- 多截图 fixture 覆盖 3 张重叠、部分失败、20 张上限、取消与迟到发布；500 首合并结果仍使用有界 UI 节点。
+- 多截图 fixture 覆盖 3 张重叠、部分失败 retry session 的成功/放弃/离页/到期/重启清理、20 张最坏合法组合、精确 120 MiB 与 160,000,000 pixels 边界、分别增加 1 byte/1 pixel、第 21 张、乘法/累加 overflow、取消与迟到发布；500 首合并结果仍使用有界 UI 节点。
 
 ### 11.3 文案验收
 
@@ -650,7 +662,7 @@ flowchart TD
 
 - SharedKit 单元测试覆盖匹配状态、逐导入条目账本、派生摘要、候选安全门、来源分类、旧快照兼容、反馈 decode/migrate、链接 policy 和大歌单性能。
 - App 状态测试覆盖首页下一步、完成摘要、异常过滤、场景输入摘要、结果来源和反馈重排反馈。
-- UI 测试覆盖无异常、部分异常、全部未找到、联网失败、取消、恢复、反馈失败、结果一跳开唱、多截图部分失败和大字号。
+- UI 测试覆盖无异常、部分异常、全部未找到、联网失败、取消、恢复、反馈失败、结果一跳开唱、多截图部分失败/重试/放弃/离页清理/重启重新选择和大字号。
 - Task 16 先建立基线；Task 17–22 完成后必须由 Task 22A 从零重跑 `swift test`、聚焦 iOS 测试、完整 UI、模拟器 Release、两套字号截图、真机和 `./scripts/validate.sh`，Task 16 的旧证据不是权威完成证据。
 - 真机验收至少覆盖分享导入、一次选择 3 张截图并核对跨图去重/失败明细、音区测量、结果一跳开唱、系统分享和重启后第 9 首计划控制恢复。
 
