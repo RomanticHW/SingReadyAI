@@ -695,8 +695,5 @@ extension KTVTrack {
         guard !normalizedImportedArtist.isEmpty else { return false }
         let normalizedAliases = normalizedArtistAliasesForTrack(artist)
         return normalizedAliases.contains(normalizedImportedArtist)
-            || normalizedAliases.contains {
-                normalizedImportedArtist.contains($0) || $0.contains(normalizedImportedArtist)
-            }
     }
 }

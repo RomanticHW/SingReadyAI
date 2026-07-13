@@ -180,6 +180,61 @@ final class SongMatcherTests: XCTestCase {
         }
     }
 
+    func testArtistIdentityRequiresExactCanonicalOrAliasMemberForAutomaticAcceptanceAndMigration() throws {
+        let track = makeTrack(id: "jay-chou", title: "晴天", artist: "周杰伦")
+        let cases: [(name: String, importedArtist: String, expectedKind: String)] = [
+            ("partial canonical artist", "周", "identityConfirmationRequired"),
+            ("complete canonical artist", "周杰伦", "acceptedOriginalExact"),
+            ("known normalized alias", "Jay Chou", "acceptedOriginalExact")
+        ]
+
+        for testCase in cases {
+            let song = ImportedSong(
+                title: track.title,
+                artist: testCase.importedArtist,
+                source: .plainText,
+                confidence: 1
+            )
+            let matched = SongMatcher().match(song: song, catalog: [track])
+            let initialized = MatchResult(
+                importedSong: song,
+                disposition: .acceptedOriginalExact(track: track),
+                score: 1,
+                reason: "当前格式"
+            )
+            let decoded = try JSONDecoder().decode(
+                MatchResult.self,
+                from: JSONEncoder().encode(
+                    CurrentMatchResultFixture(
+                        id: UUID(),
+                        importedSong: song,
+                        disposition: .acceptedOriginalExact(track: track),
+                        suggestedAlternatives: [],
+                        score: 1,
+                        reason: "当前格式"
+                    )
+                )
+            )
+
+            for (source, result) in [
+                ("matcher", matched),
+                ("initializer", initialized),
+                ("decoder", decoded)
+            ] {
+                XCTAssertEqual(
+                    dispositionKind(result.disposition),
+                    testCase.expectedKind,
+                    "\(testCase.name) / \(source)"
+                )
+                XCTAssertEqual(
+                    result.acceptedTrack?.id,
+                    testCase.expectedKind == "acceptedOriginalExact" ? track.id : nil,
+                    "\(testCase.name) / \(source)"
+                )
+            }
+        }
+    }
+
     func testLegacyMatchResultJSONMigratesEveryValidStateAndNormalizesUnsafeCombinations() throws {
         let original = makeTrack(id: "original", title: "原曲", artist: "原歌手")
         let candidate = makeTrack(id: "candidate", title: "原曲", artist: "另一歌手")
