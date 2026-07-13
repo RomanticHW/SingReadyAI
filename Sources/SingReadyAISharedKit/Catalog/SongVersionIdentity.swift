@@ -61,6 +61,16 @@ public struct SongVersionIdentity: Equatable, Sendable {
             versionTags: SongVersionMarkerParser.extractedTags(from: extraction)
         )
     }
+
+    static func deduplicationUnknownFingerprint(
+        title: String,
+        versionTags: [String]
+    ) -> String {
+        let titleExtraction = SongVersionMarkerParser.extractTitle(from: title)
+        return SongVersionMarkerParser.normalizedUnknownFingerprint(
+            inExplicitSegments: titleExtraction.markerSegments + versionTags
+        )
+    }
 }
 
 public enum SongIdentityEvidence: Equatable, Sendable {
@@ -203,6 +213,23 @@ private enum SongVersionMarkerParser {
         return tags.filter { tag in
             seen.insert(tag.lowercased()).inserted
         }
+    }
+
+    static func normalizedUnknownFingerprint(
+        inExplicitSegments segments: [String]
+    ) -> String {
+        let components = segments.compactMap { segment -> String? in
+            let hits = markerHits(in: segment)
+            let residual = semanticResidual(in: segment)
+            guard hits.isEmpty || residual != nil else {
+                return nil
+            }
+
+            let rawUnknownValue = residual ?? segment
+            let normalized = SongNormalizer.normalizeBaseTitle(rawUnknownValue)
+            return normalized.isEmpty ? nil : normalized
+        }
+        return Set(components).sorted().joined(separator: ",")
     }
 
     private static func semanticResidual(in segment: String) -> String? {

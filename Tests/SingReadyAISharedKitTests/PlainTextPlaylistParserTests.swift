@@ -140,6 +140,30 @@ final class PlainTextPlaylistParserTests: XCTestCase {
         XCTAssertTrue(identities.contains { $0.kinds == [.live] })
     }
 
+    func testDedupKeepsDifferentUnknownVersionTags() {
+        let songs = PlainTextPlaylistParser().parseSongs(
+            """
+            刘若英 - 后来 特别版
+            刘若英 - 后来 民谣版
+            """
+        )
+
+        XCTAssertEqual(songs.map(\.versionTags), [["特别版"], ["民谣版"]])
+    }
+
+    func testDedupRemovesOnlyRepeatedMatchingUnknownVersionTag() {
+        let songs = PlainTextPlaylistParser().parseSongs(
+            """
+            刘若英 - 后来 特别版
+            后来 特别版 - 刘若英
+            刘若英 - 后来 民谣版
+            """
+        )
+
+        XCTAssertEqual(songs.map(\.versionTags), [["特别版"], ["民谣版"]])
+        XCTAssertEqual(songs.filter { $0.versionTags == ["特别版"] }.count, 1)
+    }
+
     func testRejectsLabeledSongLineWhenTitleIsBlank() {
         let parser = PlainTextPlaylistParser()
 

@@ -67,11 +67,16 @@ public struct PlainTextPlaylistParser: Sendable {
             versionTags: song.versionTags
         )
         let kinds = identity.kinds.map(\.rawValue).sorted().joined(separator: ",")
+        let unknownFingerprint = SongVersionIdentity.deduplicationUnknownFingerprint(
+            title: song.title,
+            versionTags: song.versionTags
+        )
         return [
             identity.normalizedBaseTitle,
             song.normalizedArtist ?? "",
             identity.hasExplicitMarker ? "versioned" : "original",
-            kinds
+            kinds,
+            unknownFingerprint
         ].joined(separator: "#")
     }
 
