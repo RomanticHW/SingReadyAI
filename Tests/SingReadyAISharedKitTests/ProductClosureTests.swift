@@ -48,7 +48,12 @@ final class ProductClosureTests: XCTestCase {
     func testSuggestedAlternativesAreNormalizedAndExcludedFromAcceptedTrackAndProfile() {
         let original = makeTrack(id: "original", title: "原曲", artist: "原歌手", difficulty: 2)
         let suggestion = makeTrack(id: "suggestion", title: "建议替代", artist: "另一歌手", difficulty: 5)
-        let song = ImportedSong(title: original.title, source: .plainText, confidence: 1)
+        let song = ImportedSong(
+            title: original.title,
+            artist: original.artist,
+            source: .plainText,
+            confidence: 1
+        )
         let playlist = ImportedPlaylist(
             source: .plainText,
             title: "建议隔离",

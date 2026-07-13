@@ -244,6 +244,58 @@ final class RecommendationEngineTests: XCTestCase {
         XCTAssertFalse(recommendedIDs.contains(suggestion.id))
     }
 
+    func testPendingCandidatesDoNotReenterFormalPlanThroughCatalog() throws {
+        let catalog = try KTVCatalogRepository().loadTracks()
+        let candidate = try XCTUnwrap(catalog.first(where: { $0.singAlongScore >= 0.86 }))
+        let song = ImportedSong(
+            title: candidate.title,
+            source: .plainText,
+            confidence: 1
+        )
+        let playlist = ImportedPlaylist(
+            source: .plainText,
+            title: "待处理候选隔离",
+            songs: [song],
+            parseConfidence: 1
+        )
+        let cases: [(name: String, disposition: SongMatchDisposition)] = [
+            (
+                "identity-confirmation",
+                .identityConfirmationRequired(candidates: [candidate])
+            ),
+            (
+                "alternative-suggestion",
+                .alternativeSuggested(candidates: [candidate])
+            )
+        ]
+
+        for testCase in cases {
+            let result = MatchResult(
+                importedSong: song,
+                disposition: testCase.disposition,
+                score: 0.8,
+                reason: "待处理"
+            )
+            let profile = PreferenceProfiler().buildProfile(
+                importedPlaylist: playlist,
+                matches: [result]
+            )
+            let plan = RecommendationEngine().generatePlan(
+                matches: [result],
+                preferenceProfile: profile,
+                voiceProfile: .simulatedMiddle,
+                scenario: ScenarioConfig(scenario: .friends, durationMinutes: 30),
+                catalog: [candidate]
+            )
+
+            XCTAssertTrue(result.isPending, testCase.name)
+            XCTAssertFalse(
+                plan.sections.flatMap(\.items).contains { $0.track.id == candidate.id },
+                testCase.name
+            )
+        }
+    }
+
     func testAlternativesExcludeCurrentTrack() throws {
         let fixture = try makeFixture()
         let plan = makePlan(fixture: fixture, scenario: .friends)

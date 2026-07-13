@@ -65,6 +65,121 @@ final class SongMatcherTests: XCTestCase {
         XCTAssertNil(decoded.acceptedTrack)
     }
 
+    func testCurrentDispositionInitializerAndDecoderNormalizeAcceptedOriginalIdentity() throws {
+        let compatible = makeTrack(id: "compatible", title: "原曲", artist: "原歌手")
+        let artistConflict = makeTrack(id: "artist-conflict", title: "原曲", artist: "另一歌手")
+        let unrelated = makeTrack(id: "unrelated", title: "无关歌曲", artist: "无关歌手")
+        let completeSong = ImportedSong(
+            title: "原曲",
+            artist: "原歌手",
+            source: .plainText,
+            confidence: 1
+        )
+        let missingArtistSong = ImportedSong(
+            title: "原曲",
+            source: .plainText,
+            confidence: 1
+        )
+        let cases: [CurrentDispositionCase] = [
+            (
+                "exact-compatible",
+                completeSong,
+                .acceptedOriginalExact(track: compatible),
+                "acceptedOriginalExact",
+                [compatible.id],
+                compatible.id
+            ),
+            (
+                "exact-unrelated",
+                completeSong,
+                .acceptedOriginalExact(track: unrelated),
+                "unmatched",
+                [],
+                nil
+            ),
+            (
+                "exact-missing-artist",
+                missingArtistSong,
+                .acceptedOriginalExact(track: compatible),
+                "identityConfirmationRequired",
+                [compatible.id],
+                nil
+            ),
+            (
+                "exact-artist-conflict",
+                completeSong,
+                .acceptedOriginalExact(track: artistConflict),
+                "identityConfirmationRequired",
+                [artistConflict.id],
+                nil
+            ),
+            (
+                "confirmed-same-title",
+                completeSong,
+                .acceptedOriginalConfirmed(track: artistConflict),
+                "acceptedOriginalConfirmed",
+                [artistConflict.id],
+                artistConflict.id
+            ),
+            (
+                "confirmed-unrelated",
+                completeSong,
+                .acceptedOriginalConfirmed(track: unrelated),
+                "unmatched",
+                [],
+                nil
+            ),
+            (
+                "adopted-unrelated",
+                completeSong,
+                .adoptedAlternative(track: unrelated),
+                "adoptedAlternative",
+                [unrelated.id],
+                unrelated.id
+            )
+        ]
+
+        for testCase in cases {
+            let direct = MatchResult(
+                importedSong: testCase.importedSong,
+                disposition: testCase.disposition,
+                score: 0.8,
+                reason: "当前格式"
+            )
+            let decoded = try JSONDecoder().decode(
+                MatchResult.self,
+                from: JSONEncoder().encode(
+                    CurrentMatchResultFixture(
+                        id: UUID(),
+                        importedSong: testCase.importedSong,
+                        disposition: testCase.disposition,
+                        suggestedAlternatives: [],
+                        score: 0.8,
+                        reason: "当前格式"
+                    )
+                )
+            )
+
+            for (source, result) in [("initializer", direct), ("decoder", decoded)] {
+                XCTAssertEqual(
+                    dispositionKind(result.disposition),
+                    testCase.expectedKind,
+                    "\(testCase.name) / \(source)"
+                )
+                XCTAssertEqual(
+                    dispositionTrackIDs(result.disposition),
+                    testCase.expectedTrackIDs,
+                    "\(testCase.name) / \(source)"
+                )
+                XCTAssertEqual(
+                    result.acceptedTrack?.id,
+                    testCase.expectedAcceptedTrackID,
+                    "\(testCase.name) / \(source)"
+                )
+            }
+        }
+    }
+
     func testLegacyMatchResultJSONMigratesEveryValidStateAndNormalizesUnsafeCombinations() throws {
         let original = makeTrack(id: "original", title: "原曲", artist: "原歌手")
         let candidate = makeTrack(id: "candidate", title: "原曲", artist: "另一歌手")
@@ -873,6 +988,24 @@ private struct LegacyMatchResultFixture: Encodable {
     let score: Double
     let reason: String
 }
+
+private struct CurrentMatchResultFixture: Encodable {
+    let id: UUID
+    let importedSong: ImportedSong
+    let disposition: SongMatchDisposition
+    let suggestedAlternatives: [KTVTrack]
+    let score: Double
+    let reason: String
+}
+
+private typealias CurrentDispositionCase = (
+    name: String,
+    importedSong: ImportedSong,
+    disposition: SongMatchDisposition,
+    expectedKind: String,
+    expectedTrackIDs: [String],
+    expectedAcceptedTrackID: String?
+)
 
 private struct LegacyMigrationCase {
     let name: String

@@ -277,7 +277,7 @@ public struct RecommendationEngine: Sendable {
         var seenSemanticKeys = Set<String>()
         let pendingCandidateIDs = Set(
             matches
-                .filter { $0.confirmationState == .required }
+                .filter(\.isPending)
                 .flatMap(\.candidateTracks)
                 .map(\.id)
         )

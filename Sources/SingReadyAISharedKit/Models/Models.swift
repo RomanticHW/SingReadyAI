@@ -445,7 +445,7 @@ public struct MatchResultDisplayPolicy: Sendable {
 
 public struct MatchResult: Codable, Identifiable, Sendable {
     public var id: UUID
-    public var importedSong: ImportedSong
+    public let importedSong: ImportedSong
     public private(set) var disposition: SongMatchDisposition
     public private(set) var suggestedAlternatives: [KTVTrack]
     public var score: Double
@@ -586,25 +586,15 @@ public struct MatchResult: Codable, Identifiable, Sendable {
         score: Double,
         reason: String
     ) {
-        let normalizedDisposition = Self.normalized(disposition)
-        let normalizedAcceptedTrack: KTVTrack?
-        switch normalizedDisposition {
-        case let .acceptedOriginalExact(track),
-             let .acceptedOriginalConfirmed(track),
-             let .adoptedAlternative(track):
-            normalizedAcceptedTrack = track
-        case .identityConfirmationRequired, .alternativeSuggested, .unmatched:
-            normalizedAcceptedTrack = nil
-        }
+        let normalized = Self.normalized(
+            importedSong: importedSong,
+            disposition: disposition,
+            suggestedAlternatives: suggestedAlternatives
+        )
         self.id = id
         self.importedSong = importedSong
-        self.disposition = normalizedDisposition
-        if let normalizedAcceptedTrack {
-            self.suggestedAlternatives = Self.uniqueTracks(suggestedAlternatives)
-                .filter { $0.id != normalizedAcceptedTrack.id }
-        } else {
-            self.suggestedAlternatives = []
-        }
+        self.disposition = normalized.disposition
+        self.suggestedAlternatives = normalized.suggestedAlternatives
         self.score = min(max(score, 0), 1)
         self.reason = reason
     }
@@ -731,19 +721,50 @@ public struct MatchResult: Codable, Identifiable, Sendable {
         )
     }
 
-    private static func normalized(_ disposition: SongMatchDisposition) -> SongMatchDisposition {
+    private static func normalized(
+        importedSong: ImportedSong,
+        disposition: SongMatchDisposition,
+        suggestedAlternatives: [KTVTrack]
+    ) -> (disposition: SongMatchDisposition, suggestedAlternatives: [KTVTrack]) {
         switch disposition {
+        case let .acceptedOriginalExact(track):
+            let suggestions = uniqueTracks(suggestedAlternatives)
+                .filter { $0.id != track.id }
+            guard track.matchesTitleIdentity(importedSong.title),
+                  let importedArtist = importedSong.artist?.nilIfBlank,
+                  track.matchesArtistIdentity(importedArtist) else {
+                return pendingIdentityMigration(
+                    importedSong: importedSong,
+                    tracks: [track] + suggestions
+                )
+            }
+            return (.acceptedOriginalExact(track: track), suggestions)
+        case let .acceptedOriginalConfirmed(track):
+            let suggestions = uniqueTracks(suggestedAlternatives)
+                .filter { $0.id != track.id }
+            guard track.matchesTitleIdentity(importedSong.title) else {
+                return pendingIdentityMigration(
+                    importedSong: importedSong,
+                    tracks: [track] + suggestions
+                )
+            }
+            return (.acceptedOriginalConfirmed(track: track), suggestions)
         case let .identityConfirmationRequired(candidates):
             let candidates = uniqueTracks(candidates)
-            return candidates.isEmpty ? .unmatched : .identityConfirmationRequired(candidates: candidates)
+            return candidates.isEmpty
+                ? (.unmatched, [])
+                : (.identityConfirmationRequired(candidates: candidates), [])
         case let .alternativeSuggested(candidates):
             let candidates = uniqueTracks(candidates)
-            return candidates.isEmpty ? .unmatched : .alternativeSuggested(candidates: candidates)
-        case .acceptedOriginalExact,
-             .acceptedOriginalConfirmed,
-             .adoptedAlternative,
-             .unmatched:
-            return disposition
+            return candidates.isEmpty
+                ? (.unmatched, [])
+                : (.alternativeSuggested(candidates: candidates), [])
+        case let .adoptedAlternative(track):
+            let suggestions = uniqueTracks(suggestedAlternatives)
+                .filter { $0.id != track.id }
+            return (.adoptedAlternative(track: track), suggestions)
+        case .unmatched:
+            return (.unmatched, [])
         }
     }
 
@@ -755,26 +776,15 @@ public struct MatchResult: Codable, Identifiable, Sendable {
         confirmationState: MatchConfirmationState
     ) -> (disposition: SongMatchDisposition, suggestedAlternatives: [KTVTrack]) {
         let allTracks = uniqueTracks(([matchedTrack].compactMap(\.self) + alternatives))
-        let identityCandidates = allTracks.filter { $0.matchesTitleIdentity(importedSong.title) }
-        let normalizedConfirmationState: MatchConfirmationState
-        if confirmationState == .notRequired,
-           importedSong.artist?.nilIfBlank == nil,
-           matchedTrack != nil,
-           status == .exact || status == .fuzzy {
-            normalizedConfirmationState = .required
-        } else {
-            normalizedConfirmationState = confirmationState
+
+        if confirmationState == .required {
+            return pendingIdentityMigration(importedSong: importedSong, tracks: allTracks)
         }
 
-        if normalizedConfirmationState == .required {
-            return pendingIdentityMigration(candidates: identityCandidates)
-        }
-
-        if normalizedConfirmationState == .confirmed {
+        if confirmationState == .confirmed {
             guard let matchedTrack,
-                  status == .exact || status == .fuzzy,
-                  matchedTrack.matchesTitleIdentity(importedSong.title) else {
-                return pendingIdentityMigration(candidates: identityCandidates)
+                  status == .exact || status == .fuzzy else {
+                return pendingIdentityMigration(importedSong: importedSong, tracks: allTracks)
             }
             return (
                 .acceptedOriginalConfirmed(track: matchedTrack),
@@ -784,18 +794,15 @@ public struct MatchResult: Codable, Identifiable, Sendable {
 
         switch status {
         case .exact:
-            guard let matchedTrack,
-                  matchedTrack.matchesTitleIdentity(importedSong.title),
-                  let importedArtist = importedSong.artist?.nilIfBlank,
-                  matchedTrack.matchesArtistIdentity(importedArtist) else {
-                return pendingIdentityMigration(candidates: identityCandidates)
+            guard let matchedTrack else {
+                return pendingIdentityMigration(importedSong: importedSong, tracks: allTracks)
             }
             return (
                 .acceptedOriginalExact(track: matchedTrack),
                 uniqueTracks(alternatives).filter { $0.id != matchedTrack.id }
             )
         case .fuzzy:
-            return pendingIdentityMigration(candidates: identityCandidates)
+            return pendingIdentityMigration(importedSong: importedSong, tracks: allTracks)
         case .alternative:
             if let matchedTrack {
                 return (
@@ -809,16 +816,18 @@ public struct MatchResult: Codable, Identifiable, Sendable {
                 : (.alternativeSuggested(candidates: candidates), [])
         case .unmatched:
             if matchedTrack != nil {
-                return pendingIdentityMigration(candidates: identityCandidates)
+                return pendingIdentityMigration(importedSong: importedSong, tracks: allTracks)
             }
             return (.unmatched, [])
         }
     }
 
     private static func pendingIdentityMigration(
-        candidates: [KTVTrack]
+        importedSong: ImportedSong,
+        tracks: [KTVTrack]
     ) -> (disposition: SongMatchDisposition, suggestedAlternatives: [KTVTrack]) {
-        let candidates = uniqueTracks(candidates)
+        let candidates = uniqueTracks(tracks)
+            .filter { $0.matchesTitleIdentity(importedSong.title) }
         return candidates.isEmpty
             ? (.unmatched, [])
             : (.identityConfirmationRequired(candidates: candidates), [])
