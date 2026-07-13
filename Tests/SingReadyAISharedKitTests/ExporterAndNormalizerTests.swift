@@ -198,9 +198,19 @@ final class ExporterAndNormalizerTests: XCTestCase {
 
     func testSongNormalizerCleansVersionsAndAvoidsShortSubstringOvermatch() {
         XCTAssertEqual(SongNormalizer.normalizeTitle("晴天 (Live 版)"), "晴天")
+        XCTAssertEqual(SongNormalizer.normalizeTitle("晴天 现场版"), "晴天")
+        XCTAssertEqual(SongNormalizer.normalizeTitle("成都 民谣版"), "成都")
+        XCTAssertEqual(SongNormalizer.normalizeTitle("事故现场"), "事故现场")
         XCTAssertEqual(SongNormalizer.normalizeTitle("告白氣球"), "告白气球")
         XCTAssertGreaterThan(SongNormalizer.similarity("蓝莲花新版", "蓝莲花"), 0.7)
         XCTAssertLessThan(SongNormalizer.similarity("不存在的测试歌名", "存在"), 0.45)
+    }
+
+    func testLegacyCatalogDecodesMissingVersionTagsAsEmpty() throws {
+        let catalog = try KTVCatalogRepository().loadTracks()
+
+        XCTAssertFalse(catalog.isEmpty)
+        XCTAssertTrue(catalog.allSatisfy(\.versionTags.isEmpty))
     }
 
     func testShareTextExporterKeepsGroupCopyConcise() throws {

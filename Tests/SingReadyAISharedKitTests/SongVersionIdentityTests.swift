@@ -1,0 +1,90 @@
+import XCTest
+@testable import SingReadyAISharedKit
+
+final class SongVersionIdentityTests: XCTestCase {
+    func testUnmarkedTitlesAreCompatible() {
+        let imported = SongVersionIdentity.parse(title: "后来", versionTags: [])
+        let catalog = SongVersionIdentity.parse(title: "后来", versionTags: [])
+
+        XCTAssertEqual(imported.normalizedBaseTitle, "后来")
+        XCTAssertEqual(imported.kinds, [])
+        XCTAssertFalse(imported.hasExplicitMarker)
+        XCTAssertEqual(imported.compatibility(with: catalog), .compatible)
+    }
+
+    func testVersionSynonymsNormalizeToTheSameKinds() {
+        let cases: [(tag: String, title: String, expectedKind: SongVersionKind)] = [
+            ("Live", "后来 现场版", .live),
+            ("Cover", "后来（翻唱版）", .cover),
+            ("Remix", "后来 DJ版", .remix),
+            ("伴奏", "后来（伴奏版）", .accompaniment),
+            ("Edit", "后来 剪辑版", .edit)
+        ]
+
+        for testCase in cases {
+            let tagged = SongVersionIdentity.parse(title: "后来", versionTags: [testCase.tag])
+            let titled = SongVersionIdentity.parse(title: testCase.title, versionTags: [])
+
+            XCTAssertEqual(tagged.normalizedBaseTitle, "后来", testCase.tag)
+            XCTAssertEqual(titled.normalizedBaseTitle, "后来", testCase.title)
+            XCTAssertEqual(tagged.kinds, [testCase.expectedKind], testCase.tag)
+            XCTAssertEqual(titled.kinds, [testCase.expectedKind], testCase.title)
+            XCTAssertTrue(tagged.hasExplicitMarker, testCase.tag)
+            XCTAssertTrue(titled.hasExplicitMarker, testCase.title)
+            XCTAssertEqual(tagged.compatibility(with: titled), .compatible, testCase.title)
+        }
+    }
+
+    func testSingleSidedVersionMarkerRequiresConfirmation() {
+        let imported = SongVersionIdentity.parse(title: "后来 Live", versionTags: ["Live"])
+        let catalog = SongVersionIdentity.parse(title: "后来", versionTags: [])
+
+        XCTAssertEqual(imported.compatibility(with: catalog), .requiresConfirmation)
+    }
+
+    func testConflictingVersionMarkersRequireConfirmation() {
+        let live = SongVersionIdentity.parse(title: "后来 Live", versionTags: [])
+        let cover = SongVersionIdentity.parse(title: "后来 翻唱版", versionTags: [])
+
+        XCTAssertEqual(live.compatibility(with: cover), .requiresConfirmation)
+    }
+
+    func testUnknownVersionMarkerRequiresConfirmationEvenOnBothSides() {
+        let imported = SongVersionIdentity.parse(title: "后来 特别版", versionTags: [])
+        let catalog = SongVersionIdentity.parse(title: "后来", versionTags: ["特别版"])
+
+        XCTAssertEqual(imported.normalizedBaseTitle, "后来")
+        XCTAssertEqual(imported.kinds, [.unknown])
+        XCTAssertTrue(imported.hasExplicitMarker)
+        XCTAssertEqual(catalog.kinds, [.unknown])
+        XCTAssertEqual(imported.compatibility(with: catalog), .requiresConfirmation)
+    }
+
+    func testVersionedAliasIsSearchEvidenceOnly() {
+        let canonical = SongIdentityEvidence.canonicalTitle(
+            identity: .parse(title: "后来", versionTags: [])
+        )
+        let alias = SongIdentityEvidence.alias(
+            rawValue: "后来 现场版",
+            identity: .parse(title: "后来 现场版", versionTags: [])
+        )
+
+        XCTAssertTrue(canonical.allowsAutomaticAcceptance)
+        XCTAssertFalse(alias.allowsAutomaticAcceptance)
+    }
+
+    func testPlainTextParserUsesVersionIdentityExtractionRules() throws {
+        let song = try XCTUnwrap(
+            PlainTextPlaylistParser().parseLine("刘若英 - 后来 Edit 剪辑")
+        )
+        let identity = SongVersionIdentity.parse(
+            title: song.title,
+            versionTags: song.versionTags
+        )
+
+        XCTAssertEqual(song.title, "后来")
+        XCTAssertEqual(identity.normalizedBaseTitle, "后来")
+        XCTAssertEqual(identity.kinds, [.edit])
+        XCTAssertTrue(identity.hasExplicitMarker)
+    }
+}

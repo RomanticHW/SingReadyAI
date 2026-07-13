@@ -139,6 +139,7 @@ public struct KTVTrack: Codable, Identifiable, Hashable, Sendable {
     public let rapDensity: Double
     public let highNoteRisk: Double
     public let aliases: [String]
+    public let versionTags: [String]
     public let similarSongIds: [String]
     public let externalURL: URL?
     public let catalogSource: TrackCatalogSource
@@ -164,6 +165,7 @@ public struct KTVTrack: Codable, Identifiable, Hashable, Sendable {
         case rapDensity
         case highNoteRisk
         case aliases
+        case versionTags
         case similarSongIds
         case externalURL
         case catalogSource
@@ -190,6 +192,7 @@ public struct KTVTrack: Codable, Identifiable, Hashable, Sendable {
         rapDensity: Double,
         highNoteRisk: Double,
         aliases: [String],
+        versionTags: [String] = [],
         similarSongIds: [String],
         externalURL: URL? = nil,
         catalogSource: TrackCatalogSource = .ktvCatalog,
@@ -214,6 +217,7 @@ public struct KTVTrack: Codable, Identifiable, Hashable, Sendable {
         self.rapDensity = rapDensity
         self.highNoteRisk = highNoteRisk
         self.aliases = aliases
+        self.versionTags = versionTags
         self.similarSongIds = similarSongIds
         self.externalURL = externalURL
         self.catalogSource = catalogSource
@@ -241,6 +245,7 @@ public struct KTVTrack: Codable, Identifiable, Hashable, Sendable {
         rapDensity = try container.decode(Double.self, forKey: .rapDensity)
         highNoteRisk = try container.decode(Double.self, forKey: .highNoteRisk)
         aliases = try container.decode([String].self, forKey: .aliases)
+        versionTags = try container.decodeIfPresent([String].self, forKey: .versionTags) ?? []
         similarSongIds = try container.decode([String].self, forKey: .similarSongIds)
         externalURL = try container.decodeIfPresent(URL.self, forKey: .externalURL)
         catalogSource = try container.decodeIfPresent(TrackCatalogSource.self, forKey: .catalogSource) ?? .ktvCatalog

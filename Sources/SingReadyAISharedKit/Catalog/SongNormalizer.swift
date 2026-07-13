@@ -1,14 +1,6 @@
 import Foundation
 
 public struct SongNormalizer: Sendable {
-    private static let parenthesizedVersionRegex = try! NSRegularExpression(
-        pattern: #"\(.*?(live|伴奏|翻唱|cover|现场|版|remix|剪辑).*?\)"#,
-        options: [.caseInsensitive]
-    )
-    private static let fullWidthParenthesizedVersionRegex = try! NSRegularExpression(
-        pattern: #"（.*?(live|伴奏|翻唱|cover|现场|版|remix|剪辑).*?）"#,
-        options: [.caseInsensitive]
-    )
     private static let punctuationAndWhitespaceRegex = try! NSRegularExpression(
         pattern: #"[\p{P}\p{S}\s]+"#
     )
@@ -16,11 +8,11 @@ public struct SongNormalizer: Sendable {
     public init() {}
 
     public static func normalizeTitle(_ value: String) -> String {
-        normalize(value, removeVersionWords: true)
+        normalizeBaseTitle(SongVersionIdentity.strippingVersionMarkers(from: value))
     }
 
     public static func normalizeArtist(_ value: String) -> String {
-        normalize(value, removeVersionWords: false)
+        normalize(value)
     }
 
     public static func similarity(_ lhs: String, _ rhs: String) -> Double {
@@ -58,7 +50,11 @@ public struct SongNormalizer: Sendable {
         return max(0, 1 - Double(distance) / Double(maxCount))
     }
 
-    private static func normalize(_ value: String, removeVersionWords: Bool) -> String {
+    static func normalizeBaseTitle(_ value: String) -> String {
+        normalize(value)
+    }
+
+    private static func normalize(_ value: String) -> String {
         var result = value.precomposedStringWithCompatibilityMapping.lowercased()
         result = result.replacingOccurrences(of: "臺", with: "台")
         result = result.replacingOccurrences(of: "妳", with: "你")
@@ -66,10 +62,6 @@ public struct SongNormalizer: Sendable {
         result = result.replacingOccurrences(of: "給", with: "给")
         result = result.replacingOccurrences(of: "聽", with: "听")
         result = result.replacingOccurrences(of: "氣", with: "气")
-        if removeVersionWords {
-            result = regexReplace(parenthesizedVersionRegex, in: result, with: "")
-            result = regexReplace(fullWidthParenthesizedVersionRegex, in: result, with: "")
-        }
         result = regexReplace(punctuationAndWhitespaceRegex, in: result, with: "")
         return result
     }

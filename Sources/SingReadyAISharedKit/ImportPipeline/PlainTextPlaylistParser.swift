@@ -203,10 +203,8 @@ public struct PlainTextPlaylistParser: Sendable {
     }
 
     private func cleanPart(_ value: String) -> String {
-        var result = value.trimmingCharacters(in: .whitespacesAndNewlines)
-        result = replace(pattern: #"\((live|Live|LIVE|伴奏|翻唱|cover|Cover|现场|版|remix|Remix|剪辑).*?\)"#, in: result, with: "")
-        result = replace(pattern: #"（(Live|live|LIVE|伴奏|翻唱|cover|Cover|现场|版|remix|Remix|剪辑).*?）"#, in: result, with: "")
-        result = replace(pattern: #"\s+(Live|live|LIVE|伴奏|翻唱|cover|Cover|现场|民谣版|remix|Remix|剪辑).*$"#, in: result, with: "")
+        var result = SongVersionIdentity.strippingVersionMarkers(from: value)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
         result = replace(pattern: #"\s+"#, in: result, with: " ")
         return result.trimmingCharacters(in: CharacterSet.whitespacesAndNewlines.union(.punctuationCharacters))
     }
@@ -227,20 +225,7 @@ public struct PlainTextPlaylistParser: Sendable {
     }
 
     private func versionTags(in value: String) -> [String] {
-        let lower = value.lowercased()
-        let candidates = [
-            ("live", "Live"),
-            ("现场", "现场"),
-            ("伴奏", "伴奏"),
-            ("翻唱", "翻唱"),
-            ("cover", "Cover"),
-            ("dj", "DJ"),
-            ("remix", "Remix"),
-            ("剪辑", "剪辑")
-        ]
-        return candidates.compactMap { needle, tag in
-            lower.contains(needle) ? tag : nil
-        }
+        SongVersionIdentity.extractedVersionTags(from: value)
     }
 
     private func firstMatch(pattern: String, in value: String) -> [String]? {
