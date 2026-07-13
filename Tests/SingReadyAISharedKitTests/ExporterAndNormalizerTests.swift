@@ -213,6 +213,19 @@ final class ExporterAndNormalizerTests: XCTestCase {
         XCTAssertTrue(catalog.allSatisfy(\.versionTags.isEmpty))
     }
 
+    func testKTVTrackRoundTripsNonEmptyVersionTags() throws {
+        let source = try XCTUnwrap(KTVCatalogRepository().loadTracks().first)
+        let versioned = track(source, versionTags: ["Live", "Acoustic"])
+
+        let restored = try JSONDecoder().decode(
+            KTVTrack.self,
+            from: JSONEncoder().encode(versioned)
+        )
+
+        XCTAssertEqual(restored, versioned)
+        XCTAssertEqual(restored.versionTags, ["Live", "Acoustic"])
+    }
+
     func testShareTextExporterKeepsGroupCopyConcise() throws {
         let plan = try makePlan()
 
@@ -376,6 +389,35 @@ final class ExporterAndNormalizerTests: XCTestCase {
             externalURL: track.externalURL,
             catalogSource: track.catalogSource,
             confidenceNote: confidenceNote
+        )
+    }
+
+    private func track(_ track: KTVTrack, versionTags: [String]) -> KTVTrack {
+        KTVTrack(
+            id: track.id,
+            title: track.title,
+            artist: track.artist,
+            language: track.language,
+            era: track.era,
+            genre: track.genre,
+            moodTags: track.moodTags,
+            sceneTags: track.sceneTags,
+            difficulty: track.difficulty,
+            vocalRangeLowMidi: track.vocalRangeLowMidi,
+            vocalRangeHighMidi: track.vocalRangeHighMidi,
+            energy: track.energy,
+            singAlongScore: track.singAlongScore,
+            ktvAvailability: track.ktvAvailability,
+            duetFriendly: track.duetFriendly,
+            rapDensity: track.rapDensity,
+            highNoteRisk: track.highNoteRisk,
+            aliases: track.aliases,
+            versionTags: versionTags,
+            similarSongIds: track.similarSongIds,
+            externalURL: track.externalURL,
+            catalogSource: track.catalogSource,
+            confidenceNote: track.confidenceNote,
+            externalCandidateMetadata: track.externalCandidateMetadata
         )
     }
 

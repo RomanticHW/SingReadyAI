@@ -65,6 +65,22 @@ final class SongVersionIdentityTests: XCTestCase {
         }
     }
 
+    func testParenthesizedOrdinaryWordsAreNotVersionMarkers() {
+        let titles = ["Theme (Oliver)", "Song (Delivery)", "Work (Conversion)"]
+
+        for title in titles {
+            let identity = SongVersionIdentity.parse(title: title, versionTags: [])
+
+            XCTAssertEqual(
+                identity.normalizedBaseTitle,
+                SongNormalizer.normalizeBaseTitle(title),
+                title
+            )
+            XCTAssertTrue(identity.kinds.isEmpty, title)
+            XCTAssertFalse(identity.hasExplicitMarker, title)
+        }
+    }
+
     func testSingleSidedVersionMarkerRequiresConfirmation() {
         let imported = SongVersionIdentity.parse(title: "后来 Live", versionTags: ["Live"])
         let catalog = SongVersionIdentity.parse(title: "后来", versionTags: [])
@@ -109,6 +125,38 @@ final class SongVersionIdentityTests: XCTestCase {
             versionTags: song.versionTags
         )
         XCTAssertEqual(imported.kinds, [.live, .unknown])
+    }
+
+    func testPossessiveTrailingVersionKeepsEveryBaseTitleWord() {
+        let identity = SongVersionIdentity.parse(
+            title: "All Too Well Taylor's Version",
+            versionTags: []
+        )
+
+        XCTAssertEqual(identity.normalizedBaseTitle, "alltoowell")
+        XCTAssertEqual(identity.kinds, [.unknown])
+        XCTAssertTrue(identity.hasExplicitMarker)
+    }
+
+    func testUnparenthesizedMultiwordUnknownVersionStaysInTitle() {
+        let unparenthesized = SongVersionIdentity.parse(
+            title: "All Too Well Ten Minute Version",
+            versionTags: []
+        )
+        let parenthesized = SongVersionIdentity.parse(
+            title: "All Too Well (Ten Minute Version)",
+            versionTags: []
+        )
+
+        XCTAssertEqual(
+            unparenthesized.normalizedBaseTitle,
+            "alltoowelltenminuteversion"
+        )
+        XCTAssertTrue(unparenthesized.kinds.isEmpty)
+        XCTAssertFalse(unparenthesized.hasExplicitMarker)
+        XCTAssertEqual(parenthesized.normalizedBaseTitle, "alltoowell")
+        XCTAssertEqual(parenthesized.kinds, [.unknown])
+        XCTAssertTrue(parenthesized.hasExplicitMarker)
     }
 
     func testVersionedAliasIsSearchEvidenceOnly() {

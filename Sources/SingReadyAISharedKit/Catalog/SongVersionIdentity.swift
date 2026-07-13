@@ -123,7 +123,7 @@ private enum SongVersionMarkerParser {
     ]
 
     private static let parenthesizedMarkerRegex = regex(
-        #"\s*[\(（\[【][^\)）\]】]{0,48}(?i:live|cover|remix|dj|edit|现场|翻唱|伴奏|剪辑|版|version|edition)[^\)）\]】]{0,48}[\)）\]】]"#
+        #"\s*[\(（\[【][^\)）\]】]{0,48}(?:(?i:(?<![a-z0-9])(?:live|cover|remix|dj|edit|version|edition)(?![a-z0-9]))|现场|翻唱|伴奏|剪辑|版)[^\)）\]】]{0,48}[\)）\]】]"#
     )
     private static let knownTrailingMarkerRegex = regex(
         #"(?i)\s+(?:(?:live|cover|remix|dj|edit)(?:\s*(?:version|edition|版))?|(?:现场|翻唱|伴奏|剪辑)(?:版)?)(?:\s+(?:(?:live|cover|remix|dj|edit)(?:\s*(?:version|edition|版))?|(?:现场|翻唱|伴奏|剪辑)(?:版)?))*\s*$"#
@@ -138,7 +138,7 @@ private enum SongVersionMarkerParser {
         #"\s+[^\s\(\)（）\[\]【】]{1,16}版\s*$"#
     )
     private static let unknownEnglishVersionRegex = regex(
-        #"(?i)\s+[a-z][a-z0-9'-]*(?:\s+[a-z0-9][a-z0-9'-]*){0,3}\s+(?:version|edition)\s*$"#
+        #"(?i)\s+[a-z][a-z0-9'’\-]*['’]s\s+(?:version|edition)\s*$"#
     )
     private static let framingMarkerRegex = regex(
         #"(?i)(?<![a-z0-9])(?:version|edition)(?![a-z0-9])|版"#
