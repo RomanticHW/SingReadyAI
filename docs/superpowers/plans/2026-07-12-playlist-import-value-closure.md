@@ -216,7 +216,7 @@ Expected: PASS 且 App 构建成功；旧快照 fixture 可解码，未确认歌
 - Modify: `Tests/SingReadyAISharedKitTests/SongMatcherTests.swift`
 - Create: `Tests/SingReadyAISharedKitTests/PlaylistScaleContractTests.swift`
 
-- [ ] **Step 1: 写自动接受安全门红灯测试**
+- [x] **Step 1: 写自动接受安全门红灯测试**
 
 用表驱动测试锁定以下顺序：
 
@@ -228,12 +228,12 @@ Expected: PASS 且 App 构建成功；旧快照 fixture 可解码，未确认歌
 
 边界值必须包含 `0.5999 / 0.60 / 0.7799 / 0.78`，避免以后比较符漂移。
 
-- [ ] **Step 2: 运行匹配测试，确认旧 `0.95`/`0.78` 自由接受逻辑失败**
+- [x] **Step 2: 运行匹配测试，确认旧 `0.95`/`0.78` 自由接受逻辑失败**
 
 Run: `swift test --filter SongMatcherTests`
 Expected: FAIL；现有 fuzzy 自动接受、title-only 分支和版本词剥离逻辑与新断言冲突。
 
-- [ ] **Step 3: 实现候选证据与唯一性判定**
+- [x] **Step 3: 实现候选证据与唯一性判定**
 
 `CatalogMatchSession` 先召回候选，再为每个候选构造 `SongIdentityEvidence` 和版本兼容性；自动接受判定集中为一个纯函数：
 
@@ -248,11 +248,11 @@ Expected: FAIL；现有 fuzzy 自动接受、title-only 分支和版本词剥离
 
 不得在 title-only 快路径、alias 快路径或分数路径重复实现“看起来差不多就接受”。`smartAlternatives` 仅返回供用户核对的候选，不再暗示这些候选已可进入推荐。
 
-- [ ] **Step 4: 给分析执行器增加单调进度**
+- [x] **Step 4: 给分析执行器增加单调进度**
 
 为 `PlaylistAnalysisExecutor.analyze` 增加可选 `progress: @Sendable (Int, Int) async -> Void`；每处理固定批次（建议 20 首）报告一次，保证首个事件为 `0/total`、最后一个为 `total/total`、中间单调递增。回调只用于展示，不发布部分 matches/profile。
 
-- [ ] **Step 5: 写 500/1000 混合 fixture、取消和主线程心跳红灯**
+- [x] **Step 5: 写 500/1000 混合 fixture、取消和主线程心跳红灯**
 
 `PlaylistScaleContractTests` 用确定性构造器生成 25% 精确、25% 缺歌手、25% 相近/替代、25% 未找到的歌单；测试范围从已构造的 `ImportedPlaylist` 开始，只包含曲库索引、匹配、画像与摘要：
 
@@ -264,12 +264,12 @@ Expected: FAIL；现有 fuzzy 自动接受、title-only 分支和版本词剥离
 
 性能断言使用 `ContinuousClock`；不要把网络、OCR、SwiftUI 或磁盘计入该测试。
 
-- [ ] **Step 6: 运行规模合同并优化到绿灯**
+- [x] **Step 6: 运行规模合同并优化到绿灯**
 
 Run: `swift test --filter PlaylistScaleContractTests && swift test --filter SongMatcherTests`
 Expected: PASS；若超时，先复用规范化索引和预计算身份，不降低阈值、不跳过候选。
 
-- [ ] **Step 7: 提交匹配安全门与规模合同**
+- [x] **Step 7: 提交匹配安全门与规模合同**
 
     git add Sources/SingReadyAISharedKit/Catalog Tests/SingReadyAISharedKitTests/SongMatcherTests.swift Tests/SingReadyAISharedKitTests/PlaylistScaleContractTests.swift
     git commit -m "feat: 完善批量匹配安全门与进度"
