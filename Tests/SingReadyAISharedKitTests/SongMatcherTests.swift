@@ -483,6 +483,220 @@ final class SongMatcherTests: XCTestCase {
         }
     }
 
+    func testAutomaticAcceptanceRequiresUniqueCompatibleCanonicalIdentity() {
+        let canonicalLive = makeTrack(
+            id: "canonical-live",
+            title: "晴天",
+            artist: "周杰伦",
+            versionTags: ["现场"]
+        )
+        let sameTitleOtherArtist = makeTrack(
+            id: "same-title-other-artist",
+            title: "晴天",
+            artist: "另一歌手",
+            versionTags: ["Live"]
+        )
+        let unversionedCanonical = makeTrack(
+            id: "unversioned-canonical",
+            title: "晴天",
+            artist: "周杰伦"
+        )
+        let versionedAlias = makeTrack(
+            id: "versioned-alias",
+            title: "日光",
+            artist: "周杰伦",
+            aliases: ["晴天 Live"],
+            versionTags: ["Live"]
+        )
+        let artistConflict = makeTrack(
+            id: "artist-conflict",
+            title: "晴天",
+            artist: "另一歌手",
+            versionTags: ["Live"]
+        )
+        let completeSong = ImportedSong(
+            title: "晴 天 Live",
+            artist: "Jay Chou",
+            source: .plainText,
+            confidence: 1,
+            versionTags: ["Live"]
+        )
+        let cases: [(
+            name: String,
+            song: ImportedSong,
+            catalog: [KTVTrack],
+            expectedKind: String,
+            expectedCandidateIDs: [String],
+            expectedAcceptedTrackID: String?
+        )] = [
+            (
+                "normalized canonical title, artist alias and compatible version are unique",
+                completeSong,
+                [canonicalLive],
+                "acceptedOriginalExact",
+                [],
+                canonicalLive.id
+            ),
+            (
+                "missing artist never auto accepts",
+                ImportedSong(
+                    title: "晴天 Live",
+                    source: .plainText,
+                    confidence: 1,
+                    versionTags: ["Live"]
+                ),
+                [canonicalLive],
+                "identityConfirmationRequired",
+                [canonicalLive.id],
+                nil
+            ),
+            (
+                "versioned alias is recall evidence only",
+                ImportedSong(
+                    title: "晴天 Live",
+                    artist: "周杰伦",
+                    source: .plainText,
+                    confidence: 1,
+                    versionTags: ["Live"]
+                ),
+                [versionedAlias],
+                "identityConfirmationRequired",
+                [versionedAlias.id],
+                nil
+            ),
+            (
+                "same title has more than one candidate",
+                completeSong,
+                [canonicalLive, sameTitleOtherArtist],
+                "identityConfirmationRequired",
+                [canonicalLive.id, sameTitleOtherArtist.id],
+                nil
+            ),
+            (
+                "single-sided version marker requires confirmation",
+                completeSong,
+                [unversionedCanonical],
+                "identityConfirmationRequired",
+                [unversionedCanonical.id],
+                nil
+            ),
+            (
+                "same title with conflicting artist remains identity confirmation",
+                completeSong,
+                [artistConflict],
+                "identityConfirmationRequired",
+                [artistConflict.id],
+                nil
+            )
+        ]
+
+        for testCase in cases {
+            let result = SongMatcher().match(song: testCase.song, catalog: testCase.catalog)
+
+            XCTAssertEqual(
+                dispositionKind(result.disposition),
+                testCase.expectedKind,
+                testCase.name
+            )
+            XCTAssertEqual(
+                result.candidateTracks.map(\.id),
+                testCase.expectedCandidateIDs,
+                testCase.name
+            )
+            XCTAssertEqual(
+                result.acceptedTrack?.id,
+                testCase.expectedAcceptedTrackID,
+                testCase.name
+            )
+        }
+    }
+
+    func testMatchDispositionDecisionKeepsThresholdBoundariesStable() {
+        let cases: [(
+            name: String,
+            allowsAutomaticAcceptance: Bool,
+            hasIdentityConflict: Bool,
+            score: Double,
+            expected: MatchDispositionDecision
+        )] = [
+            (
+                "complete unique identity wins before score thresholds",
+                true,
+                false,
+                0.5999,
+                .acceptedOriginalExact
+            ),
+            (
+                "same identity conflict requires confirmation before score thresholds",
+                false,
+                true,
+                0.5999,
+                .identityConfirmationRequired
+            ),
+            (
+                "just below alternative threshold is unmatched",
+                false,
+                false,
+                0.5999,
+                .unmatched
+            ),
+            (
+                "alternative lower boundary is inclusive",
+                false,
+                false,
+                0.60,
+                .alternativeSuggested
+            ),
+            (
+                "just below confirmation threshold remains alternative",
+                false,
+                false,
+                0.7799,
+                .alternativeSuggested
+            ),
+            (
+                "confirmation lower boundary is inclusive",
+                false,
+                false,
+                0.78,
+                .identityConfirmationRequired
+            )
+        ]
+
+        for testCase in cases {
+            XCTAssertEqual(
+                MatchDispositionDecision.resolve(
+                    allowsAutomaticAcceptance: testCase.allowsAutomaticAcceptance,
+                    hasIdentityConflict: testCase.hasIdentityConflict,
+                    score: testCase.score
+                ),
+                testCase.expected,
+                testCase.name
+            )
+        }
+    }
+
+    func testSimilaritySemanticsStayStableForNormalizedUnicodeText() {
+        let cases: [(name: String, lhs: String, rhs: String, expected: Double)] = [
+            ("mixed Chinese and ASCII suffix", "甲乙丙丁0000", "戊己庚辛0000", 0.5),
+            ("precomposed accent", "Café Live", "Cafe", 0.75),
+            ("decomposed accent is precomposed before matching", "Cafe\u{301}", "Café", 1),
+            ("full width Latin compatibility", "ＡＢＣ", "abc", 1),
+            ("supported traditional character normalization", "告白氣球", "告白气球", 1),
+            ("punctuation and whitespace normalization", "K 歌之王", "K歌之王", 1),
+            ("substring floor remains stable", "蓝莲花新版", "蓝莲花", 0.82)
+        ]
+
+        for testCase in cases {
+            XCTAssertEqual(
+                SongNormalizer.similarity(testCase.lhs, testCase.rhs),
+                testCase.expected,
+                accuracy: 0.000_001,
+                testCase.name
+            )
+        }
+    }
+
     @MainActor
     func testPlaylistAnalysisExecutorKeepsMainActorResponsive() async throws {
         let operationStarted = expectation(description: "playlist analysis started")
@@ -771,35 +985,35 @@ final class SongMatcherTests: XCTestCase {
         XCTAssertEqual(decoded.alternatives.map(\.id), [matchedTrack.id, aliasCandidate.id])
     }
 
-    func testExactAliasAndArtistAliasMatchesAgainstCatalog() throws {
+    func testCatalogIdentityRecallStillAppliesAutomaticAcceptanceSafetyGate() throws {
         let catalog = try KTVCatalogRepository().loadTracks()
         let matcher = SongMatcher()
-        let cases: [(title: String, artist: String?, expected: String)] = [
-            ("晴天", "周杰伦", "晴天"),
-            ("晴天 Live", "Jay Chou", "晴天"),
-            ("K 歌之王", "陈奕迅", "K歌之王"),
-            ("十年", "Eason", "十年"),
-            ("告白气球 伴奏", "周杰伦", "告白气球"),
-            ("恋爱 ING", "五月天", "恋爱ing"),
-            ("海阔天空", "Beyond", "海阔天空"),
-            ("月半小夜曲", "李克勤", "月半小夜曲"),
-            ("爱的就是你", "王力宏", "爱的就是你"),
-            ("大鱼", "周深", "大鱼"),
-            ("说谎", "林宥嘉", "说谎"),
-            ("王妃", "萧敬腾", "王妃"),
-            ("飞得更高", "汪峰", "飞得更高"),
-            ("蓝莲花", "许巍", "蓝莲花"),
-            ("追", "张国荣", "追"),
-            ("朋友", "周华健", "朋友"),
-            ("夜空中最亮的星", "逃跑计划", "夜空中最亮的星"),
-            ("云烟成雨", "房东的猫", "云烟成雨"),
-            ("画心", "张靓颖", "画心"),
-            ("给我一个理由忘记", "A-Lin", "给我一个理由忘记"),
-            ("好久不见", "陈奕迅", "好久不见"),
-            ("童话", "光良", "童话"),
-            ("小情歌", "苏打绿", "小情歌"),
-            ("双截棍", "周杰伦", "双截棍"),
-            ("快乐崇拜", "潘玮柏", "快乐崇拜")
+        let cases: [(title: String, artist: String?, expectedTitle: String, expectedKind: String)] = [
+            ("晴天", "周杰伦", "晴天", "acceptedOriginalExact"),
+            ("晴天 Live", "Jay Chou", "晴天", "identityConfirmationRequired"),
+            ("K 歌之王", "陈奕迅", "K歌之王", "acceptedOriginalExact"),
+            ("十年", "Eason", "十年", "acceptedOriginalExact"),
+            ("告白气球 伴奏", "周杰伦", "告白气球", "identityConfirmationRequired"),
+            ("恋爱 ING", "五月天", "恋爱ing", "acceptedOriginalExact"),
+            ("海阔天空", "Beyond", "海阔天空", "acceptedOriginalExact"),
+            ("月半小夜曲", "李克勤", "月半小夜曲", "acceptedOriginalExact"),
+            ("爱的就是你", "王力宏", "爱的就是你", "acceptedOriginalExact"),
+            ("大鱼", "周深", "大鱼", "acceptedOriginalExact"),
+            ("说谎", "林宥嘉", "说谎", "acceptedOriginalExact"),
+            ("王妃", "萧敬腾", "王妃", "acceptedOriginalExact"),
+            ("飞得更高", "汪峰", "飞得更高", "acceptedOriginalExact"),
+            ("蓝莲花", "许巍", "蓝莲花", "acceptedOriginalExact"),
+            ("追", "张国荣", "追", "acceptedOriginalExact"),
+            ("朋友", "周华健", "朋友", "identityConfirmationRequired"),
+            ("夜空中最亮的星", "逃跑计划", "夜空中最亮的星", "acceptedOriginalExact"),
+            ("云烟成雨", "房东的猫", "云烟成雨", "acceptedOriginalExact"),
+            ("画心", "张靓颖", "画心", "acceptedOriginalExact"),
+            ("给我一个理由忘记", "A-Lin", "给我一个理由忘记", "acceptedOriginalExact"),
+            ("好久不见", "陈奕迅", "好久不见", "acceptedOriginalExact"),
+            ("童话", "光良", "童话", "acceptedOriginalExact"),
+            ("小情歌", "苏打绿", "小情歌", "acceptedOriginalExact"),
+            ("双截棍", "周杰伦", "双截棍", "acceptedOriginalExact"),
+            ("快乐崇拜", "潘玮柏", "快乐崇拜", "acceptedOriginalExact")
         ]
 
         for testCase in cases {
@@ -807,8 +1021,12 @@ final class SongMatcherTests: XCTestCase {
                 song: ImportedSong(title: testCase.title, artist: testCase.artist, source: .plainText, confidence: 0.9),
                 catalog: catalog
             )
-            XCTAssertTrue([MatchStatus.exact, .fuzzy].contains(result.status), testCase.title)
-            XCTAssertEqual(result.matchedTrack?.title, testCase.expected, testCase.title)
+            XCTAssertEqual(dispositionKind(result.disposition), testCase.expectedKind, testCase.title)
+            XCTAssertEqual(
+                (result.acceptedTrack ?? result.candidateTracks.first)?.title,
+                testCase.expectedTitle,
+                testCase.title
+            )
             XCTAssertFalse(result.reason.isEmpty)
         }
     }
@@ -953,7 +1171,13 @@ final class SongMatcherTests: XCTestCase {
         )
     }
 
-    private func makeTrack(id: String, title: String, artist: String) -> KTVTrack {
+    private func makeTrack(
+        id: String,
+        title: String,
+        artist: String,
+        aliases: [String] = [],
+        versionTags: [String] = []
+    ) -> KTVTrack {
         KTVTrack(
             id: id,
             title: title,
@@ -972,7 +1196,8 @@ final class SongMatcherTests: XCTestCase {
             duetFriendly: false,
             rapDensity: 0,
             highNoteRisk: 0.3,
-            aliases: [],
+            aliases: aliases,
+            versionTags: versionTags,
             similarSongIds: []
         )
     }

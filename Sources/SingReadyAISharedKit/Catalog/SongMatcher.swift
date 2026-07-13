@@ -15,14 +15,15 @@ public struct SongMatcher: Sendable {
 
     public func matchCancellable(
         playlist: ImportedPlaylist,
-        catalog: [KTVTrack]
-    ) throws -> [MatchResult] {
+        catalog: [KTVTrack],
+        batchProgress: (@Sendable (Int, Int) async -> Void)? = nil
+    ) async throws -> [MatchResult] {
         try Task.checkCancellation()
         var session = CatalogMatchSession(catalog: catalog)
         try Task.checkCancellation()
         var results: [MatchResult] = []
         results.reserveCapacity(playlist.songs.count)
-        for song in playlist.songs {
+        for (offset, song) in playlist.songs.enumerated() {
             try Task.checkCancellation()
             results.append(
                 try session.match(
@@ -30,6 +31,13 @@ public struct SongMatcher: Sendable {
                     cancellationCheck: { try Task.checkCancellation() }
                 )
             )
+            let completedCount = offset + 1
+            if completedCount.isMultiple(of: PlaylistAnalysisExecutor.progressBatchSize),
+               completedCount < playlist.songs.count,
+               let batchProgress {
+                await batchProgress(completedCount, playlist.songs.count)
+                try Task.checkCancellation()
+            }
         }
         try Task.checkCancellation()
         return results
@@ -52,6 +60,8 @@ public struct PlaylistAnalysisOutput: Sendable {
 }
 
 public actor PlaylistAnalysisExecutor {
+    static let progressBatchSize = 20
+
     private let matcher: SongMatcher
     private let profiler: PreferenceProfiler
     private let beforeAnalysis: @Sendable () -> Void
@@ -73,14 +83,20 @@ public actor PlaylistAnalysisExecutor {
 
     public func analyze(
         playlist: ImportedPlaylist,
-        catalog: [KTVTrack]
-    ) throws -> PlaylistAnalysisOutput {
+        catalog: [KTVTrack],
+        progress: (@Sendable (Int, Int) async -> Void)? = nil
+    ) async throws -> PlaylistAnalysisOutput {
         try Task.checkCancellation()
+        if let progress {
+            await progress(0, playlist.songs.count)
+            try Task.checkCancellation()
+        }
         beforeAnalysis()
         try Task.checkCancellation()
-        let matches = try matcher.matchCancellable(
+        let matches = try await matcher.matchCancellable(
             playlist: playlist,
-            catalog: catalog
+            catalog: catalog,
+            batchProgress: progress
         )
         try Task.checkCancellation()
         let preferenceProfile = profiler.buildProfile(
@@ -88,10 +104,69 @@ public actor PlaylistAnalysisExecutor {
             matches: matches
         )
         try Task.checkCancellation()
+        if let progress, !playlist.songs.isEmpty {
+            await progress(playlist.songs.count, playlist.songs.count)
+            try Task.checkCancellation()
+        }
         return PlaylistAnalysisOutput(
             matches: matches,
             preferenceProfile: preferenceProfile
         )
+    }
+}
+
+enum MatchDispositionDecision: Equatable, Sendable {
+    case acceptedOriginalExact
+    case identityConfirmationRequired
+    case alternativeSuggested
+    case unmatched
+
+    static func resolve(
+        allowsAutomaticAcceptance: Bool,
+        hasIdentityConflict: Bool,
+        score: Double
+    ) -> Self {
+        if allowsAutomaticAcceptance {
+            return .acceptedOriginalExact
+        }
+        if hasIdentityConflict || score >= 0.78 {
+            return .identityConfirmationRequired
+        }
+        if score >= 0.60 {
+            return .alternativeSuggested
+        }
+        return .unmatched
+    }
+}
+
+struct AutomaticAcceptanceDecision {
+    static func allows(
+        importedSong: ImportedSong,
+        candidate: KTVTrack,
+        evidence: SongIdentityEvidence,
+        compatibleCandidateCount: Int
+    ) -> Bool {
+        guard compatibleCandidateCount == 1,
+              evidence.allowsAutomaticAcceptance,
+              let importedArtist = importedSong.artist?.nilIfBlank,
+              candidate.matchesArtistIdentity(importedArtist) else {
+            return false
+        }
+
+        let importedIdentity = SongVersionIdentity.parse(
+            title: importedSong.title,
+            versionTags: importedSong.versionTags
+        )
+        let candidateIdentity: SongVersionIdentity
+        switch evidence {
+        case let .canonicalTitle(identity):
+            candidateIdentity = identity
+        case let .alias(_, identity):
+            candidateIdentity = identity
+        }
+
+        return importedIdentity.normalizedBaseTitle == candidateIdentity.normalizedBaseTitle
+            && importedIdentity.compatibility(with: candidateIdentity) == .compatible
     }
 }
 
@@ -108,36 +183,59 @@ private struct CatalogMatchSession {
         cancellationCheck: () throws -> Void
     ) rethrows -> MatchResult {
         let query = SongMatchQuery(song: song)
+        var similarityWorkspace = SongSimilarityWorkspace()
 
-        if query.normalizedArtist == nil,
-           let candidateIndices = index.titleCandidateIndices[query.normalizedTitle.value],
-           !candidateIndices.isEmpty {
-            let titleCandidates = candidateIndices.map { index.entries[$0].track }
-            return MatchResult(
+        let identityCandidates = try rankedIdentityCandidates(
+            query: query,
+            similarityWorkspace: &similarityWorkspace,
+            cancellationCheck: cancellationCheck
+        )
+        if let bestIdentityCandidate = identityCandidates.first {
+            let bestEntry = index.entries[bestIdentityCandidate.entryIndex]
+            let evidence = bestEntry.identityEvidence(
+                matching: query.normalizedTitle.value
+            )!
+            let allowsAutomaticAcceptance = AutomaticAcceptanceDecision.allows(
                 importedSong: song,
-                matchedTrack: nil,
-                alternatives: titleCandidates,
-                status: .fuzzy,
-                confirmationState: .required,
-                score: 1,
-                reason: titleCandidates.count == 1
-                    ? "歌名相同但缺少歌手，请确认这个候选"
-                    : "找到多首同名歌曲，请确认歌手"
+                candidate: bestEntry.track,
+                evidence: evidence,
+                compatibleCandidateCount: identityCandidates.count
             )
-        }
+            let decision = MatchDispositionDecision.resolve(
+                allowsAutomaticAcceptance: allowsAutomaticAcceptance,
+                hasIdentityConflict: true,
+                score: bestIdentityCandidate.score
+            )
 
-        if let exactEntry = quickExactMatch(query: query) {
-            return MatchResult(
-                importedSong: song,
-                matchedTrack: exactEntry.track,
-                alternatives: try smartAlternatives(
-                    for: exactEntry,
-                    cancellationCheck: cancellationCheck
-                ),
-                status: .exact,
-                score: 1,
-                reason: reason(query: query, entry: exactEntry)
-            )
+            switch decision {
+            case .acceptedOriginalExact:
+                return MatchResult(
+                    importedSong: song,
+                    disposition: .acceptedOriginalExact(track: bestEntry.track),
+                    suggestedAlternatives: try smartAlternatives(
+                        for: bestEntry,
+                        cancellationCheck: cancellationCheck
+                    ),
+                    score: bestIdentityCandidate.score,
+                    reason: reason(query: query, entry: bestEntry)
+                )
+            case .identityConfirmationRequired:
+                let candidates = identityCandidates.map {
+                    index.entries[$0.entryIndex].track
+                }
+                return MatchResult(
+                    importedSong: song,
+                    disposition: .identityConfirmationRequired(candidates: candidates),
+                    score: bestIdentityCandidate.score,
+                    reason: identityConfirmationReason(
+                        query: query,
+                        candidates: candidates,
+                        evidence: evidence
+                    )
+                )
+            case .alternativeSuggested, .unmatched:
+                preconditionFailure("同歌名身份候选必须接受或进入身份确认")
+            }
         }
 
         var topCandidates: [RankedCandidate] = []
@@ -149,7 +247,11 @@ private struct CatalogMatchSession {
             insertTopCandidate(
                 RankedCandidate(
                     entryIndex: entry.catalogOrder,
-                    score: score(query: query, entry: entry)
+                    score: score(
+                        query: query,
+                        entry: entry,
+                        similarityWorkspace: &similarityWorkspace
+                    )
                 ),
                 into: &topCandidates,
                 limit: 4
@@ -159,70 +261,81 @@ private struct CatalogMatchSession {
         guard let bestCandidate = topCandidates.first else {
             return MatchResult(
                 importedSong: song,
-                matchedTrack: nil,
-                alternatives: [],
-                status: .unmatched,
+                disposition: .unmatched,
                 score: 0,
                 reason: "本地参考曲库为空"
             )
         }
 
         let bestEntry = index.entries[bestCandidate.entryIndex]
-        let status: MatchStatus
-        let matchedTrack: KTVTrack?
-        if bestCandidate.score >= 0.95 {
-            status = .exact
-            matchedTrack = bestEntry.track
-        } else if bestCandidate.score >= 0.78 {
-            status = .fuzzy
-            matchedTrack = bestEntry.track
-        } else if bestCandidate.score >= 0.60 {
-            status = .alternative
-            matchedTrack = nil
-        } else {
-            status = .unmatched
-            matchedTrack = nil
+        let candidates = topCandidates.prefix(3).map {
+            index.entries[$0.entryIndex].track
         }
-
-        var alternatives: [KTVTrack] = []
-        alternatives.reserveCapacity(3)
-        for candidate in topCandidates {
-            let track = index.entries[candidate.entryIndex].track
-            guard track.id != matchedTrack?.id else { continue }
-            alternatives.append(track)
-            if alternatives.count == 3 { break }
+        let decision = MatchDispositionDecision.resolve(
+            allowsAutomaticAcceptance: false,
+            hasIdentityConflict: false,
+            score: bestCandidate.score
+        )
+        let disposition: SongMatchDisposition
+        let matchReason: String
+        switch decision {
+        case .acceptedOriginalExact:
+            preconditionFailure("模糊召回不得自动接受")
+        case .identityConfirmationRequired:
+            disposition = .identityConfirmationRequired(candidates: candidates)
+            matchReason = reason(query: query, entry: bestEntry)
+        case .alternativeSuggested:
+            disposition = .alternativeSuggested(candidates: candidates)
+            matchReason = reason(query: query, entry: bestEntry)
+        case .unmatched:
+            disposition = .unmatched
+            matchReason = "本地参考曲库中未找到足够接近的歌曲"
         }
 
         return MatchResult(
             importedSong: song,
-            matchedTrack: matchedTrack,
-            alternatives: alternatives,
-            status: status,
+            disposition: disposition,
             score: bestCandidate.score,
-            reason: status == .unmatched
-                ? "本地参考曲库中未找到足够接近的歌曲"
-                : reason(query: query, entry: bestEntry)
+            reason: matchReason
         )
     }
 
-    private func quickExactMatch(query: SongMatchQuery) -> CatalogMatchEntry? {
+    private func rankedIdentityCandidates(
+        query: SongMatchQuery,
+        similarityWorkspace: inout SongSimilarityWorkspace,
+        cancellationCheck: () throws -> Void
+    ) rethrows -> [RankedCandidate] {
         guard let candidateIndices = index.titleCandidateIndices[query.normalizedTitle.value] else {
-            return nil
+            return []
         }
-        return candidateIndices.lazy
-            .map { index.entries[$0] }
-            .first { artistMatches(query.normalizedArtist, entry: $0) }
-    }
 
-    private func artistMatches(
-        _ artist: NormalizedMatchText?,
-        entry: CatalogMatchEntry
-    ) -> Bool {
-        guard let artist else { return true }
-        if entry.artistAliasValues.contains(artist.value) { return true }
-        return entry.normalizedArtistAliases.contains {
-            artist.value.contains($0.value) || $0.value.contains(artist.value)
+        var candidates: [RankedCandidate] = []
+        candidates.reserveCapacity(candidateIndices.count)
+        for (offset, entryIndex) in candidateIndices.enumerated() {
+            if offset.isMultiple(of: 32) {
+                try cancellationCheck()
+            }
+            let entry = index.entries[entryIndex]
+            guard entry.identityEvidence(matching: query.normalizedTitle.value) != nil else {
+                continue
+            }
+            candidates.append(
+                RankedCandidate(
+                    entryIndex: entryIndex,
+                    score: score(
+                        query: query,
+                        entry: entry,
+                        similarityWorkspace: &similarityWorkspace
+                    )
+                )
+            )
         }
+        candidates.sort {
+            $0.score == $1.score
+                ? $0.entryIndex < $1.entryIndex
+                : $0.score > $1.score
+        }
+        return candidates
     }
 
     private mutating func smartAlternatives(
@@ -275,10 +388,22 @@ private struct CatalogMatchSession {
         return result
     }
 
-    private func score(query: SongMatchQuery, entry: CatalogMatchEntry) -> Double {
-        let titleScore = entry.normalizedTitleIdentities.map {
-            similarity(query.normalizedTitle, $0)
-        }.max() ?? 0
+    private func score(
+        query: SongMatchQuery,
+        entry: CatalogMatchEntry,
+        similarityWorkspace: inout SongSimilarityWorkspace
+    ) -> Double {
+        var titleScore = 0.0
+        for identity in entry.normalizedTitleIdentities {
+            titleScore = max(
+                titleScore,
+                similarity(
+                    query.normalizedTitle,
+                    identity,
+                    similarityWorkspace: &similarityWorkspace
+                )
+            )
+        }
 
         let artistScore: Double
         if let importedArtist = query.normalizedArtist {
@@ -289,9 +414,18 @@ private struct CatalogMatchSession {
             }) {
                 artistScore = 0.86
             } else {
-                artistScore = entry.normalizedArtistAliases.map {
-                    similarity(importedArtist, $0)
-                }.max() ?? 0
+                var bestArtistScore = 0.0
+                for artistIdentity in entry.normalizedArtistAliases {
+                    bestArtistScore = max(
+                        bestArtistScore,
+                        similarity(
+                            importedArtist,
+                            artistIdentity,
+                            similarityWorkspace: &similarityWorkspace
+                        )
+                    )
+                }
+                artistScore = bestArtistScore
             }
         } else {
             artistScore = titleScore >= 0.95 ? 0.9 : 0.55
@@ -324,15 +458,34 @@ private struct CatalogMatchSession {
         return "歌名和歌手相似，可以先放进备选"
     }
 
+    private func identityConfirmationReason(
+        query: SongMatchQuery,
+        candidates: [KTVTrack],
+        evidence: SongIdentityEvidence
+    ) -> String {
+        if candidates.count > 1 {
+            return "找到多首同名歌曲，请确认歌手和版本"
+        }
+        if query.normalizedArtist == nil {
+            return "歌名相同但缺少歌手，请确认这个候选"
+        }
+        if case .alias = evidence {
+            return "别名可以召回候选，但仍需确认歌曲身份和版本"
+        }
+        return "歌名相同，但歌手或版本信息仍需确认"
+    }
+
     private func similarity(
         _ lhs: NormalizedMatchText,
-        _ rhs: NormalizedMatchText
+        _ rhs: NormalizedMatchText,
+        similarityWorkspace: inout SongSimilarityWorkspace
     ) -> Double {
         SongNormalizer.similarityNormalized(
             lhs.value,
             rhs.value,
-            lhsCharacters: lhs.characters,
-            rhsCharacters: rhs.characters
+            lhsUnits: lhs.units,
+            rhsUnits: rhs.units,
+            workspace: &similarityWorkspace
         )
     }
 }
@@ -366,12 +519,23 @@ private struct CatalogMatchEntry {
     let artistAliasValues: Set<String>
     let sceneTags: Set<String>
     let similarSongIDs: Set<String>
+    let primaryVersionIdentity: SongVersionIdentity
+    let aliasVersionIdentities: [SongVersionIdentity]
 
     init(track: KTVTrack, catalogOrder: Int) {
         self.track = track
         self.catalogOrder = catalogOrder
-        normalizedPrimaryTitle = .title(track.title)
-        normalizedAliases = track.aliases.map(NormalizedMatchText.title)
+        primaryVersionIdentity = SongVersionIdentity.parse(
+            title: track.title,
+            versionTags: track.versionTags
+        )
+        aliasVersionIdentities = track.aliases.map {
+            SongVersionIdentity.parse(title: $0, versionTags: track.versionTags)
+        }
+        normalizedPrimaryTitle = .normalized(primaryVersionIdentity.normalizedBaseTitle)
+        normalizedAliases = aliasVersionIdentities.map {
+            .normalized($0.normalizedBaseTitle)
+        }
         var titleIdentities: [NormalizedMatchText] = []
         var seenTitleIdentities = Set<String>()
         for value in [normalizedPrimaryTitle] + normalizedAliases
@@ -386,16 +550,33 @@ private struct CatalogMatchEntry {
         sceneTags = Set(track.sceneTags)
         similarSongIDs = Set(track.similarSongIds)
     }
+
+    func identityEvidence(matching normalizedTitle: String) -> SongIdentityEvidence? {
+        if normalizedPrimaryTitle.value == normalizedTitle {
+            return .canonicalTitle(identity: primaryVersionIdentity)
+        }
+        guard let aliasIndex = normalizedAliases.firstIndex(where: {
+            $0.value == normalizedTitle
+        }) else {
+            return nil
+        }
+        return .alias(
+            rawValue: track.aliases[aliasIndex],
+            identity: aliasVersionIdentities[aliasIndex]
+        )
+    }
 }
 
 private struct SongMatchQuery {
-    let song: ImportedSong
     let normalizedTitle: NormalizedMatchText
     let normalizedArtist: NormalizedMatchText?
 
     init(song: ImportedSong) {
-        self.song = song
-        normalizedTitle = .title(song.title)
+        let versionIdentity = SongVersionIdentity.parse(
+            title: song.title,
+            versionTags: song.versionTags
+        )
+        normalizedTitle = .normalized(versionIdentity.normalizedBaseTitle)
         if let artist = song.artist?.nilIfBlank {
             normalizedArtist = .artist(artist)
         } else {
@@ -406,7 +587,7 @@ private struct SongMatchQuery {
 
 private struct NormalizedMatchText: Sendable {
     let value: String
-    let characters: [Character]
+    let units: [UInt32]
 
     static func title(_ rawValue: String) -> NormalizedMatchText {
         normalized(SongNormalizer.normalizeTitle(rawValue))
@@ -417,7 +598,7 @@ private struct NormalizedMatchText: Sendable {
     }
 
     static func normalized(_ value: String) -> NormalizedMatchText {
-        NormalizedMatchText(value: value, characters: Array(value))
+        NormalizedMatchText(value: value, units: SongNormalizer.matchUnits(value))
     }
 }
 

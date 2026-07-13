@@ -25,29 +25,50 @@ public struct SongNormalizer: Sendable {
         similarityNormalized(
             lhs,
             rhs,
-            lhsCharacters: Array(lhs),
-            rhsCharacters: Array(rhs)
+            lhsUnits: matchUnits(lhs),
+            rhsUnits: matchUnits(rhs)
         )
     }
 
     static func similarityNormalized(
         _ lhs: String,
         _ rhs: String,
-        lhsCharacters: [Character],
-        rhsCharacters: [Character]
+        lhsUnits: [UInt32],
+        rhsUnits: [UInt32]
+    ) -> Double {
+        var workspace = SongSimilarityWorkspace()
+        return similarityNormalized(
+            lhs,
+            rhs,
+            lhsUnits: lhsUnits,
+            rhsUnits: rhsUnits,
+            workspace: &workspace
+        )
+    }
+
+    static func similarityNormalized(
+        _ lhs: String,
+        _ rhs: String,
+        lhsUnits: [UInt32],
+        rhsUnits: [UInt32],
+        workspace: inout SongSimilarityWorkspace
     ) -> Double {
         guard !lhs.isEmpty, !rhs.isEmpty else { return 0 }
         if lhs == rhs { return 1 }
         if lhs.contains(rhs) || rhs.contains(lhs) {
-            let short = Double(min(lhsCharacters.count, rhsCharacters.count))
-            let long = Double(max(lhsCharacters.count, rhsCharacters.count))
+            let short = Double(min(lhsUnits.count, rhsUnits.count))
+            let long = Double(max(lhsUnits.count, rhsUnits.count))
             let ratio = short / long
             return ratio < 0.45 ? ratio : max(0.82, ratio)
         }
-        let distance = levenshtein(lhsCharacters, rhsCharacters)
-        let maxCount = max(lhsCharacters.count, rhsCharacters.count)
+        let distance = workspace.levenshtein(lhsUnits, rhsUnits)
+        let maxCount = max(lhsUnits.count, rhsUnits.count)
         guard maxCount > 0 else { return 0 }
         return max(0, 1 - Double(distance) / Double(maxCount))
+    }
+
+    static func matchUnits(_ normalizedValue: String) -> [UInt32] {
+        normalizedValue.unicodeScalars.map(\.value)
     }
 
     static func normalizeBaseTitle(_ value: String) -> String {
@@ -75,24 +96,63 @@ public struct SongNormalizer: Sendable {
         return regex.stringByReplacingMatches(in: value, options: [], range: range, withTemplate: replacement)
     }
 
-    private static func levenshtein(_ a: [Character], _ b: [Character]) -> Int {
+}
+
+struct SongSimilarityWorkspace: Sendable {
+    private var previous: [Int] = []
+    private var current: [Int] = []
+
+    mutating func levenshtein(_ a: [UInt32], _ b: [UInt32]) -> Int {
         if a.isEmpty { return b.count }
         if b.isEmpty { return a.count }
-        var previous = Array(0...b.count)
-        var current = Array(repeating: 0, count: b.count + 1)
-        for i in 1...a.count {
+
+        var startIndex = 0
+        let sharedLimit = min(a.count, b.count)
+        while startIndex < sharedLimit, a[startIndex] == b[startIndex] {
+            startIndex += 1
+        }
+
+        var aEndIndex = a.count
+        var bEndIndex = b.count
+        while aEndIndex > startIndex,
+              bEndIndex > startIndex,
+              a[aEndIndex - 1] == b[bEndIndex - 1] {
+            aEndIndex -= 1
+            bEndIndex -= 1
+        }
+
+        let aCount = aEndIndex - startIndex
+        let bCount = bEndIndex - startIndex
+        if aCount == 0 { return bCount }
+        if bCount == 0 { return aCount }
+
+        let requiredCount = bCount + 1
+        if previous.count < requiredCount {
+            previous = Array(repeating: 0, count: requiredCount)
+            current = Array(repeating: 0, count: requiredCount)
+        }
+        var index = 0
+        while index <= bCount {
+            previous[index] = index
+            index += 1
+        }
+        var i = 1
+        while i <= aCount {
             current[0] = i
-            for j in 1...b.count {
-                let cost = a[i - 1] == b[j - 1] ? 0 : 1
+            var j = 1
+            while j <= bCount {
+                let cost = a[startIndex + i - 1] == b[startIndex + j - 1] ? 0 : 1
                 current[j] = min(
                     previous[j] + 1,
                     current[j - 1] + 1,
                     previous[j - 1] + cost
                 )
+                j += 1
             }
-            previous = current
+            swap(&previous, &current)
+            i += 1
         }
-        return previous[b.count]
+        return previous[bCount]
     }
 }
 
