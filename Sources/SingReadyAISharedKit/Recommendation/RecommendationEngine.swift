@@ -278,15 +278,11 @@ public struct RecommendationEngine: Sendable {
         let pendingCandidateIDs = Set(
             matches
                 .filter { $0.confirmationState == .required }
-                .flatMap(\.alternatives)
+                .flatMap(\.candidateTracks)
                 .map(\.id)
         )
 
-        let matchTracks = matches
-            .filter { $0.confirmationState != .required }
-            .flatMap { match in
-                [match.acceptedTrack].compactMap(\.self) + match.alternatives
-            }
+        let matchTracks = matches.compactMap(\.acceptedTrack)
         let completeLocalSemanticKeys = Set((catalog + matchTracks)
             .filter { !$0.isProvisionalExternalCandidate }
             .map(candidateSemanticKey))

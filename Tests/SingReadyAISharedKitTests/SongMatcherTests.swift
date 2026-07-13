@@ -147,6 +147,227 @@ final class SongMatcherTests: XCTestCase {
         }
     }
 
+    func testLegacyMigrationUsesSameConservativeIdentityRulesForInitializerAndDecoder() throws {
+        let compatible = makeTrack(id: "compatible", title: "原曲", artist: "原歌手")
+        let artistConflict = makeTrack(id: "artist-conflict", title: "原曲", artist: "另一歌手")
+        let titleConflict = makeTrack(id: "title-conflict", title: "另一首", artist: "原歌手")
+        let unrelated = makeTrack(id: "unrelated", title: "无关歌曲", artist: "无关歌手")
+        let completeSong = ImportedSong(
+            title: "原曲",
+            artist: "原歌手",
+            source: .plainText,
+            confidence: 1
+        )
+        let missingArtistSong = ImportedSong(
+            title: "原曲",
+            source: .plainText,
+            confidence: 1
+        )
+        let cases = [
+            LegacyMigrationCase(
+                name: "exact-compatible",
+                importedSong: completeSong,
+                matchedTrack: compatible,
+                alternatives: [],
+                status: .exact,
+                confirmationState: .notRequired,
+                expectedKind: "acceptedOriginalExact",
+                expectedTrackIDs: [compatible.id]
+            ),
+            LegacyMigrationCase(
+                name: "exact-artist-conflict",
+                importedSong: completeSong,
+                matchedTrack: artistConflict,
+                alternatives: [],
+                status: .exact,
+                confirmationState: .notRequired,
+                expectedKind: "identityConfirmationRequired",
+                expectedTrackIDs: [artistConflict.id]
+            ),
+            LegacyMigrationCase(
+                name: "exact-title-conflict-with-identity-alternative",
+                importedSong: completeSong,
+                matchedTrack: titleConflict,
+                alternatives: [artistConflict],
+                status: .exact,
+                confirmationState: .notRequired,
+                expectedKind: "identityConfirmationRequired",
+                expectedTrackIDs: [artistConflict.id]
+            ),
+            LegacyMigrationCase(
+                name: "exact-unrelated",
+                importedSong: completeSong,
+                matchedTrack: unrelated,
+                alternatives: [],
+                status: .exact,
+                confirmationState: .notRequired,
+                expectedKind: "unmatched",
+                expectedTrackIDs: []
+            ),
+            LegacyMigrationCase(
+                name: "exact-without-track",
+                importedSong: completeSong,
+                matchedTrack: nil,
+                alternatives: [],
+                status: .exact,
+                confirmationState: .notRequired,
+                expectedKind: "unmatched",
+                expectedTrackIDs: []
+            ),
+            LegacyMigrationCase(
+                name: "exact-with-explicit-not-required-but-missing-artist",
+                importedSong: missingArtistSong,
+                matchedTrack: compatible,
+                alternatives: [],
+                status: .exact,
+                confirmationState: .notRequired,
+                expectedKind: "identityConfirmationRequired",
+                expectedTrackIDs: [compatible.id]
+            ),
+            LegacyMigrationCase(
+                name: "required-with-track",
+                importedSong: completeSong,
+                matchedTrack: compatible,
+                alternatives: [],
+                status: .exact,
+                confirmationState: .required,
+                expectedKind: "identityConfirmationRequired",
+                expectedTrackIDs: [compatible.id]
+            ),
+            LegacyMigrationCase(
+                name: "required-without-track",
+                importedSong: completeSong,
+                matchedTrack: nil,
+                alternatives: [],
+                status: .exact,
+                confirmationState: .required,
+                expectedKind: "unmatched",
+                expectedTrackIDs: []
+            ),
+            LegacyMigrationCase(
+                name: "confirmed-same-title-artist-conflict",
+                importedSong: completeSong,
+                matchedTrack: artistConflict,
+                alternatives: [],
+                status: .exact,
+                confirmationState: .confirmed,
+                expectedKind: "acceptedOriginalConfirmed",
+                expectedTrackIDs: [artistConflict.id]
+            ),
+            LegacyMigrationCase(
+                name: "confirmed-unrelated-with-identity-alternative",
+                importedSong: completeSong,
+                matchedTrack: unrelated,
+                alternatives: [artistConflict],
+                status: .exact,
+                confirmationState: .confirmed,
+                expectedKind: "identityConfirmationRequired",
+                expectedTrackIDs: [artistConflict.id]
+            ),
+            LegacyMigrationCase(
+                name: "confirmed-unrelated-without-identity-candidate",
+                importedSong: completeSong,
+                matchedTrack: unrelated,
+                alternatives: [],
+                status: .fuzzy,
+                confirmationState: .confirmed,
+                expectedKind: "unmatched",
+                expectedTrackIDs: []
+            ),
+            LegacyMigrationCase(
+                name: "confirmed-fuzzy-compatible",
+                importedSong: completeSong,
+                matchedTrack: compatible,
+                alternatives: [],
+                status: .fuzzy,
+                confirmationState: .confirmed,
+                expectedKind: "acceptedOriginalConfirmed",
+                expectedTrackIDs: [compatible.id]
+            ),
+            LegacyMigrationCase(
+                name: "confirmed-fuzzy-without-track",
+                importedSong: completeSong,
+                matchedTrack: nil,
+                alternatives: [],
+                status: .fuzzy,
+                confirmationState: .confirmed,
+                expectedKind: "unmatched",
+                expectedTrackIDs: []
+            ),
+            LegacyMigrationCase(
+                name: "unconfirmed-fuzzy-same-title",
+                importedSong: completeSong,
+                matchedTrack: artistConflict,
+                alternatives: [],
+                status: .fuzzy,
+                confirmationState: .notRequired,
+                expectedKind: "identityConfirmationRequired",
+                expectedTrackIDs: [artistConflict.id]
+            ),
+            LegacyMigrationCase(
+                name: "adopted-alternative",
+                importedSong: completeSong,
+                matchedTrack: unrelated,
+                alternatives: [],
+                status: .alternative,
+                confirmationState: .notRequired,
+                expectedKind: "adoptedAlternative",
+                expectedTrackIDs: [unrelated.id]
+            ),
+            LegacyMigrationCase(
+                name: "unmatched-with-same-title-track",
+                importedSong: completeSong,
+                matchedTrack: artistConflict,
+                alternatives: [],
+                status: .unmatched,
+                confirmationState: .notRequired,
+                expectedKind: "identityConfirmationRequired",
+                expectedTrackIDs: [artistConflict.id]
+            )
+        ]
+
+        for testCase in cases {
+            let initialized = MatchResult(
+                importedSong: testCase.importedSong,
+                matchedTrack: testCase.matchedTrack,
+                alternatives: testCase.alternatives,
+                status: testCase.status,
+                confirmationState: testCase.confirmationState,
+                score: 0.8,
+                reason: "旧构造入口"
+            )
+            let decoded = try JSONDecoder().decode(
+                MatchResult.self,
+                from: JSONEncoder().encode(
+                    legacyFixture(
+                        importedSong: testCase.importedSong,
+                        matchedTrack: testCase.matchedTrack,
+                        alternatives: testCase.alternatives,
+                        status: testCase.status,
+                        confirmationState: testCase.confirmationState
+                    )
+                )
+            )
+
+            for (source, result) in [("initializer", initialized), ("decoder", decoded)] {
+                XCTAssertEqual(
+                    dispositionKind(result.disposition),
+                    testCase.expectedKind,
+                    "\(testCase.name) / \(source)"
+                )
+                XCTAssertEqual(
+                    dispositionTrackIDs(result.disposition),
+                    testCase.expectedTrackIDs,
+                    "\(testCase.name) / \(source)"
+                )
+                if ["identityConfirmationRequired", "alternativeSuggested", "unmatched"]
+                    .contains(testCase.expectedKind) {
+                    XCTAssertNil(result.acceptedTrack, "\(testCase.name) / \(source)")
+                }
+            }
+        }
+    }
+
     @MainActor
     func testPlaylistAnalysisExecutorKeepsMainActorResponsive() async throws {
         let operationStarted = expectation(description: "playlist analysis started")
@@ -651,4 +872,15 @@ private struct LegacyMatchResultFixture: Encodable {
     let confirmationState: MatchConfirmationState?
     let score: Double
     let reason: String
+}
+
+private struct LegacyMigrationCase {
+    let name: String
+    let importedSong: ImportedSong
+    let matchedTrack: KTVTrack?
+    let alternatives: [KTVTrack]
+    let status: MatchStatus
+    let confirmationState: MatchConfirmationState
+    let expectedKind: String
+    let expectedTrackIDs: [String]
 }

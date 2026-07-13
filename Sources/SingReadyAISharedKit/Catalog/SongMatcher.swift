@@ -507,3 +507,15 @@ private func normalizedArtistAliasesForTrack(_ artist: String) -> [String] {
     }
     return aliases.sorted()
 }
+
+extension KTVTrack {
+    func matchesArtistIdentity(_ importedArtist: String) -> Bool {
+        let normalizedImportedArtist = SongNormalizer.normalizeArtist(importedArtist)
+        guard !normalizedImportedArtist.isEmpty else { return false }
+        let normalizedAliases = normalizedArtistAliasesForTrack(artist)
+        return normalizedAliases.contains(normalizedImportedArtist)
+            || normalizedAliases.contains {
+                normalizedImportedArtist.contains($0) || $0.contains(normalizedImportedArtist)
+            }
+    }
+}

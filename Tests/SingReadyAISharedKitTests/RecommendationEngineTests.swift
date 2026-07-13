@@ -203,6 +203,47 @@ final class RecommendationEngineTests: XCTestCase {
         XCTAssertEqual(ids.count, Set(ids).count)
     }
 
+    func testAcceptedMatchSuggestionsDoNotEnterFormalRecommendationCandidates() throws {
+        let catalog = try KTVCatalogRepository().loadTracks()
+        let accepted = try XCTUnwrap(catalog.first)
+        let suggestion = try XCTUnwrap(catalog.first(where: { $0.id != accepted.id }))
+        let song = ImportedSong(
+            title: accepted.title,
+            artist: accepted.artist,
+            source: .plainText,
+            confidence: 1
+        )
+        let playlist = ImportedPlaylist(
+            source: .plainText,
+            title: "正式推荐候选隔离",
+            songs: [song],
+            parseConfidence: 1
+        )
+        let result = MatchResult(
+            importedSong: song,
+            disposition: .acceptedOriginalExact(track: accepted),
+            suggestedAlternatives: [suggestion],
+            score: 1,
+            reason: "精确命中"
+        )
+        let profile = PreferenceProfiler().buildProfile(
+            importedPlaylist: playlist,
+            matches: [result]
+        )
+
+        let plan = RecommendationEngine().generatePlan(
+            matches: [result],
+            preferenceProfile: profile,
+            voiceProfile: .simulatedMiddle,
+            scenario: ScenarioConfig(scenario: .friends, durationMinutes: 30),
+            catalog: []
+        )
+        let recommendedIDs = plan.sections.flatMap(\.items).map(\.track.id)
+
+        XCTAssertEqual(recommendedIDs, [accepted.id])
+        XCTAssertFalse(recommendedIDs.contains(suggestion.id))
+    }
+
     func testAlternativesExcludeCurrentTrack() throws {
         let fixture = try makeFixture()
         let plan = makePlan(fixture: fixture, scenario: .friends)

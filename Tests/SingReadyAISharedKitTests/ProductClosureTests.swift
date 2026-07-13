@@ -72,6 +72,97 @@ final class ProductClosureTests: XCTestCase {
         XCTAssertEqual(profile.genreDistribution[original.genre], 1)
     }
 
+    func testPreferenceProfileArtistsComeOnlyFromAcceptedTracks() {
+        let acceptedTrack = makeTrack(
+            id: "accepted",
+            title: "已接受原曲",
+            artist: "已接受曲库歌手",
+            difficulty: 2
+        )
+        let pendingTrack = makeTrack(
+            id: "pending",
+            title: "待确认歌曲",
+            artist: "待确认候选歌手",
+            difficulty: 5
+        )
+        let adoptedTrack = makeTrack(
+            id: "adopted",
+            title: "采用替代歌曲",
+            artist: "采用后曲库歌手",
+            difficulty: 5
+        )
+        let acceptedSong = ImportedSong(
+            title: acceptedTrack.title,
+            artist: "原导入歌手",
+            source: .plainText,
+            confidence: 1
+        )
+        let pendingSong = ImportedSong(
+            title: pendingTrack.title,
+            artist: "待确认导入歌手",
+            source: .plainText,
+            confidence: 1
+        )
+        let unmatchedSong = ImportedSong(
+            title: "未命中歌曲",
+            artist: "未命中导入歌手",
+            source: .plainText,
+            confidence: 1
+        )
+        let adoptedSong = ImportedSong(
+            title: "原歌曲",
+            artist: "采用前导入歌手",
+            source: .plainText,
+            confidence: 1
+        )
+        let matches = [
+            MatchResult(
+                importedSong: acceptedSong,
+                disposition: .acceptedOriginalConfirmed(track: acceptedTrack),
+                score: 1,
+                reason: "已确认"
+            ),
+            MatchResult(
+                importedSong: pendingSong,
+                disposition: .identityConfirmationRequired(candidates: [pendingTrack]),
+                score: 0.8,
+                reason: "待确认"
+            ),
+            MatchResult(
+                importedSong: unmatchedSong,
+                disposition: .unmatched,
+                score: 0,
+                reason: "未找到"
+            ),
+            MatchResult(
+                importedSong: adoptedSong,
+                disposition: .adoptedAlternative(track: adoptedTrack),
+                score: 0.7,
+                reason: "已采用替代歌曲"
+            )
+        ]
+        let playlist = ImportedPlaylist(
+            source: .plainText,
+            title: "画像准入隔离",
+            songs: [acceptedSong, pendingSong, unmatchedSong, adoptedSong],
+            parseConfidence: 1
+        )
+
+        let profile = PreferenceProfiler().buildProfile(
+            importedPlaylist: playlist,
+            matches: matches
+        )
+        let artistCounts = Dictionary(
+            uniqueKeysWithValues: profile.topArtists.map { ($0.name, $0.count) }
+        )
+
+        XCTAssertEqual(
+            artistCounts,
+            [acceptedTrack.artist: 1, adoptedTrack.artist: 1]
+        )
+        XCTAssertEqual(profile.averageDifficulty, 3.5)
+    }
+
     func testDispositionActionsOnlyAllowConstrainedStateTransitions() throws {
         let first = makeTrack(id: "first", title: "同名歌曲", artist: "歌手A")
         let second = makeTrack(id: "second", title: "同名歌曲", artist: "歌手B")
@@ -378,11 +469,10 @@ final class ProductClosureTests: XCTestCase {
             XCTAssertFalse(plan.preferenceSummary?.contains("流行歌偏多") == true, testCase.name)
             XCTAssertFalse(plan.preferenceSummary?.contains("熟悉旋律") == true, testCase.name)
         }
-        XCTAssertEqual(
+        XCTAssertTrue(
             PreferenceProfiler()
                 .buildProfile(importedPlaylist: unmatchedPlaylist, matches: [unmatchedMatch])
-                .topArtists.first?.name,
-            "真实导入歌手"
+                .topArtists.isEmpty
         )
     }
 

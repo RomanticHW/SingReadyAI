@@ -18,14 +18,7 @@ public struct PreferenceProfiler: Sendable {
         }
         let totalCount = max(importedPlaylist.songs.count, 1)
 
-        let matchesByImportedSongID = Dictionary(
-            matches.map { ($0.importedSong.id, $0) },
-            uniquingKeysWith: { first, _ in first }
-        )
-        let profileArtists = importedPlaylist.songs.compactMap { song in
-            song.artist?.nilIfBlank
-                ?? matchesByImportedSongID[song.id]?.acceptedTrack?.artist.nilIfBlank
-        }
+        let profileArtists = matchedTracks.compactMap { $0.artist.nilIfBlank }
         let topArtists = count(profileArtists)
             .sorted { $0.value == $1.value ? $0.key < $1.key : $0.value > $1.value }
             .prefix(5)

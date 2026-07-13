@@ -620,21 +620,12 @@ public struct MatchResult: Codable, Identifiable, Sendable {
         score: Double,
         reason: String
     ) {
-        let normalizedConfirmationState: MatchConfirmationState
-        if confirmationState == .notRequired,
-           importedSong.artist?.nilIfBlank == nil,
-           matchedTrack != nil,
-           status == .exact || status == .fuzzy {
-            normalizedConfirmationState = .required
-        } else {
-            normalizedConfirmationState = confirmationState
-        }
         let migration = Self.migrateLegacyState(
             importedSong: importedSong,
             matchedTrack: matchedTrack,
             alternatives: alternatives,
             status: status,
-            confirmationState: normalizedConfirmationState
+            confirmationState: confirmationState
         )
         self.init(
             id: id,
@@ -673,20 +664,12 @@ public struct MatchResult: Codable, Identifiable, Sendable {
             MatchConfirmationState.self,
             forKey: .confirmationState
         )
-        let normalizedConfirmationState: MatchConfirmationState
-        if decodedConfirmationState == nil,
-           decodedImportedSong.artist?.nilIfBlank == nil,
-           decodedMatchedTrack != nil {
-            normalizedConfirmationState = .required
-        } else {
-            normalizedConfirmationState = decodedConfirmationState ?? .notRequired
-        }
         let migration = Self.migrateLegacyState(
             importedSong: decodedImportedSong,
             matchedTrack: decodedMatchedTrack,
             alternatives: decodedAlternatives,
             status: decodedStatus,
-            confirmationState: normalizedConfirmationState
+            confirmationState: decodedConfirmationState ?? .notRequired
         )
         self.init(
             id: decodedID,
@@ -773,14 +756,24 @@ public struct MatchResult: Codable, Identifiable, Sendable {
     ) -> (disposition: SongMatchDisposition, suggestedAlternatives: [KTVTrack]) {
         let allTracks = uniqueTracks(([matchedTrack].compactMap(\.self) + alternatives))
         let identityCandidates = allTracks.filter { $0.matchesTitleIdentity(importedSong.title) }
+        let normalizedConfirmationState: MatchConfirmationState
+        if confirmationState == .notRequired,
+           importedSong.artist?.nilIfBlank == nil,
+           matchedTrack != nil,
+           status == .exact || status == .fuzzy {
+            normalizedConfirmationState = .required
+        } else {
+            normalizedConfirmationState = confirmationState
+        }
 
-        if confirmationState == .required {
+        if normalizedConfirmationState == .required {
             return pendingIdentityMigration(candidates: identityCandidates)
         }
 
-        if confirmationState == .confirmed {
+        if normalizedConfirmationState == .confirmed {
             guard let matchedTrack,
-                  status == .exact || status == .fuzzy else {
+                  status == .exact || status == .fuzzy,
+                  matchedTrack.matchesTitleIdentity(importedSong.title) else {
                 return pendingIdentityMigration(candidates: identityCandidates)
             }
             return (
@@ -791,7 +784,10 @@ public struct MatchResult: Codable, Identifiable, Sendable {
 
         switch status {
         case .exact:
-            guard let matchedTrack else {
+            guard let matchedTrack,
+                  matchedTrack.matchesTitleIdentity(importedSong.title),
+                  let importedArtist = importedSong.artist?.nilIfBlank,
+                  matchedTrack.matchesArtistIdentity(importedArtist) else {
                 return pendingIdentityMigration(candidates: identityCandidates)
             }
             return (
