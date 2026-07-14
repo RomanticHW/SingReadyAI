@@ -74,22 +74,229 @@ public struct WorkflowReviewSong: Codable, Identifiable, Equatable, Sendable {
     }
 }
 
-public struct WorkflowSnapshot: Codable, Sendable {
-    public var importedPlaylist: ImportedPlaylist
-    public var reviewSongs: [WorkflowReviewSong]
-    public var matches: [MatchResult]
-    public var preferenceProfile: PreferenceProfile?
-    public var voiceProfile: VoiceProfile?
-    public var recommendationInputSource: RecommendationInputSource
-    public var scenarioConfig: ScenarioConfig
-    public var songPlan: SongPlan?
-    public var lockedTrackIDs: [String]
-    public var removedTrackIDs: [String]
-    public var externalCandidateTracks: [KTVTrack]
-    public var feedbackProfile: SongFeedbackProfile
-    public var hasAdvancedToScenario: Bool?
-    public var updatedAt: Date
+public enum PersistedPlanRecord: Codable, Sendable {
+    case ready(plan: SongPlan, basis: PlanBasis)
+    case stale(StalePlanSnapshot)
 
+    private enum Kind: String, Codable {
+        case ready
+        case stale
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case kind
+        case plan
+        case basis
+        case reason
+    }
+
+    public init?(planGenerationState: PlanGenerationState) {
+        switch planGenerationState {
+        case .absent:
+            return nil
+        case let .ready(plan, basis):
+            self = .ready(plan: plan, basis: basis)
+        case let .stale(snapshot):
+            self = .stale(snapshot)
+        case let .generating(_, previous), let .failed(_, _, previous):
+            guard let previous else { return nil }
+            self = .stale(previous)
+        }
+    }
+
+    public var restoredPlanGenerationState: PlanGenerationState {
+        switch self {
+        case let .ready(plan, basis):
+            return .ready(plan: plan, basis: basis)
+        case let .stale(snapshot):
+            return .stale(snapshot)
+        }
+    }
+
+    public static func restoredPlanGenerationState(
+        from record: PersistedPlanRecord?
+    ) -> PlanGenerationState {
+        record?.restoredPlanGenerationState ?? .absent
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        let kind = try container.decode(Kind.self, forKey: .kind)
+        let plan = try container.decode(SongPlan.self, forKey: .plan)
+
+        switch kind {
+        case .ready:
+            self = .ready(
+                plan: plan,
+                basis: try container.decode(PlanBasis.self, forKey: .basis)
+            )
+        case .stale:
+            self = .stale(
+                StalePlanSnapshot(
+                    plan: plan,
+                    previousBasis: try container.decodeIfPresent(PlanBasis.self, forKey: .basis),
+                    reason: try container.decode(String.self, forKey: .reason)
+                )
+            )
+        }
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+
+        switch self {
+        case let .ready(plan, basis):
+            try container.encode(Kind.ready, forKey: .kind)
+            try container.encode(plan, forKey: .plan)
+            try container.encode(basis, forKey: .basis)
+            try container.encodeNil(forKey: .reason)
+        case let .stale(snapshot):
+            try container.encode(Kind.stale, forKey: .kind)
+            try container.encode(snapshot.plan, forKey: .plan)
+            if let previousBasis = snapshot.previousBasis {
+                try container.encode(previousBasis, forKey: .basis)
+            } else {
+                try container.encodeNil(forKey: .basis)
+            }
+            try container.encode(snapshot.reason, forKey: .reason)
+        }
+    }
+}
+
+fileprivate struct LegacyWorkflowDerivationBridge: Codable, Sendable {
+    var matches: [MatchResult]
+    var preferenceProfile: PreferenceProfile?
+    var songPlan: SongPlan?
+    var externalCandidateTracks: [KTVTrack]
+
+    static let empty = LegacyWorkflowDerivationBridge(
+        matches: [],
+        preferenceProfile: nil,
+        songPlan: nil,
+        externalCandidateTracks: []
+    )
+
+    var isEmpty: Bool {
+        matches.isEmpty
+            && preferenceProfile == nil
+            && songPlan == nil
+            && externalCandidateTracks.isEmpty
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case matches
+        case preferenceProfile
+        case songPlan
+        case externalCandidateTracks
+    }
+
+    init(
+        matches: [MatchResult],
+        preferenceProfile: PreferenceProfile?,
+        songPlan: SongPlan?,
+        externalCandidateTracks: [KTVTrack]
+    ) {
+        self.matches = matches
+        self.preferenceProfile = preferenceProfile
+        self.songPlan = songPlan
+        self.externalCandidateTracks = externalCandidateTracks
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        matches = try container.decodeIfPresent([MatchResult].self, forKey: .matches) ?? []
+        preferenceProfile = try container.decodeIfPresent(
+            PreferenceProfile.self,
+            forKey: .preferenceProfile
+        )
+        songPlan = try container.decodeIfPresent(SongPlan.self, forKey: .songPlan)
+        externalCandidateTracks = try container.decodeIfPresent(
+            [KTVTrack].self,
+            forKey: .externalCandidateTracks
+        ) ?? []
+    }
+}
+
+public struct WorkflowSnapshot: Codable, Sendable {
+    public let importedPlaylist: ImportedPlaylist
+    public let reviewSongs: [WorkflowReviewSong]
+    public let revisions: WorkflowRevisionLedger
+    public let completedAnalysis: CompletedPlaylistAnalysis?
+    public let persistedPlanRecord: PersistedPlanRecord?
+    public let externalCandidateCollection: ExternalCandidateCollection?
+    public let voiceProfile: VoiceProfile?
+    public let recommendationInputSource: RecommendationInputSource
+    public let scenarioConfig: ScenarioConfig
+    public let lockedTrackIDs: [String]
+    public let removedTrackIDs: [String]
+    public let feedbackProfile: SongFeedbackProfile
+    public let hasAdvancedToScenario: Bool?
+    public let updatedAt: Date
+
+    private let legacyDerivationBridge: LegacyWorkflowDerivationBridge
+
+    public var matches: [MatchResult] {
+        completedAnalysis?.matches ?? legacyDerivationBridge.matches
+    }
+
+    public var preferenceProfile: PreferenceProfile? {
+        completedAnalysis?.preferenceProfile ?? legacyDerivationBridge.preferenceProfile
+    }
+
+    public var songPlan: SongPlan? {
+        if let persistedPlanRecord {
+            switch persistedPlanRecord {
+            case let .ready(plan, _):
+                return plan
+            case let .stale(snapshot):
+                return snapshot.plan
+            }
+        }
+        return legacyDerivationBridge.songPlan
+    }
+
+    public var externalCandidateTracks: [KTVTrack] {
+        externalCandidateCollection == nil
+            ? legacyDerivationBridge.externalCandidateTracks
+            : []
+    }
+
+    public init(
+        importedPlaylist: ImportedPlaylist,
+        reviewSongs: [WorkflowReviewSong],
+        revisions: WorkflowRevisionLedger,
+        completedAnalysis: CompletedPlaylistAnalysis?,
+        persistedPlanRecord: PersistedPlanRecord?,
+        externalCandidateCollection: ExternalCandidateCollection?,
+        voiceProfile: VoiceProfile?,
+        recommendationInputSource: RecommendationInputSource,
+        scenarioConfig: ScenarioConfig,
+        lockedTrackIDs: [String],
+        removedTrackIDs: [String],
+        feedbackProfile: SongFeedbackProfile,
+        hasAdvancedToScenario: Bool = false,
+        updatedAt: Date = Date()
+    ) {
+        self.init(
+            importedPlaylist: importedPlaylist,
+            reviewSongs: reviewSongs,
+            revisions: revisions,
+            completedAnalysis: completedAnalysis,
+            persistedPlanRecord: persistedPlanRecord,
+            externalCandidateCollection: externalCandidateCollection,
+            voiceProfile: voiceProfile,
+            recommendationInputSource: recommendationInputSource,
+            scenarioConfig: scenarioConfig,
+            lockedTrackIDs: lockedTrackIDs,
+            removedTrackIDs: removedTrackIDs,
+            feedbackProfile: feedbackProfile,
+            hasAdvancedToScenario: hasAdvancedToScenario,
+            updatedAt: updatedAt,
+            legacyDerivationBridge: .empty
+        )
+    }
+
+    /// 迁移期间供旧 App 调用点和 schema 1 壳使用；新流程只写入上面的 v2 状态。
     public init(
         importedPlaylist: ImportedPlaylist,
         reviewSongs: [WorkflowReviewSong],
@@ -106,32 +313,187 @@ public struct WorkflowSnapshot: Codable, Sendable {
         hasAdvancedToScenario: Bool = false,
         updatedAt: Date = Date()
     ) {
+        self.init(
+            importedPlaylist: importedPlaylist,
+            reviewSongs: reviewSongs,
+            revisions: WorkflowRevisionLedger(),
+            completedAnalysis: nil,
+            persistedPlanRecord: nil,
+            externalCandidateCollection: nil,
+            voiceProfile: voiceProfile,
+            recommendationInputSource: recommendationInputSource,
+            scenarioConfig: scenarioConfig,
+            lockedTrackIDs: lockedTrackIDs,
+            removedTrackIDs: removedTrackIDs,
+            feedbackProfile: feedbackProfile,
+            hasAdvancedToScenario: hasAdvancedToScenario,
+            updatedAt: updatedAt,
+            legacyDerivationBridge: LegacyWorkflowDerivationBridge(
+                matches: matches,
+                preferenceProfile: preferenceProfile,
+                songPlan: songPlan,
+                externalCandidateTracks: externalCandidateTracks
+            )
+        )
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case importedPlaylist
+        case reviewSongs
+        case revisions
+        case completedAnalysis
+        case persistedPlanRecord
+        case externalCandidateCollection
+        case voiceProfile
+        case recommendationInputSource
+        case scenarioConfig
+        case lockedTrackIDs
+        case removedTrackIDs
+        case feedbackProfile
+        case hasAdvancedToScenario
+        case updatedAt
+        case legacyDerivationBridge
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.init(
+            importedPlaylist: try container.decode(ImportedPlaylist.self, forKey: .importedPlaylist),
+            reviewSongs: try container.decode([WorkflowReviewSong].self, forKey: .reviewSongs),
+            revisions: try container.decode(WorkflowRevisionLedger.self, forKey: .revisions),
+            completedAnalysis: try container.decodeIfPresent(
+                CompletedPlaylistAnalysis.self,
+                forKey: .completedAnalysis
+            ),
+            persistedPlanRecord: try container.decodeIfPresent(
+                PersistedPlanRecord.self,
+                forKey: .persistedPlanRecord
+            ),
+            externalCandidateCollection: try container.decodeIfPresent(
+                ExternalCandidateCollection.self,
+                forKey: .externalCandidateCollection
+            ),
+            voiceProfile: try container.decodeIfPresent(VoiceProfile.self, forKey: .voiceProfile),
+            recommendationInputSource: try container.decode(
+                RecommendationInputSource.self,
+                forKey: .recommendationInputSource
+            ),
+            scenarioConfig: try container.decode(ScenarioConfig.self, forKey: .scenarioConfig),
+            lockedTrackIDs: try container.decode([String].self, forKey: .lockedTrackIDs),
+            removedTrackIDs: try container.decode([String].self, forKey: .removedTrackIDs),
+            feedbackProfile: try container.decode(SongFeedbackProfile.self, forKey: .feedbackProfile),
+            hasAdvancedToScenario: try container.decodeIfPresent(
+                Bool.self,
+                forKey: .hasAdvancedToScenario
+            ),
+            updatedAt: try container.decode(Date.self, forKey: .updatedAt),
+            legacyDerivationBridge: try container.decodeIfPresent(
+                LegacyWorkflowDerivationBridge.self,
+                forKey: .legacyDerivationBridge
+            ) ?? .empty
+        )
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(importedPlaylist, forKey: .importedPlaylist)
+        try container.encode(reviewSongs, forKey: .reviewSongs)
+        try container.encode(revisions, forKey: .revisions)
+        try container.encodeIfPresent(completedAnalysis, forKey: .completedAnalysis)
+        try container.encodeIfPresent(persistedPlanRecord, forKey: .persistedPlanRecord)
+        try container.encodeIfPresent(externalCandidateCollection, forKey: .externalCandidateCollection)
+        try container.encodeIfPresent(voiceProfile, forKey: .voiceProfile)
+        try container.encode(recommendationInputSource, forKey: .recommendationInputSource)
+        try container.encode(scenarioConfig, forKey: .scenarioConfig)
+        try container.encode(lockedTrackIDs, forKey: .lockedTrackIDs)
+        try container.encode(removedTrackIDs, forKey: .removedTrackIDs)
+        try container.encode(feedbackProfile, forKey: .feedbackProfile)
+        try container.encodeIfPresent(hasAdvancedToScenario, forKey: .hasAdvancedToScenario)
+        try container.encode(updatedAt, forKey: .updatedAt)
+        if !legacyDerivationBridge.isEmpty {
+            try container.encode(legacyDerivationBridge, forKey: .legacyDerivationBridge)
+        }
+    }
+
+    fileprivate init(
+        importedPlaylist: ImportedPlaylist,
+        reviewSongs: [WorkflowReviewSong],
+        revisions: WorkflowRevisionLedger,
+        completedAnalysis: CompletedPlaylistAnalysis?,
+        persistedPlanRecord: PersistedPlanRecord?,
+        externalCandidateCollection: ExternalCandidateCollection?,
+        voiceProfile: VoiceProfile?,
+        recommendationInputSource: RecommendationInputSource,
+        scenarioConfig: ScenarioConfig,
+        lockedTrackIDs: [String],
+        removedTrackIDs: [String],
+        feedbackProfile: SongFeedbackProfile,
+        hasAdvancedToScenario: Bool?,
+        updatedAt: Date,
+        legacyDerivationBridge: LegacyWorkflowDerivationBridge
+    ) {
         let normalizedLockedIDs = Array(Set(lockedTrackIDs)).sorted()
         let lockedIDSet = Set(normalizedLockedIDs)
+        var normalizedLegacyBridge = legacyDerivationBridge
+
+        if completedAnalysis != nil {
+            normalizedLegacyBridge.matches = []
+            normalizedLegacyBridge.preferenceProfile = nil
+        }
+        if persistedPlanRecord != nil {
+            normalizedLegacyBridge.songPlan = nil
+        }
+        if externalCandidateCollection != nil {
+            normalizedLegacyBridge.externalCandidateTracks = []
+        }
+
         self.importedPlaylist = importedPlaylist
         self.reviewSongs = reviewSongs
-        self.matches = matches
-        self.preferenceProfile = preferenceProfile
+        self.revisions = revisions
+        self.completedAnalysis = completedAnalysis
+        self.persistedPlanRecord = persistedPlanRecord
+        self.externalCandidateCollection = externalCandidateCollection
         self.voiceProfile = voiceProfile
         self.recommendationInputSource = recommendationInputSource
         self.scenarioConfig = scenarioConfig
-        self.songPlan = songPlan
         self.lockedTrackIDs = normalizedLockedIDs
         self.removedTrackIDs = Array(Set(removedTrackIDs).subtracting(lockedIDSet)).sorted()
-        self.externalCandidateTracks = externalCandidateTracks
         self.feedbackProfile = feedbackProfile
         self.hasAdvancedToScenario = hasAdvancedToScenario
         self.updatedAt = updatedAt
+        self.legacyDerivationBridge = normalizedLegacyBridge
     }
 }
 
 public struct WorkflowSnapshotStore: Sendable {
-    private static let currentSchemaVersion = 1
+    private static let currentSchemaVersion = 2
     private static let maximumArchiveByteCount: UInt64 = 16 * 1_024 * 1_024
 
-    private struct Archive: Codable {
+    private struct ArchiveV2: Codable {
         let schemaVersion: Int
         let snapshot: WorkflowSnapshot
+    }
+
+    private struct ArchiveV1: Decodable {
+        let schemaVersion: Int
+        let snapshot: Snapshot
+
+        struct Snapshot: Decodable {
+            let importedPlaylist: ImportedPlaylist
+            let reviewSongs: [WorkflowReviewSong]
+            let matches: [MatchResult]
+            let preferenceProfile: PreferenceProfile?
+            let voiceProfile: VoiceProfile?
+            let recommendationInputSource: RecommendationInputSource
+            let scenarioConfig: ScenarioConfig
+            let songPlan: SongPlan?
+            let lockedTrackIDs: [String]
+            let removedTrackIDs: [String]
+            let externalCandidateTracks: [KTVTrack]
+            let feedbackProfile: SongFeedbackProfile
+            let hasAdvancedToScenario: Bool?
+            let updatedAt: Date
+        }
     }
 
     private struct VersionHeader: Decodable {
@@ -166,15 +528,24 @@ public struct WorkflowSnapshotStore: Sendable {
             try quarantine(reason: "corrupt")
             return .quarantined(.corrupt)
         }
-        guard header.schemaVersion == Self.currentSchemaVersion else {
+        switch header.schemaVersion {
+        case 1:
+            do {
+                return .loaded(migrateShell(try decoder.decode(ArchiveV1.self, from: data)))
+            } catch {
+                try quarantine(reason: "corrupt")
+                return .quarantined(.corrupt)
+            }
+        case Self.currentSchemaVersion:
+            do {
+                return .loaded(try decoder.decode(ArchiveV2.self, from: data).snapshot)
+            } catch {
+                try quarantine(reason: "corrupt")
+                return .quarantined(.corrupt)
+            }
+        default:
             try quarantine(reason: "incompatible")
             return .quarantined(.incompatibleVersion)
-        }
-        do {
-            return .loaded(try decoder.decode(Archive.self, from: data).snapshot)
-        } catch {
-            try quarantine(reason: "corrupt")
-            return .quarantined(.corrupt)
         }
     }
 
@@ -183,7 +554,7 @@ public struct WorkflowSnapshotStore: Sendable {
         if !FileManager.default.fileExists(atPath: directory.path) {
             try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         }
-        let archive = Archive(schemaVersion: Self.currentSchemaVersion, snapshot: snapshot)
+        let archive = ArchiveV2(schemaVersion: Self.currentSchemaVersion, snapshot: snapshot)
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
         try encoder.encode(archive).write(to: url, options: [.atomic])
@@ -218,6 +589,32 @@ public struct WorkflowSnapshotStore: Sendable {
         let quarantineURL = url.deletingLastPathComponent()
             .appendingPathComponent("\(baseName).\(reason)-\(UUID().uuidString)\(suffix)")
         try FileManager.default.moveItem(at: url, to: quarantineURL)
+    }
+
+    private func migrateShell(_ archive: ArchiveV1) -> WorkflowSnapshot {
+        let snapshot = archive.snapshot
+        return WorkflowSnapshot(
+            importedPlaylist: snapshot.importedPlaylist,
+            reviewSongs: snapshot.reviewSongs,
+            revisions: WorkflowRevisionLedger(),
+            completedAnalysis: nil,
+            persistedPlanRecord: nil,
+            externalCandidateCollection: nil,
+            voiceProfile: snapshot.voiceProfile,
+            recommendationInputSource: snapshot.recommendationInputSource,
+            scenarioConfig: snapshot.scenarioConfig,
+            lockedTrackIDs: snapshot.lockedTrackIDs,
+            removedTrackIDs: snapshot.removedTrackIDs,
+            feedbackProfile: snapshot.feedbackProfile,
+            hasAdvancedToScenario: snapshot.hasAdvancedToScenario,
+            updatedAt: snapshot.updatedAt,
+            legacyDerivationBridge: LegacyWorkflowDerivationBridge(
+                matches: snapshot.matches,
+                preferenceProfile: snapshot.preferenceProfile,
+                songPlan: snapshot.songPlan,
+                externalCandidateTracks: snapshot.externalCandidateTracks
+            )
+        )
     }
 }
 

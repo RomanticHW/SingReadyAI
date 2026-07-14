@@ -1348,7 +1348,9 @@ final class AppGroupStoreTests: XCTestCase {
         let object = try XCTUnwrap(
             JSONSerialization.jsonObject(with: Data(contentsOf: url)) as? [String: Any]
         )
-        XCTAssertEqual(object["schemaVersion"] as? Int, 1)
+        XCTAssertEqual(object["schemaVersion"] as? Int, 2)
+        let storedSnapshot = try XCTUnwrap(object["snapshot"] as? [String: Any])
+        XCTAssertNotNil(storedSnapshot["revisions"])
     }
 
     func testWorkflowSnapshotStoreLoadsArchiveBeforeScenarioAdvanceWasPersisted() throws {
@@ -1406,6 +1408,41 @@ final class AppGroupStoreTests: XCTestCase {
             try FileManager.default.contentsOfDirectory(atPath: directory.path)
                 .contains { $0.hasPrefix("workflow_snapshot.incompatible-") }
         )
+    }
+
+    func testWorkflowSnapshotStoreTreatsSchemaTwoWithoutRevisionsAsCorrupt() throws {
+        let directory = try makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let url = directory.appendingPathComponent("workflow_snapshot.json")
+        let playlist = makePlaylist(title: "缺少修订号")
+        let snapshot = WorkflowSnapshot(
+            importedPlaylist: playlist,
+            reviewSongs: playlist.songs.map { WorkflowReviewSong(song: $0) },
+            matches: [],
+            preferenceProfile: nil,
+            voiceProfile: nil,
+            recommendationInputSource: .userImport,
+            scenarioConfig: ScenarioConfig(),
+            songPlan: nil,
+            lockedTrackIDs: [],
+            removedTrackIDs: [],
+            externalCandidateTracks: [],
+            feedbackProfile: .empty
+        )
+        let store = WorkflowSnapshotStore(url: url)
+        try store.save(snapshot)
+
+        var archive = try XCTUnwrap(
+            JSONSerialization.jsonObject(with: Data(contentsOf: url)) as? [String: Any]
+        )
+        var storedSnapshot = try XCTUnwrap(archive["snapshot"] as? [String: Any])
+        storedSnapshot.removeValue(forKey: "revisions")
+        archive["snapshot"] = storedSnapshot
+        try JSONSerialization.data(withJSONObject: archive).write(to: url, options: .atomic)
+
+        guard case .quarantined(.corrupt) = try store.loadWithStatus() else {
+            return XCTFail("schema 2 缺少 revisions 必须按损坏数据隔离")
+        }
     }
 
     func testWorkflowSnapshotStoreClearRemovesCurrentAndQuarantinedFiles() throws {

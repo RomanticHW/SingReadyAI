@@ -445,6 +445,312 @@ final class StoragePrivacyHardeningTests: XCTestCase {
         XCTAssertEqual(restored.updatedAt, snapshot.updatedAt)
     }
 
+    func testWorkflowSnapshotV2RoundTripsCommittedStateWithoutSynthesizingKTVFields() throws {
+        let directory = try makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let url = directory.appendingPathComponent("workflow_snapshot.json")
+        let song = ImportedSong(
+            title: "晴天",
+            artist: "周杰伦",
+            source: .plainText,
+            confidence: 0.96
+        )
+        let playlist = ImportedPlaylist(
+            source: .plainText,
+            title: "v2 完整快照",
+            songs: [song],
+            parseConfidence: 0.96
+        )
+        let track = makeTrack(id: "local-main", title: "晴天", artist: "周杰伦")
+        let matchBasis = MatchBasis(
+            playlistID: playlist.id,
+            reviewRevision: 3,
+            catalogRevision: "catalog-v2"
+        )
+        let preference = makePreferenceProfile()
+        let analysis = CompletedPlaylistAnalysis(
+            basis: matchBasis,
+            matchRevision: 4,
+            matches: [
+                MatchResult(
+                    importedSong: song,
+                    matchedTrack: track,
+                    alternatives: [],
+                    status: .exact,
+                    confirmationState: .confirmed,
+                    score: 0.97,
+                    reason: "歌名和歌手一致"
+                )
+            ],
+            preferenceProfile: preference
+        )
+        let scenario = ScenarioConfig(scenario: .friends, peopleCount: 4, durationMinutes: 60)
+        let plan = SongPlan(
+            title: "朋友局歌单",
+            scenario: .friends,
+            inputSource: .userImport,
+            scenarioConfig: scenario,
+            preferenceSummary: preference.summary,
+            sections: []
+        )
+        let planBasis = PlanBasis(
+            matchBasis: matchBasis,
+            matchRevision: 4,
+            scenarioFingerprint: "scenario-v2",
+            voiceSource: .commonReference,
+            voiceFingerprint: "voice-v2",
+            feedbackRevision: 5,
+            trackControlsRevision: 6,
+            catalogRevision: "catalog-v2"
+        )
+        let externalCollection = ExternalCandidateCollection(
+            basis: ExternalCandidateBasis(
+                playlistID: playlist.id,
+                reviewRevision: 3,
+                requestRevision: 8
+            ),
+            candidates: [
+                ExternalSongCandidate(
+                    title: "稻香",
+                    artist: "周杰伦",
+                    source: .iTunes,
+                    confidence: 0.91,
+                    relation: .sameArtist,
+                    reasons: ["同歌手公开候选"],
+                    externalURL: URL(string: "https://music.apple.com/cn/song/1"),
+                    appleTrackID: "1"
+                )
+            ]
+        )
+        let revisions = WorkflowRevisionLedger(
+            review: 3,
+            match: 4,
+            feedback: 5,
+            trackControls: 6
+        )
+        let snapshot = WorkflowSnapshot(
+            importedPlaylist: playlist,
+            reviewSongs: [WorkflowReviewSong(song: song)],
+            revisions: revisions,
+            completedAnalysis: analysis,
+            persistedPlanRecord: .ready(plan: plan, basis: planBasis),
+            externalCandidateCollection: externalCollection,
+            voiceProfile: nil,
+            recommendationInputSource: .userImport,
+            scenarioConfig: scenario,
+            lockedTrackIDs: [track.id],
+            removedTrackIDs: [],
+            feedbackProfile: .empty,
+            hasAdvancedToScenario: true,
+            updatedAt: Date(timeIntervalSince1970: 1_730_000_000)
+        )
+
+        let store = WorkflowSnapshotStore(url: url)
+        try store.save(snapshot)
+        let restored = try XCTUnwrap(store.load())
+
+        XCTAssertEqual(restored.revisions, revisions)
+        XCTAssertEqual(restored.completedAnalysis?.basis, matchBasis)
+        XCTAssertEqual(restored.completedAnalysis?.matches.first?.matchedTrack?.id, track.id)
+        XCTAssertEqual(restored.completedAnalysis?.preferenceProfile.summary, preference.summary)
+        guard case let .ready(restoredPlan, restoredBasis) = restored.persistedPlanRecord else {
+            return XCTFail("v2 ready 计划记录应完整恢复")
+        }
+        XCTAssertEqual(restoredPlan.id, plan.id)
+        XCTAssertEqual(restoredBasis, planBasis)
+        XCTAssertEqual(restored.externalCandidateCollection, externalCollection)
+        XCTAssertEqual(restored.matches.first?.matchedTrack?.id, track.id)
+        XCTAssertEqual(restored.preferenceProfile?.summary, preference.summary)
+        XCTAssertEqual(restored.songPlan?.id, plan.id)
+        XCTAssertTrue(restored.externalCandidateTracks.isEmpty)
+
+        let archive = try XCTUnwrap(
+            JSONSerialization.jsonObject(with: Data(contentsOf: url)) as? [String: Any]
+        )
+        XCTAssertEqual(archive["schemaVersion"] as? Int, 2)
+        let storedSnapshot = try XCTUnwrap(archive["snapshot"] as? [String: Any])
+        XCTAssertNil(storedSnapshot["externalCandidateTracks"])
+        let storedCollection = try XCTUnwrap(
+            storedSnapshot["externalCandidateCollection"] as? [String: Any]
+        )
+        let collectionText = String(
+            decoding: try JSONSerialization.data(withJSONObject: storedCollection),
+            as: UTF8.self
+        )
+        XCTAssertFalse(collectionText.contains("ktvAvailability"))
+        XCTAssertFalse(collectionText.contains("catalogSource"))
+    }
+
+    func testWorkflowSnapshotLoadsSchemaOneIntoLegacyBridgeWithoutClaimingV2Readiness() throws {
+        let directory = try makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let url = directory.appendingPathComponent("workflow_snapshot.json")
+        let song = ImportedSong(
+            title: "晴天",
+            artist: "周杰伦",
+            source: .plainText,
+            confidence: 0.92
+        )
+        let playlist = ImportedPlaylist(
+            source: .plainText,
+            title: "旧版快照",
+            songs: [song],
+            parseConfidence: 0.92
+        )
+        let track = makeTrack(id: "legacy-main", title: "晴天", artist: "周杰伦")
+        let match = MatchResult(
+            importedSong: song,
+            matchedTrack: track,
+            alternatives: [],
+            status: .exact,
+            confirmationState: .confirmed,
+            score: 0.94,
+            reason: "旧版匹配"
+        )
+        let preference = makePreferenceProfile()
+        let plan = SongPlan(
+            title: "旧版排歌",
+            scenario: .friends,
+            inputSource: .userImport,
+            sections: []
+        )
+        let externalTrack = makeTrack(
+            id: "legacy-external",
+            title: "稻香",
+            artist: "周杰伦",
+            catalogSource: .externalSimilar
+        )
+        let updatedAt = Date(timeIntervalSince1970: 1_700_000_123)
+        let archive = LegacyWorkflowArchiveFixture(
+            schemaVersion: 1,
+            snapshot: LegacyWorkflowSnapshotFixture(
+                importedPlaylist: playlist,
+                reviewSongs: [WorkflowReviewSong(song: song)],
+                matches: [match],
+                preferenceProfile: preference,
+                voiceProfile: nil,
+                recommendationInputSource: .userImport,
+                scenarioConfig: ScenarioConfig(scenario: .friends),
+                songPlan: plan,
+                lockedTrackIDs: [track.id],
+                removedTrackIDs: [],
+                externalCandidateTracks: [externalTrack],
+                feedbackProfile: .empty,
+                hasAdvancedToScenario: true,
+                updatedAt: updatedAt
+            )
+        )
+        try JSONEncoder().encode(archive).write(to: url)
+
+        guard case let .loaded(restored) = try WorkflowSnapshotStore(url: url).loadWithStatus() else {
+            return XCTFail("schema 1 应迁入 v2 壳，而不是隔离")
+        }
+
+        XCTAssertEqual(restored.revisions, WorkflowRevisionLedger())
+        XCTAssertNil(restored.completedAnalysis)
+        XCTAssertNil(restored.persistedPlanRecord)
+        XCTAssertNil(restored.externalCandidateCollection)
+        XCTAssertEqual(restored.matches.first?.matchedTrack?.id, track.id)
+        XCTAssertEqual(restored.preferenceProfile?.summary, preference.summary)
+        XCTAssertEqual(restored.songPlan?.id, plan.id)
+        XCTAssertEqual(restored.externalCandidateTracks.first?.id, externalTrack.id)
+        XCTAssertEqual(restored.updatedAt, updatedAt)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: url.path))
+        XCTAssertFalse(
+            try FileManager.default.contentsOfDirectory(atPath: directory.path)
+                .contains { $0.contains(".corrupt-") || $0.contains(".incompatible-") }
+        )
+    }
+
+    func testWorkflowSnapshotV2DecodeDropsLegacyAnalysisWhenCommittedAnalysisExists() throws {
+        let directory = try makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let url = directory.appendingPathComponent("workflow_snapshot.json")
+        let song = ImportedSong(
+            title: "晴天",
+            artist: "周杰伦",
+            source: .plainText,
+            confidence: 0.95
+        )
+        let playlist = ImportedPlaylist(
+            source: .plainText,
+            title: "双状态防护",
+            songs: [song],
+            parseConfidence: 0.95
+        )
+        let legacyTrack = makeTrack(id: "legacy-track", title: "晴天", artist: "孙燕姿")
+        let committedTrack = makeTrack(id: "committed-track", title: "晴天", artist: "周杰伦")
+        let preference = makePreferenceProfile()
+        let snapshot = WorkflowSnapshot(
+            importedPlaylist: playlist,
+            reviewSongs: [WorkflowReviewSong(song: song)],
+            matches: [
+                MatchResult(
+                    importedSong: song,
+                    matchedTrack: legacyTrack,
+                    alternatives: [],
+                    status: .fuzzy,
+                    score: 0.7,
+                    reason: "旧 bridge"
+                )
+            ],
+            preferenceProfile: preference,
+            voiceProfile: nil,
+            recommendationInputSource: .userImport,
+            scenarioConfig: ScenarioConfig(),
+            songPlan: nil,
+            lockedTrackIDs: [],
+            removedTrackIDs: [],
+            externalCandidateTracks: [],
+            feedbackProfile: .empty
+        )
+        let store = WorkflowSnapshotStore(url: url)
+        try store.save(snapshot)
+        let basis = MatchBasis(
+            playlistID: playlist.id,
+            reviewRevision: 0,
+            catalogRevision: "catalog-v2"
+        )
+        let analysis = CompletedPlaylistAnalysis(
+            basis: basis,
+            matchRevision: 1,
+            matches: [
+                MatchResult(
+                    importedSong: song,
+                    matchedTrack: committedTrack,
+                    alternatives: [],
+                    status: .exact,
+                    confirmationState: .confirmed,
+                    score: 0.98,
+                    reason: "已提交分析"
+                )
+            ],
+            preferenceProfile: preference
+        )
+
+        var archive = try XCTUnwrap(
+            JSONSerialization.jsonObject(with: Data(contentsOf: url)) as? [String: Any]
+        )
+        var storedSnapshot = try XCTUnwrap(archive["snapshot"] as? [String: Any])
+        storedSnapshot["completedAnalysis"] = try JSONSerialization.jsonObject(
+            with: JSONEncoder().encode(analysis)
+        )
+        archive["snapshot"] = storedSnapshot
+        try JSONSerialization.data(withJSONObject: archive).write(to: url, options: .atomic)
+
+        let restored = try XCTUnwrap(store.load())
+        XCTAssertEqual(restored.matches.first?.matchedTrack?.id, committedTrack.id)
+        try store.save(restored)
+
+        let normalizedArchive = try XCTUnwrap(
+            JSONSerialization.jsonObject(with: Data(contentsOf: url)) as? [String: Any]
+        )
+        let normalizedSnapshot = try XCTUnwrap(
+            normalizedArchive["snapshot"] as? [String: Any]
+        )
+        XCTAssertNil(normalizedSnapshot["legacyDerivationBridge"])
+    }
+
     private func makeTrack(
         id: String,
         title: String,
@@ -476,6 +782,25 @@ final class StoragePrivacyHardeningTests: XCTestCase {
             catalogSource: catalogSource,
             confidenceNote: catalogSource == .externalSimilar ? "KTV 收录待核对" : nil,
             externalCandidateMetadata: metadata
+        )
+    }
+
+    private func makePreferenceProfile() -> PreferenceProfile {
+        PreferenceProfile(
+            topArtists: [("周杰伦", 1)],
+            languageDistribution: ["国语": 1],
+            eraDistribution: ["2000s": 1],
+            genreDistribution: ["流行": 1],
+            moodTags: ["合唱": 0.8],
+            sceneAffinity: ["friends": 0.9],
+            ktvMatchRate: 1,
+            averageDifficulty: 3,
+            averageSingAlongScore: 0.88,
+            highNoteRisk: 0.2,
+            chorusFriendliness: 0.9,
+            scenarioFitScores: ["friends": 0.95],
+            profileTags: ["华语流行"],
+            summary: "偏爱华语流行"
         )
     }
 
@@ -531,4 +856,26 @@ final class StoragePrivacyHardeningTests: XCTestCase {
         }
     }
     #endif
+}
+
+private struct LegacyWorkflowArchiveFixture: Encodable {
+    let schemaVersion: Int
+    let snapshot: LegacyWorkflowSnapshotFixture
+}
+
+private struct LegacyWorkflowSnapshotFixture: Encodable {
+    let importedPlaylist: ImportedPlaylist
+    let reviewSongs: [WorkflowReviewSong]
+    let matches: [MatchResult]
+    let preferenceProfile: PreferenceProfile?
+    let voiceProfile: VoiceProfile?
+    let recommendationInputSource: RecommendationInputSource
+    let scenarioConfig: ScenarioConfig
+    let songPlan: SongPlan?
+    let lockedTrackIDs: [String]
+    let removedTrackIDs: [String]
+    let externalCandidateTracks: [KTVTrack]
+    let feedbackProfile: SongFeedbackProfile
+    let hasAdvancedToScenario: Bool?
+    let updatedAt: Date
 }

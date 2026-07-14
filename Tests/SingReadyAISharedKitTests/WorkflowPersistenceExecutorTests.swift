@@ -106,6 +106,98 @@ final class WorkflowPersistenceExecutorTests: XCTestCase {
         XCTAssertTrue(gate.accepts(currentRequest))
     }
 
+    func testPersistedPlanRecordMapsOnlyCompletedPlanOrPreviousSnapshot() throws {
+        let playlistID = UUID()
+        let plan = makePlan(title: "已完成歌单")
+        let basis = makePlanBasis(playlistID: playlistID)
+        let previous = StalePlanSnapshot(
+            plan: plan,
+            previousBasis: basis,
+            reason: "场景已更新"
+        )
+
+        XCTAssertNil(PersistedPlanRecord(planGenerationState: .absent))
+        XCTAssertNil(
+            PersistedPlanRecord(
+                planGenerationState: .generating(basis: basis, previous: nil)
+            )
+        )
+        XCTAssertNil(
+            PersistedPlanRecord(
+                planGenerationState: .failed(message: "生成失败", retryable: true, previous: nil)
+            )
+        )
+
+        guard case let .ready(readyPlan, readyBasis) = PersistedPlanRecord(
+            planGenerationState: .ready(plan: plan, basis: basis)
+        ) else {
+            return XCTFail("ready 状态应保存为 ready 记录")
+        }
+        XCTAssertEqual(readyPlan.id, plan.id)
+        XCTAssertEqual(readyBasis, basis)
+
+        for transientState in [
+            PlanGenerationState.generating(basis: basis, previous: previous),
+            PlanGenerationState.failed(message: "生成失败", retryable: true, previous: previous)
+        ] {
+            guard case let .stale(stale) = PersistedPlanRecord(
+                planGenerationState: transientState
+            ) else {
+                return XCTFail("携带上一版计划的临时状态只能保存 stale 记录")
+            }
+            XCTAssertEqual(stale.plan.id, plan.id)
+            XCTAssertEqual(stale.previousBasis, basis)
+            XCTAssertEqual(stale.reason, "场景已更新")
+        }
+
+        let staleRecord = try XCTUnwrap(
+            PersistedPlanRecord(planGenerationState: .stale(previous))
+        )
+        guard case let .stale(restored) = staleRecord.restoredPlanGenerationState else {
+            return XCTFail("持久化计划只能恢复为 absent、ready 或 stale")
+        }
+        XCTAssertEqual(restored.plan.id, plan.id)
+        XCTAssertEqual(restored.previousBasis, basis)
+        XCTAssertEqual(restored.reason, previous.reason)
+    }
+
+    func testPersistedPlanRecordUsesStableExplicitCodingShape() throws {
+        let plan = makePlan(title: "稳定编码歌单")
+        let basis = makePlanBasis(playlistID: UUID())
+        let records: [PersistedPlanRecord] = [
+            .ready(plan: plan, basis: basis),
+            .stale(
+                StalePlanSnapshot(
+                    plan: plan,
+                    previousBasis: basis,
+                    reason: "音区已更新"
+                )
+            )
+        ]
+
+        for (record, expectedKind) in zip(records, ["ready", "stale"]) {
+            let data = try JSONEncoder().encode(record)
+            let object = try XCTUnwrap(
+                JSONSerialization.jsonObject(with: data) as? [String: Any]
+            )
+            XCTAssertEqual(Set(object.keys), Set(["kind", "plan", "basis", "reason"]))
+            XCTAssertEqual(object["kind"] as? String, expectedKind)
+
+            let decoded = try JSONDecoder().decode(PersistedPlanRecord.self, from: data)
+            switch (record, decoded) {
+            case let (.ready(expectedPlan, expectedBasis), .ready(actualPlan, actualBasis)):
+                XCTAssertEqual(actualPlan.id, expectedPlan.id)
+                XCTAssertEqual(actualBasis, expectedBasis)
+            case let (.stale(expected), .stale(actual)):
+                XCTAssertEqual(actual.plan.id, expected.plan.id)
+                XCTAssertEqual(actual.previousBasis, expected.previousBasis)
+                XCTAssertEqual(actual.reason, expected.reason)
+            default:
+                XCTFail("计划记录 kind 不应在回环后改变")
+            }
+        }
+    }
+
     func testArtifactCleanerCanClearTemporaryArtifactsWithoutBypassingPersistenceExecutor() async throws {
         let directory = try makeTemporaryDirectory()
         defer { try? FileManager.default.removeItem(at: directory) }
@@ -167,6 +259,33 @@ final class WorkflowPersistenceExecutorTests: XCTestCase {
             removedTrackIDs: [],
             externalCandidateTracks: [],
             feedbackProfile: .empty
+        )
+    }
+
+    private func makePlan(title: String) -> SongPlan {
+        SongPlan(
+            title: title,
+            scenario: .friends,
+            inputSource: .userImport,
+            sections: []
+        )
+    }
+
+    private func makePlanBasis(playlistID: UUID) -> PlanBasis {
+        let matchBasis = MatchBasis(
+            playlistID: playlistID,
+            reviewRevision: 1,
+            catalogRevision: "catalog-v2"
+        )
+        return PlanBasis(
+            matchBasis: matchBasis,
+            matchRevision: 2,
+            scenarioFingerprint: "scenario-v2",
+            voiceSource: .commonReference,
+            voiceFingerprint: "voice-v2",
+            feedbackRevision: 3,
+            trackControlsRevision: 4,
+            catalogRevision: "catalog-v2"
         )
     }
 
