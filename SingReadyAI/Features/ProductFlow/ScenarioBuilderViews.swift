@@ -76,7 +76,44 @@ struct ScenarioBuilderView: View {
 
     @ViewBuilder
     private var generateButton: some View {
-        if store.isWorking {
+        if store.isGeneratingPlan {
+            VStack(spacing: SpacingTokens.xs) {
+                LoadingStateView(text: "正在按最新选择排歌")
+                    .accessibilityIdentifier("plan-generation-progress")
+                SecondaryGlassButton(title: "取消重排", systemImage: "xmark.circle") {
+                    store.cancelCurrentPlanGeneration()
+                }
+            }
+        } else if case let .failed(message, retryable, previous) = store.planGenerationState {
+            VStack(spacing: SpacingTokens.xs) {
+                ErrorStateView(text: message)
+                if previous != nil {
+                    Text("上一版还在，重新排好前不会用于分享或开唱小抄。")
+                        .font(TypographyTokens.caption)
+                        .foregroundStyle(DesignSystem.muted)
+                }
+                if retryable {
+                    PrimaryGradientButton(
+                        title: "重新排一版",
+                        systemImage: "arrow.clockwise"
+                    ) {
+                        store.generatePlan()
+                    }
+                }
+            }
+        } else if case let .stale(snapshot) = store.planGenerationState {
+            VStack(spacing: SpacingTokens.xs) {
+                Text(snapshot.reason)
+                    .font(TypographyTokens.caption)
+                    .foregroundStyle(DesignSystem.muted)
+                PrimaryGradientButton(
+                    title: "按最新选择重排",
+                    systemImage: "arrow.triangle.2.circlepath"
+                ) {
+                    store.generatePlan()
+                }
+            }
+        } else if case .running = store.matchOperationState {
             VStack(spacing: SpacingTokens.xs) {
                 LoadingStateView(text: store.matchingProgressText)
                 SecondaryGlassButton(title: "取消核对", systemImage: "xmark.circle") {
@@ -84,7 +121,12 @@ struct ScenarioBuilderView: View {
                 }
             }
         } else {
-            PrimaryGradientButton(title: isSoloPractice ? "排一份练唱单" : "排一份今晚歌单", systemImage: "sparkles") {
+            PrimaryGradientButton(
+                title: store.readySongPlan == nil
+                    ? (isSoloPractice ? "排一份练唱单" : "排一份今晚歌单")
+                    : "再排一版",
+                systemImage: "sparkles"
+            ) {
                 store.generatePlan()
             }
         }

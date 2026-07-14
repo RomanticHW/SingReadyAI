@@ -82,6 +82,61 @@ final class WorkflowPersistenceExecutorTests: XCTestCase {
         XCTAssertEqual(try snapshotStore.load()?.importedPlaylist.title, "新候选 C")
     }
 
+    func testRevisionedWorkflowCommitReturnsTheRevisionActuallyWritten() async throws {
+        let directory = try makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let snapshotURL = directory.appendingPathComponent("workflow_snapshot.json")
+        let executor = WorkflowPersistenceExecutor(
+            recentPlaylistStore: RecentPlaylistStore(
+                url: directory.appendingPathComponent("recent_playlists.json")
+            ),
+            workflowSnapshotStore: WorkflowSnapshotStore(url: snapshotURL)
+        )
+        let candidate = WorkflowSnapshotCommitCandidate(
+            snapshot: makeSnapshot(title: "候选快照"),
+            revision: 42
+        )
+
+        await executor.reserveWorkflowMutation(generation: 7)
+        let result = try await executor.commitWorkflowSnapshot(
+            candidate,
+            generation: 7
+        )
+
+        XCTAssertEqual(result, .applied(revision: 42))
+        XCTAssertEqual(
+            try WorkflowSnapshotStore(url: snapshotURL).load()?.importedPlaylist.title,
+            "候选快照"
+        )
+    }
+
+    func testRevisionedWorkflowCommitDoesNotReportOrWriteSupersededCandidate() async throws {
+        let directory = try makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let snapshotURL = directory.appendingPathComponent("workflow_snapshot.json")
+        let snapshotStore = WorkflowSnapshotStore(url: snapshotURL)
+        try snapshotStore.save(makeSnapshot(title: "当前快照"))
+        let executor = WorkflowPersistenceExecutor(
+            recentPlaylistStore: RecentPlaylistStore(
+                url: directory.appendingPathComponent("recent_playlists.json")
+            ),
+            workflowSnapshotStore: snapshotStore
+        )
+
+        await executor.reserveWorkflowMutation(generation: 8)
+        await executor.reserveWorkflowMutation(generation: 9)
+        let result = try await executor.commitWorkflowSnapshot(
+            WorkflowSnapshotCommitCandidate(
+                snapshot: makeSnapshot(title: "过期候选"),
+                revision: 51
+            ),
+            generation: 8
+        )
+
+        XCTAssertEqual(result, .superseded)
+        XCTAssertEqual(try snapshotStore.load()?.importedPlaylist.title, "当前快照")
+    }
+
     func testMatchCancellationReservationSupersedesAnalysisBeforeCommitStarts() async throws {
         let directory = try makeTemporaryDirectory()
         defer { try? FileManager.default.removeItem(at: directory) }
@@ -285,6 +340,17 @@ final class WorkflowPersistenceExecutorTests: XCTestCase {
         XCTAssertTrue(gate.accepts(currentRequest))
     }
 
+    func testWholeWorkflowReplacementInvalidatesPendingPlanStateTransition() {
+        var gate = WorkflowStateTransitionGate()
+        let stalePlanTransition = gate.begin()
+
+        gate.invalidate()
+
+        XCTAssertFalse(gate.accepts(stalePlanTransition))
+        let replacementTransition = gate.begin()
+        XCTAssertTrue(gate.accepts(replacementTransition))
+    }
+
     func testPersistedPlanRecordMapsOnlyCompletedPlanOrPreviousSnapshot() throws {
         let playlistID = UUID()
         let plan = makePlan(title: "已完成歌单")
@@ -338,6 +404,56 @@ final class WorkflowPersistenceExecutorTests: XCTestCase {
         XCTAssertEqual(restored.plan.id, plan.id)
         XCTAssertEqual(restored.previousBasis, basis)
         XCTAssertEqual(restored.reason, previous.reason)
+    }
+
+    func testStartingReplanWritesPreviousReadyPlanAsStaleForColdRestore() async throws {
+        let directory = try makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let snapshotURL = directory.appendingPathComponent("workflow_snapshot.json")
+        let playlist = makePlaylist(title: "待重排歌单")
+        let basis = makePlanBasis(playlistID: playlist.id)
+        let plan = makePlan(title: "上一版歌单")
+        let generatingState = PlanGenerationState
+            .ready(plan: plan, basis: basis)
+            .preparingGeneration(for: basis)
+        let snapshot = WorkflowSnapshot(
+            importedPlaylist: playlist,
+            reviewSongs: playlist.songs.map { WorkflowReviewSong(song: $0) },
+            revisions: WorkflowRevisionLedger(),
+            completedAnalysis: nil,
+            persistedPlanRecord: PersistedPlanRecord(
+                planGenerationState: generatingState
+            ),
+            externalCandidateCollection: nil,
+            voiceProfile: nil,
+            recommendationInputSource: .userImport,
+            scenarioConfig: ScenarioConfig(),
+            lockedTrackIDs: [],
+            removedTrackIDs: [],
+            feedbackProfile: .empty
+        )
+        let executor = WorkflowPersistenceExecutor(
+            recentPlaylistStore: RecentPlaylistStore(
+                url: directory.appendingPathComponent("recent_playlists.json")
+            ),
+            workflowSnapshotStore: WorkflowSnapshotStore(url: snapshotURL)
+        )
+
+        await executor.reserveWorkflowMutation(generation: 12)
+        let result = try await executor.commitWorkflowSnapshot(
+            WorkflowSnapshotCommitCandidate(snapshot: snapshot, revision: 73),
+            generation: 12
+        )
+
+        XCTAssertEqual(result, .applied(revision: 73))
+        let restored = try XCTUnwrap(
+            WorkflowSnapshotStore(url: snapshotURL).load()?.persistedPlanRecord
+        )
+        guard case let .stale(previous) = restored else {
+            return XCTFail("冷启动只能恢复上一版 stale，不能复活 ready")
+        }
+        XCTAssertEqual(previous.plan.id, plan.id)
+        XCTAssertNil(restored.restoredPlanGenerationState.readyPlan(validFor: basis))
     }
 
     func testPersistedPlanRecordUsesStableExplicitCodingShape() throws {

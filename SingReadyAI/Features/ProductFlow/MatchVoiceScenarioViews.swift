@@ -67,7 +67,7 @@ struct MatchReportView: View {
                                     store.adoptAlternative(resultID: result.id, trackID: trackID)
                                 }
                             )
-                            .disabled(store.isApplyingMatchReviewAction)
+                            .disabled(store.isApplyingMatchReviewAction || store.isWorking)
                         }
                     }
                     if visibleResultCount < store.matches.count {

@@ -20,6 +20,7 @@ extension DemoWorkflowStore {
         navigateToImport: Bool = true,
         clearPersistedSnapshot: Bool = true
     ) {
+        planStateTransitionGate.invalidate()
         cancelExternalCandidateRequest()
         importedPlaylist = nil
         replaceReviewSongs([])
@@ -27,7 +28,7 @@ extension DemoWorkflowStore {
         replaceCompletedAnalysis(nil)
         setMatchOperationState(.notStarted)
         recommendationInputSource = .userImport
-        songPlan = nil
+        setPlanGenerationState(.absent)
         hasAdvancedToScenario = false
         externalCandidateTracks = []
         externalCandidateStatus = "还没找同歌手备选"
@@ -55,18 +56,22 @@ extension DemoWorkflowStore {
     }
 
     func exportedText() -> String {
-        guard let songPlan else { return "还没有可复制的歌单" }
-        return textExporter.export(plan: songPlan)
+        guard let readySongPlan else { return readyPlanUnavailableMessage }
+        return textExporter.export(plan: readySongPlan)
     }
 
     func exportedShareText() -> String {
-        guard let songPlan else { return "还没有可分享的歌单" }
-        return shareTextExporter.export(plan: songPlan)
+        guard let readySongPlan else { return readyPlanUnavailableMessage }
+        return shareTextExporter.export(plan: readySongPlan)
     }
 
     func exportedJSON() -> String {
-        guard let songPlan else { return "{}" }
-        return (try? jsonExporter.export(plan: songPlan)) ?? "{}"
+        guard let readySongPlan else { return "{}" }
+        return (try? jsonExporter.export(plan: readySongPlan)) ?? "{}"
+    }
+
+    var readyPlanUnavailableMessage: String {
+        "歌单还没按最新选择更新，请先重新排一版。"
     }
 
     func reopenRecentPlaylist(_ playlist: ImportedPlaylist) {
@@ -169,7 +174,13 @@ extension DemoWorkflowStore {
     }
 
     func cancelWorkflowOperation() {
-        let hadActiveMatch = isWorking || matchOperationTask != nil
+        let hadActiveMatch: Bool
+        if case .running = matchOperationState {
+            hadActiveMatch = true
+        } else {
+            hadActiveMatch = matchOperationTask != nil
+        }
+        let hadActivePlan = isGeneratingPlan || planGenerationTask != nil
         planPreparationGeneration &+= 1
         planPreparationTask?.cancel()
         planPreparationTask = nil
@@ -178,6 +189,9 @@ extension DemoWorkflowStore {
         matchOperationTimeoutTask?.cancel()
         matchOperationTask = nil
         matchOperationTimeoutTask = nil
+        if hadActivePlan {
+            invalidatePlan(reason: "这次重排已取消")
+        }
         if hadActiveMatch {
             setMatchOperationState(.cancelled)
             reserveCancellationOfCurrentMatchCommit()
@@ -262,7 +276,7 @@ extension DemoWorkflowStore {
     }
 
     func cancelCurrentMatching() {
-        guard isWorking else { return }
+        guard case .running = matchOperationState else { return }
         cancelWorkflowOperation()
         setMatchOperationState(.cancelled)
         statusMessage = "已取消本次核对"

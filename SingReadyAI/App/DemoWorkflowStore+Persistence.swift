@@ -2,6 +2,11 @@ import Combine
 import Foundation
 import SingReadyAISharedKit
 
+struct WorkflowSnapshotCommitReservation {
+    let generation: UInt64
+    let candidate: WorkflowSnapshotCommitCandidate
+}
+
 @MainActor
 extension DemoWorkflowStore {
     static func recentPlaylistsURL() -> URL {
@@ -68,7 +73,7 @@ extension DemoWorkflowStore {
         workflowSnapshotForPersistence(
             completedAnalysis: completedAnalysis,
             revisions: revisions,
-            songPlan: songPlan,
+            planGenerationState: planGenerationState,
             externalCandidateTracks: externalCandidateTracks
         )
     }
@@ -76,7 +81,7 @@ extension DemoWorkflowStore {
     func workflowSnapshotForPersistence(
         completedAnalysis: CompletedPlaylistAnalysis?,
         revisions: WorkflowRevisionLedger,
-        songPlan: SongPlan?,
+        planGenerationState: PlanGenerationState,
         externalCandidateTracks: [KTVTrack]
     ) -> WorkflowSnapshot? {
         guard let importedPlaylist else { return nil }
@@ -96,7 +101,9 @@ extension DemoWorkflowStore {
             },
             revisions: revisions,
             completedAnalysis: completedAnalysis,
-            persistedPlanRecord: nil,
+            persistedPlanRecord: PersistedPlanRecord(
+                planGenerationState: planGenerationState
+            ),
             externalCandidateCollection: nil,
             voiceProfile: voiceProfile,
             recommendationInputSource: recommendationInputSource,
@@ -105,9 +112,79 @@ extension DemoWorkflowStore {
             removedTrackIDs: Array(removedTrackIDs),
             feedbackProfile: feedbackProfile,
             hasAdvancedToScenario: hasAdvancedToScenario,
-            legacySongPlan: songPlan,
+            legacySongPlan: nil,
             legacyExternalCandidateTracks: externalCandidateTracks
         )
+    }
+
+    func reservePlanStateSnapshotCommit(
+        _ state: PlanGenerationState,
+        advancesRevision: Bool = true
+    ) -> WorkflowSnapshotCommitReservation? {
+        if advancesRevision {
+            workflowSnapshotRevision &+= 1
+        }
+        let revision = workflowSnapshotRevision
+        let generation = workflowSnapshotPersistenceGate.begin()
+        guard let snapshot = workflowSnapshotForPersistence(
+            completedAnalysis: completedAnalysis,
+            revisions: revisions,
+            planGenerationState: state,
+            externalCandidateTracks: externalCandidateTracks
+        ) else {
+            return nil
+        }
+        return WorkflowSnapshotCommitReservation(
+            generation: generation,
+            candidate: WorkflowSnapshotCommitCandidate(
+                snapshot: snapshot,
+                revision: revision
+            )
+        )
+    }
+
+    @discardableResult
+    func commitReservedWorkflowSnapshot(
+        _ reservation: WorkflowSnapshotCommitReservation,
+        reportFailure: Bool
+    ) async -> WorkflowSnapshotCommitResult? {
+        await workflowPersistenceExecutor.reserveWorkflowMutation(
+            generation: reservation.generation
+        )
+        do {
+            let result = try await workflowPersistenceExecutor.commitWorkflowSnapshot(
+                reservation.candidate,
+                generation: reservation.generation
+            )
+            if case let .applied(revision) = result,
+               workflowSnapshotPersistenceGate.accepts(reservation.generation),
+               workflowSnapshotRevision == revision {
+                lastWorkflowSnapshotAttemptRevision = revision
+            }
+            return result
+        } catch {
+            guard workflowSnapshotPersistenceGate.accepts(reservation.generation) else {
+                return nil
+            }
+            if reportFailure {
+                errorMessage = "当前进度暂时没保存下来，请稍后再试。"
+            }
+            return nil
+        }
+    }
+
+    func persistPlanStateImmediately(
+        _ state: PlanGenerationState,
+        reportFailure: Bool
+    ) {
+        guard let reservation = reservePlanStateSnapshotCommit(state) else { return }
+        Task { @MainActor [weak self] in
+            guard let self else { return }
+            _ = await self.commitReservedWorkflowSnapshot(
+                reservation,
+                reportFailure: reportFailure
+            )
+        }
     }
 
     private func persistWorkflowSnapshot(
@@ -142,8 +219,11 @@ extension DemoWorkflowStore {
         }
     }
 
-    func restoreWorkflowSnapshot(request: UInt64? = nil) async {
-        let request = request ?? workflowSnapshotPersistenceGate.begin()
+    func restoreWorkflowSnapshot(
+        request: UInt64,
+        voiceProfileRequest: UInt64,
+        voiceProfileEpoch: UInt64
+    ) async {
         do {
             let requestResult = try await workflowPersistenceExecutor.loadWorkflowSnapshot(
                 request: request
@@ -153,19 +233,41 @@ extension DemoWorkflowStore {
             let snapshot: WorkflowSnapshot
             switch loadResult {
             case .missing:
+                await restoreStandaloneVoiceProfileIfNeeded(
+                    request: voiceProfileRequest,
+                    epoch: voiceProfileEpoch
+                )
                 return
             case let .loaded(loadedSnapshot):
                 snapshot = loadedSnapshot
             case .quarantined(.corrupt):
                 errorMessage = "上次整理进度已损坏，已单独收好；可以重新导入歌单。"
+                await restoreStandaloneVoiceProfileIfNeeded(
+                    request: voiceProfileRequest,
+                    epoch: voiceProfileEpoch
+                )
                 return
             case .quarantined(.incompatibleVersion):
                 errorMessage = "上次整理进度来自其他版本，已单独收好；可以重新开始。"
+                await restoreStandaloneVoiceProfileIfNeeded(
+                    request: voiceProfileRequest,
+                    epoch: voiceProfileEpoch
+                )
                 return
             case .quarantined(.oversized):
                 errorMessage = "上次整理进度异常过大，已单独收好；可以重新导入歌单。"
+                await restoreStandaloneVoiceProfileIfNeeded(
+                    request: voiceProfileRequest,
+                    epoch: voiceProfileEpoch
+                )
                 return
             }
+            let restoredVoiceProfile = await resolvedStandaloneVoiceProfile(
+                current: snapshot.voiceProfile,
+                request: voiceProfileRequest,
+                epoch: voiceProfileEpoch
+            )
+            guard workflowSnapshotPersistenceGate.accepts(request) else { return }
             isApplyingRestoredWorkflowSnapshot = true
             defer { isApplyingRestoredWorkflowSnapshot = false }
             importedPlaylist = snapshot.importedPlaylist
@@ -191,10 +293,9 @@ extension DemoWorkflowStore {
                 setMatchOperationState(.notStarted)
             }
             replaceCompletedAnalysis(restoredAnalysis)
-            voiceProfile = snapshot.voiceProfile
+            voiceProfile = restoredVoiceProfile
             recommendationInputSource = snapshot.recommendationInputSource
             scenarioConfig = snapshot.scenarioConfig
-            songPlan = snapshot.songPlan
             lockedTrackIDs = Set(snapshot.lockedTrackIDs)
             removedTrackIDs = Set(snapshot.removedTrackIDs).subtracting(lockedTrackIDs)
             externalCandidateTracks = snapshot.externalCandidateTracks
@@ -213,25 +314,88 @@ extension DemoWorkflowStore {
             if restoredFeedback != feedbackProfile {
                 feedbackProfile = restoredFeedback
             }
-            if !hasStandaloneFeedbackRecord {
-                SongFeedbackLocalStore().save(feedbackProfile)
-                hasStandaloneFeedbackRecord = true
+            if hasStandaloneFeedbackRecord,
+               revisions.feedback != standaloneFeedbackRevision {
+                var restoredRevisions = revisions
+                restoredRevisions.feedback = standaloneFeedbackRevision
+                replaceWorkflowRevisions(restoredRevisions)
             }
+            if !hasStandaloneFeedbackRecord {
+                try? SongFeedbackLocalStore().save(
+                    SongFeedbackRecord(
+                        revision: snapshot.revisions.feedback,
+                        profile: feedbackProfile
+                    )
+                )
+                hasStandaloneFeedbackRecord = true
+                standaloneFeedbackRevision = snapshot.revisions.feedback
+            }
+            let restoredPlanState: PlanGenerationState
+            if let record = snapshot.persistedPlanRecord {
+                switch record.restoredPlanGenerationState {
+                case let .ready(plan, basis):
+                    if currentPlanBasis == basis,
+                       planMatchesCurrentGenerationContext(plan, basis: basis) {
+                        restoredPlanState = .ready(plan: plan, basis: basis)
+                    } else {
+                        restoredPlanState = .stale(
+                            StalePlanSnapshot(
+                                plan: plan,
+                                previousBasis: basis,
+                                reason: "排歌条件已经更新，请重新排一版"
+                            )
+                        )
+                    }
+                case let .stale(snapshot):
+                    restoredPlanState = .stale(snapshot)
+                case .absent, .generating, .failed:
+                    restoredPlanState = .absent
+                }
+            } else if let legacyPlan = snapshot.songPlan {
+                restoredPlanState = .legacyStale(plan: legacyPlan)
+            } else {
+                restoredPlanState = .absent
+            }
+            setPlanGenerationState(restoredPlanState)
             hasAdvancedToScenario = snapshot.hasAdvancedToScenario ?? false
-            reconcileRestoredWorkflowConsistency(
-                shouldRefreshPlanForFeedback: shouldRefreshPlanForFeedback
-            )
+            if shouldRefreshPlanForFeedback {
+                invalidatePlan(reason: "歌曲反馈已更新")
+            }
             externalCandidateStatus = externalCandidateTracks.isEmpty
                 ? "还没找同歌手备选"
                 : "已恢复 \(externalCandidateTracks.count) 首备选"
-            statusMessage = songPlan == nil ? "已恢复上次整理进度" : "已恢复上次排好的歌单"
+            statusMessage = visibleSongPlan == nil
+                ? "已恢复上次整理进度"
+                : (canUseReadyPlan ? "已恢复上次排好的歌单" : "已恢复上一版歌单，请按最新选择重排")
         } catch {
             guard workflowSnapshotPersistenceGate.accepts(request) else { return }
             errorMessage = "上次整理进度暂时读不到，请稍后再试。"
+            await restoreStandaloneVoiceProfileIfNeeded(
+                request: voiceProfileRequest,
+                epoch: voiceProfileEpoch
+            )
         }
     }
 
     func restoreStandaloneVoiceProfileIfNeeded(request: UInt64, epoch: UInt64) async {
+        let restored = await resolvedStandaloneVoiceProfile(
+            current: voiceProfile,
+            request: request,
+            epoch: epoch
+        )
+        guard voiceProfilePersistenceGate.accepts(request),
+              acceptsLocalDataEpoch(epoch),
+              !isManagingLocalData else { return }
+        if restored != voiceProfile {
+            voiceProfile = restored
+        }
+    }
+
+    private func resolvedStandaloneVoiceProfile(
+        current: VoiceProfile?,
+        request: UInt64,
+        epoch: UInt64
+    ) async -> VoiceProfile? {
         #if DEBUG
         if ProcessInfo.processInfo.arguments.contains("-singreadyDelayVoiceProfileRestoreRace") {
             try? await Task.sleep(nanoseconds: 4_000_000_000)
@@ -239,7 +403,7 @@ extension DemoWorkflowStore {
         #endif
         guard voiceProfilePersistenceGate.accepts(request),
               acceptsLocalDataEpoch(epoch),
-              !isManagingLocalData else { return }
+              !isManagingLocalData else { return current }
         do {
             let result = try await voiceProfileStore.loadWithStatus()
             #if DEBUG
@@ -249,22 +413,19 @@ extension DemoWorkflowStore {
             #endif
             guard voiceProfilePersistenceGate.accepts(request),
                   acceptsLocalDataEpoch(epoch),
-                  !isManagingLocalData else { return }
+                  !isManagingLocalData else { return current }
             switch result {
             case .missing:
                 if let migrationCandidate = VoiceProfileRestorePolicy
-                    .standaloneMigrationCandidate(current: voiceProfile) {
+                    .standaloneMigrationCandidate(current: current) {
                     _ = try await voiceProfileStore.saveIfEligible(migrationCandidate)
                 }
-                return
+                return current
             case let .loaded(profile):
-                let preferred = VoiceProfileRestorePolicy.preferred(
-                    current: voiceProfile,
+                return VoiceProfileRestorePolicy.preferred(
+                    current: current,
                     standalone: profile
                 )
-                if preferred != voiceProfile {
-                    voiceProfile = preferred
-                }
             case .quarantined(.corrupt):
                 errorMessage = "上次保存的实测音区已损坏，已单独收好；可以重新测一次。"
             case .quarantined(.incompatibleVersion):
@@ -272,13 +433,15 @@ extension DemoWorkflowStore {
             case .quarantined(.oversized):
                 errorMessage = "上次实测音区记录异常过大，已单独收好；可以重新测一次。"
             }
+            return current
         } catch {
             guard voiceProfilePersistenceGate.accepts(request),
                   acceptsLocalDataEpoch(epoch),
-                  !isManagingLocalData else { return }
-            if voiceProfile?.hasValidMeasuredRange != true {
+                  !isManagingLocalData else { return current }
+            if current?.hasValidMeasuredRange != true {
                 errorMessage = "上次测到的音区暂时读不到，可以重新测一次。"
             }
+            return current
         }
     }
 
@@ -317,13 +480,14 @@ extension DemoWorkflowStore {
             }
             .store(in: &workflowSnapshotSubscriptions)
 
-        $externalCandidateTracks
+        $recommendationInputSource
             .dropFirst()
             .removeDuplicates()
             .sink { [weak self] _ in
                 guard let self,
-                      !self.isApplyingRestoredWorkflowSnapshot else { return }
-                self.invalidatePlanForExternalCandidateChange()
+                      !self.isApplyingRestoredWorkflowSnapshot,
+                      self.visibleSongPlan != nil || self.isGeneratingPlan else { return }
+                self.invalidatePlan(reason: "歌单来源已更新")
             }
             .store(in: &workflowSnapshotSubscriptions)
 
@@ -335,7 +499,6 @@ extension DemoWorkflowStore {
             $voiceProfile.dropFirst().map { _ in () }.eraseToAnyPublisher(),
             $recommendationInputSource.dropFirst().map { _ in () }.eraseToAnyPublisher(),
             $scenarioConfig.dropFirst().map { _ in () }.eraseToAnyPublisher(),
-            $songPlan.dropFirst().map { _ in () }.eraseToAnyPublisher(),
             $lockedTrackIDs.dropFirst().map { _ in () }.eraseToAnyPublisher(),
             $removedTrackIDs.dropFirst().map { _ in () }.eraseToAnyPublisher(),
             $externalCandidateTracks.dropFirst().map { _ in () }.eraseToAnyPublisher(),
@@ -375,35 +538,6 @@ extension DemoWorkflowStore {
             .store(in: &workflowSnapshotSubscriptions)
     }
 
-    private func reconcileRestoredWorkflowConsistency(
-        shouldRefreshPlanForFeedback: Bool
-    ) {
-        if reviewSongsDifferFromImportedPlaylist(reviewSongs) {
-            invalidateDownstreamForReviewChange()
-            return
-        }
-        if let restoredConfig = songPlan?.scenarioConfig,
-           restoredConfig != scenarioConfig {
-            songPlan = nil
-            statusMessage = "已恢复场景调整，请重新排今晚歌单"
-            return
-        }
-        if let restoredPlan = songPlan,
-           restoredPlan.voiceProfile != voiceProfile {
-            songPlan = nil
-            statusMessage = "已恢复音区调整，请重新排今晚歌单"
-            return
-        }
-        if shouldRefreshPlanForFeedback {
-            guard preferenceProfile != nil else {
-                songPlan = nil
-                statusMessage = "已恢复歌曲反馈，请重新排今晚歌单"
-                return
-            }
-            generatePlan(navigate: false, schedulesPersistence: false)
-        }
-    }
-
     private func invalidateDownstreamIfReviewChanged(_ reviewSongs: [EditableImportedSongDraft]) {
         guard reviewSongsDifferFromImportedPlaylist(reviewSongs) else { return }
         invalidateDownstreamForReviewChange()
@@ -412,17 +546,24 @@ extension DemoWorkflowStore {
     private func invalidateDownstreamForReviewChange() {
         guard !matches.isEmpty
                 || preferenceProfile != nil
-                || songPlan != nil
+                || visibleSongPlan != nil
+                || isGeneratingPlan
                 || !lockedTrackIDs.isEmpty
                 || !removedTrackIDs.isEmpty
                 || !externalCandidateTracks.isEmpty else {
             return
         }
+        let invalidatedPlanState = planGenerationState.invalidated(
+            reason: "歌单内容已更新"
+        )
+        planGenerationGate.cancel()
+        planGenerationTask?.cancel()
+        planGenerationTask = nil
         invalidateExternalCandidateContext()
         replaceCompletedAnalysis(nil)
         setMatchOperationState(.notStarted)
         hasAdvancedToScenario = false
-        songPlan = nil
+        setPlanGenerationState(invalidatedPlanState)
         lockedTrackIDs = []
         removedTrackIDs = []
         lastRemovedTrackUndo = nil
@@ -430,26 +571,19 @@ extension DemoWorkflowStore {
     }
 
     private func invalidatePlanIfScenarioChanged(_ scenarioConfig: ScenarioConfig) {
-        guard let songPlan,
-              songPlan.scenarioConfig != scenarioConfig else { return }
-        self.songPlan = nil
-        lastRemovedTrackUndo = nil
+        guard visibleSongPlan != nil || isGeneratingPlan else { return }
+        invalidatePlan(reason: "场景已调整")
         statusMessage = "场景已调整，请重新排今晚歌单"
     }
 
     private func invalidatePlanIfVoiceChanged(_ voiceProfile: VoiceProfile?) {
-        guard let songPlan,
-              songPlan.voiceProfile != voiceProfile else { return }
-        self.songPlan = nil
-        lastRemovedTrackUndo = nil
+        guard visibleSongPlan != nil || isGeneratingPlan else { return }
+        invalidatePlan(reason: "音区参考已更新")
         statusMessage = "音区参考已更新，请重新排今晚歌单"
     }
 
     func invalidatePlanForExternalCandidateChange() {
-        guard songPlan != nil else { return }
-        songPlan = nil
-        lastRemovedTrackUndo = nil
-        statusMessage = "备选歌曲已更新，请重新排今晚歌单"
+        // 公开候选只用于独立候选卡，不参与正式排歌输入，也不改变 PlanBasis。
     }
 
     func reviewSongsDifferFromImportedPlaylist(

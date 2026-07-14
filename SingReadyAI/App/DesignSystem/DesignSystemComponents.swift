@@ -70,6 +70,7 @@ struct StageJumpMenu: View {
     let current: WorkflowStage
     let scenario: KTVScenario
     let isEnabled: Bool
+    let canUseReadyPlan: Bool
     let onSelect: (WorkflowStage) -> Void
 
     var body: some View {
@@ -139,6 +140,8 @@ struct StageJumpMenu: View {
 
     private func stageButton(_ stage: WorkflowStage) -> some View {
         let stageTitle = stage.title(for: scenario)
+        let requiresReadyPlan = stage == .export || stage == .startTips
+        let stageIsEnabled = isEnabled && (!requiresReadyPlan || canUseReadyPlan)
         return Button {
             Haptics.selection()
             isPresented = false
@@ -166,9 +169,14 @@ struct StageJumpMenu: View {
             .clipShape(RoundedRectangle(cornerRadius: DesignSystem.radiusSmall, style: .continuous))
         }
         .buttonStyle(PressedScaleButtonStyle(scale: 0.98))
-        .disabled(!isEnabled)
+        .disabled(!stageIsEnabled)
         .accessibilityIdentifier("stage-menu-\(stage.rawValue)")
         .accessibilityLabel(current == stage ? "\(stageTitle)，当前页面" : "打开\(stageTitle)")
+        .accessibilityHint(
+            requiresReadyPlan && !canUseReadyPlan
+                ? "请先按最新选择重新排歌"
+                : ""
+        )
         .accessibilityAddTraits(current == stage ? .isSelected : [])
     }
 }

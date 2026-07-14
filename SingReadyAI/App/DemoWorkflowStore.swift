@@ -23,7 +23,7 @@ final class DemoWorkflowStore: ObservableObject {
     @Published var voiceProfile: VoiceProfile?
     @Published var recommendationInputSource: RecommendationInputSource = .userImport
     @Published var scenarioConfig = ScenarioConfig()
-    @Published var songPlan: SongPlan?
+    @Published private(set) var planGenerationState: PlanGenerationState = .absent
     @Published var statusMessage = DemoWorkflowStore.idleStatusMessage
     @Published var errorMessage: String?
     @Published private(set) var importOperationState: ImportOperationState = .idle
@@ -75,6 +75,9 @@ final class DemoWorkflowStore: ObservableObject {
     var importOperationGate = VoiceMeasurementRequestGate()
     var planPreparationTask: Task<Void, Never>?
     var planPreparationGeneration: UInt64 = 0
+    var planGenerationTask: Task<Void, Never>?
+    var planGenerationGate = VoiceMeasurementRequestGate()
+    var planStateTransitionGate = WorkflowStateTransitionGate()
     var isCompletingWorkflowNavigation = false
     var localDataEpoch: UInt64 = 0
     var externalCandidateTask: Task<[ExternalSongCandidate], Error>?
@@ -88,6 +91,7 @@ final class DemoWorkflowStore: ObservableObject {
     var isApplyingRestoredWorkflowSnapshot = false
     var voiceProfilePersistenceGate = VoiceProfilePersistenceRequestGate()
     var hasStandaloneFeedbackRecord = false
+    var standaloneFeedbackRevision: UInt64 = 0
 
     private(set) var catalog: [KTVTrack] = []
 
@@ -101,8 +105,10 @@ final class DemoWorkflowStore: ObservableObject {
         switch SongFeedbackLocalStore().loadWithStatus() {
         case .missing:
             feedbackProfile = .empty
-        case let .loaded(profile):
-            feedbackProfile = profile
+        case let .loaded(record):
+            feedbackProfile = record.profile
+            revisions.feedback = record.revision
+            standaloneFeedbackRevision = record.revision
             hasStandaloneFeedbackRecord = true
         }
         do {
@@ -122,10 +128,10 @@ final class DemoWorkflowStore: ObservableObject {
         let voiceProfileRestoreEpoch = localDataEpoch
         Task { @MainActor [weak self] in
             guard let self else { return }
-            await self.restoreWorkflowSnapshot(request: workflowSnapshotRestoreRequest)
-            await self.restoreStandaloneVoiceProfileIfNeeded(
-                request: voiceProfileRestoreRequest,
-                epoch: voiceProfileRestoreEpoch
+            await self.restoreWorkflowSnapshot(
+                request: workflowSnapshotRestoreRequest,
+                voiceProfileRequest: voiceProfileRestoreRequest,
+                voiceProfileEpoch: voiceProfileRestoreEpoch
             )
         }
         observeWorkflowSnapshotChanges()
@@ -150,6 +156,30 @@ final class DemoWorkflowStore: ObservableObject {
 
     var isWorking: Bool {
         if case .running = matchOperationState { return true }
+        if case .generating = planGenerationState { return true }
+        if planGenerationTask != nil { return true }
+        return false
+    }
+
+    var visibleSongPlan: SongPlan? {
+        planGenerationState.visiblePlan
+    }
+
+    var readySongPlan: SongPlan? {
+        guard let basis = currentPlanBasis,
+              let plan = planGenerationState.readyPlan(validFor: basis),
+              planMatchesCurrentGenerationContext(plan, basis: basis) else {
+            return nil
+        }
+        return plan
+    }
+
+    var canUseReadyPlan: Bool {
+        readySongPlan != nil
+    }
+
+    var isGeneratingPlan: Bool {
+        if case .generating = planGenerationState { return true }
         return false
     }
 
@@ -166,6 +196,27 @@ final class DemoWorkflowStore: ObservableObject {
             playlistID: importedPlaylist.id,
             reviewRevision: revisions.review,
             catalogRevision: PlaylistWorkflowFingerprint.catalogRevision(for: catalog)
+        )
+    }
+
+    var currentPlanBasis: PlanBasis? {
+        guard let matchBasis = currentMatchBasis,
+              let analysis = completedAnalysis,
+              analysis.basis == matchBasis,
+              analysis.matchRevision == revisions.match else {
+            return nil
+        }
+        let voice = voiceProfile ?? voiceAnalyzer.simulatedProfile()
+        return PlanBasis(
+            matchBasis: matchBasis,
+            matchRevision: revisions.match,
+            scenarioFingerprint: PlaylistWorkflowFingerprint.scenario(for: scenarioConfig),
+            voiceSource: voice.source,
+            voiceFingerprint: PlaylistWorkflowFingerprint.voice(for: voice),
+            feedbackRevision: revisions.feedback,
+            trackControlsRevision: revisions.trackControls,
+            inputSource: recommendationInputSource,
+            catalogRevision: matchBasis.catalogRevision
         )
     }
 
@@ -197,7 +248,7 @@ final class DemoWorkflowStore: ObservableObject {
 
     var resumeStage: WorkflowStage {
         guard importedPlaylist != nil else { return .importHub }
-        if songPlan != nil { return .result }
+        if visibleSongPlan != nil { return .result }
         if matches.isEmpty { return .review }
         if hasAdvancedToScenario, preferenceProfile != nil { return .scenario }
         if hasUncommittedReviewChanges { return .review }
@@ -271,6 +322,10 @@ final class DemoWorkflowStore: ObservableObject {
         matchOperationState = state
     }
 
+    func setPlanGenerationState(_ state: PlanGenerationState) {
+        planGenerationState = state
+    }
+
     func setApplyingMatchReviewAction(_ isApplying: Bool) {
         isApplyingMatchReviewAction = isApplying
     }
@@ -285,6 +340,10 @@ final class DemoWorkflowStore: ObservableObject {
 
     func setStage(_ stage: WorkflowStage, animated: Bool = true) {
         guard currentStage != stage else { return }
+        guard canNavigateToWorkflowStage(stage) else {
+            errorMessage = readyPlanUnavailableMessage
+            return
+        }
         if stage == .scenario, importedPlaylist != nil {
             hasAdvancedToScenario = true
         }
@@ -307,6 +366,10 @@ final class DemoWorkflowStore: ObservableObject {
 
     func jumpToStage(_ stage: WorkflowStage, animated: Bool = true) async {
         guard !isWorkflowMutationNavigationLocked else { return }
+        guard canNavigateToWorkflowStage(stage) else {
+            errorMessage = readyPlanUnavailableMessage
+            return
+        }
         if stage == .scenario, importedPlaylist != nil {
             hasAdvancedToScenario = true
         }
@@ -314,6 +377,10 @@ final class DemoWorkflowStore: ObservableObject {
     }
 
     func replaceNavigation(with stage: WorkflowStage, animated: Bool = false) {
+        guard canNavigateToWorkflowStage(stage) else {
+            errorMessage = readyPlanUnavailableMessage
+            return
+        }
         let updatePath = {
             self.navigationPath = stage == .home ? [] : [stage]
         }
@@ -322,6 +389,10 @@ final class DemoWorkflowStore: ObservableObject {
         } else {
             updatePath()
         }
+    }
+
+    private func canNavigateToWorkflowStage(_ stage: WorkflowStage) -> Bool {
+        !((stage == .export || stage == .startTips) && !canUseReadyPlan)
     }
 
 }

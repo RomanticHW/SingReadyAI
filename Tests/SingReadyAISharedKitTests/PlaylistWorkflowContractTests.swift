@@ -88,7 +88,8 @@ final class PlaylistWorkflowContractTests: XCTestCase {
             makePlanBasis(matchBasis: matchBasis, voiceSource: .commonReference),
             makePlanBasis(matchBasis: matchBasis, voiceFingerprint: "voice-b"),
             makePlanBasis(matchBasis: matchBasis, feedbackRevision: 6),
-            makePlanBasis(matchBasis: matchBasis, trackControlsRevision: 8)
+            makePlanBasis(matchBasis: matchBasis, trackControlsRevision: 8),
+            makePlanBasis(matchBasis: matchBasis, inputSource: .popularFallback)
         ]
 
         XCTAssertTrue(PlaylistWorkflowValidityPolicy.accepts(
@@ -482,6 +483,75 @@ final class PlaylistWorkflowContractTests: XCTestCase {
         }
     }
 
+    func testWorkflowReviewSongNormalizesEmptyRawTextForColdRestore() throws {
+        let song = ImportedSong(
+            title: "晴天",
+            artist: "周杰伦",
+            source: .plainText,
+            rawText: nil,
+            confidence: 1
+        )
+        let playlist = ImportedPlaylist(
+            source: .plainText,
+            title: "空原文恢复校验",
+            songs: [song],
+            parseConfidence: 1
+        )
+        let reviewSong = WorkflowReviewSong(
+            id: song.id,
+            title: song.title,
+            artist: song.artist,
+            source: song.source,
+            rawText: "",
+            confidence: song.confidence,
+            versionTags: song.versionTags,
+            isDeleted: false
+        )
+        let basis = MatchBasis(
+            playlistID: playlist.id,
+            reviewRevision: 0,
+            catalogRevision: "catalog-a"
+        )
+        let analysis = CompletedPlaylistAnalysis(
+            basis: basis,
+            matchRevision: 1,
+            matches: [
+                MatchResult(
+                    importedSong: song,
+                    disposition: .acceptedOriginalExact(
+                        track: makeTrack(id: "sunny", title: "晴天", artist: "周杰伦")
+                    ),
+                    score: 1,
+                    reason: "已核对"
+                )
+            ],
+            preferenceProfile: makePreferenceProfile()
+        )
+
+        XCTAssertNil(reviewSong.rawText)
+        var legacyPayload = try XCTUnwrap(
+            JSONSerialization.jsonObject(
+                with: JSONEncoder().encode(reviewSong)
+            ) as? [String: Any]
+        )
+        legacyPayload["rawText"] = ""
+        let decodedLegacyReviewSong = try JSONDecoder().decode(
+            WorkflowReviewSong.self,
+            from: JSONSerialization.data(withJSONObject: legacyPayload)
+        )
+        XCTAssertNil(decodedLegacyReviewSong.rawText)
+        XCTAssertEqual(
+            PlaylistWorkflowValidityPolicy.restoredMatchState(
+                persistedAnalysis: analysis,
+                currentBasis: basis,
+                currentMatchRevision: 1,
+                playlist: playlist,
+                reviewSongs: [decodedLegacyReviewSong]
+            ),
+            .ready(basis)
+        )
+    }
+
     func testPreparationSummaryDerivesCountsFromOneCompleteAnalysis() throws {
         let songs = [
             makeImportedSong(title: "已核对", artist: "歌手甲"),
@@ -868,6 +938,122 @@ final class PlaylistWorkflowContractTests: XCTestCase {
         }
     }
 
+    func testPlanGenerationStatePreservesVisiblePreviousButOnlyCurrentReadyPlanIsUsable() {
+        let matchBasis = MatchBasis(
+            playlistID: UUID(),
+            reviewRevision: 1,
+            catalogRevision: "catalog-a"
+        )
+        let basis = makePlanBasis(matchBasis: matchBasis)
+        let changedBasis = makePlanBasis(
+            matchBasis: matchBasis,
+            scenarioFingerprint: "scenario-b"
+        )
+        let plan = SongPlan(title: "上一版歌单", scenario: .friends, sections: [])
+        let ready = PlanGenerationState.ready(plan: plan, basis: basis)
+
+        XCTAssertEqual(ready.visiblePlan?.id, plan.id)
+        XCTAssertEqual(ready.readyPlan(validFor: basis)?.id, plan.id)
+        XCTAssertNil(ready.readyPlan(validFor: changedBasis))
+
+        let stale = ready.invalidated(reason: "场景已更新")
+        XCTAssertEqual(stale.visiblePlan?.id, plan.id)
+        XCTAssertNil(stale.readyPlan(validFor: changedBasis))
+
+        let generating = stale.preparingGeneration(for: changedBasis)
+        XCTAssertEqual(generating.visiblePlan?.id, plan.id)
+        XCTAssertNil(generating.readyPlan(validFor: changedBasis))
+
+        let failed = generating.failing(
+            message: "这次没排好，请重试。",
+            retryable: true
+        )
+        XCTAssertEqual(failed.visiblePlan?.id, plan.id)
+        XCTAssertNil(failed.readyPlan(validFor: changedBasis))
+    }
+
+    func testPlanGenerationStateCannotTreatLegacyPlanWithoutBasisAsReady() {
+        let legacyPlan = SongPlan(title: "旧版歌单", scenario: .friends, sections: [])
+        let restored = PlanGenerationState.legacyStale(plan: legacyPlan)
+
+        XCTAssertEqual(restored.visiblePlan?.id, legacyPlan.id)
+        XCTAssertNil(restored.readyPlan(validFor: makePlanBasis(
+            matchBasis: MatchBasis(
+                playlistID: UUID(),
+                reviewRevision: 0,
+                catalogRevision: "catalog-a"
+            )
+        )))
+    }
+
+    func testCurrentPlanContractRequiresScenarioAndInputSourceToMatchBasis() {
+        let matchBasis = MatchBasis(
+            playlistID: UUID(),
+            reviewRevision: 1,
+            catalogRevision: "catalog-a"
+        )
+        let basis = makePlanBasis(
+            matchBasis: matchBasis,
+            inputSource: .userImport
+        )
+        let scenario = ScenarioConfig(scenario: .friends)
+        let plan = SongPlan(
+            title: "今晚歌单",
+            scenario: .friends,
+            inputSource: .userImport,
+            scenarioConfig: scenario,
+            sections: []
+        )
+
+        XCTAssertTrue(
+            PlaylistWorkflowValidityPolicy.accepts(
+                plan: plan,
+                planBasis: basis,
+                currentBasis: basis,
+                scenarioConfig: scenario,
+                inputSource: .userImport
+            )
+        )
+
+        var wrongScenario = plan
+        wrongScenario.scenario = .couples
+        XCTAssertFalse(
+            PlaylistWorkflowValidityPolicy.accepts(
+                plan: wrongScenario,
+                planBasis: basis,
+                currentBasis: basis,
+                scenarioConfig: scenario,
+                inputSource: .userImport
+            )
+        )
+
+        var wrongSource = plan
+        wrongSource.inputSource = .example
+        XCTAssertFalse(
+            PlaylistWorkflowValidityPolicy.accepts(
+                plan: wrongSource,
+                planBasis: basis,
+                currentBasis: basis,
+                scenarioConfig: scenario,
+                inputSource: .userImport
+            )
+        )
+
+        let wrongBasis = makePlanBasis(
+            matchBasis: matchBasis,
+            inputSource: .example
+        )
+        XCTAssertFalse(
+            PlaylistWorkflowValidityPolicy.accepts(
+                plan: plan,
+                planBasis: wrongBasis,
+                currentBasis: basis,
+                scenarioConfig: scenario,
+                inputSource: .userImport
+            )
+        )
+    }
+
     private func makePlanBasis(
         matchBasis: MatchBasis,
         matchRevision: UInt64 = 8,
@@ -876,6 +1062,7 @@ final class PlaylistWorkflowContractTests: XCTestCase {
         voiceFingerprint: String = "voice-a",
         feedbackRevision: UInt64 = 5,
         trackControlsRevision: UInt64 = 7,
+        inputSource: RecommendationInputSource = .userImport,
         catalogRevision: String? = nil
     ) -> PlanBasis {
         PlanBasis(
@@ -886,6 +1073,7 @@ final class PlaylistWorkflowContractTests: XCTestCase {
             voiceFingerprint: voiceFingerprint,
             feedbackRevision: feedbackRevision,
             trackControlsRevision: trackControlsRevision,
+            inputSource: inputSource,
             catalogRevision: catalogRevision ?? matchBasis.catalogRevision
         )
     }

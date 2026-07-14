@@ -11,7 +11,7 @@ struct SongPlanResultView: View {
 
     var body: some View {
         FlowPage {
-            if let plan = store.songPlan {
+            if let plan = store.visibleSongPlan {
                 HeroHeader(
                     eyebrow: plan.scenario.displayName,
                     title: plan.title,
@@ -23,56 +23,142 @@ struct SongPlanResultView: View {
                 if plan.scenario == .carKTV {
                     CarSafetyNoticeView()
                 }
+                planFreshnessStatus
                 ResponsiveActionRow {
                     SecondaryGlassButton(title: "调整场景", systemImage: "slider.horizontal.3") {
                         store.setStage(.scenario)
                     }
-                    SecondaryGlassButton(
-                        title: plan.scenario == .soloPractice ? "保存练唱单" : "发给朋友",
-                        systemImage: "square.and.arrow.up"
-                    ) {
-                        store.setStage(.export)
+                    if store.canUseReadyPlan {
+                        SecondaryGlassButton(
+                            title: plan.scenario == .soloPractice ? "保存练唱单" : "发给朋友",
+                            systemImage: "square.and.arrow.up"
+                        ) {
+                            store.setStage(.export)
+                        }
                     }
                 }
                 SongPlanNotices(notices: plan.notices)
-                if !store.removedTrackIDs.isEmpty {
+                if store.canUseReadyPlan, !store.removedTrackIDs.isEmpty {
                     RemovedTracksManagementCard()
                 }
-                SongPlanTimeline(plan: plan) { message, tone in
+                SongPlanTimeline(
+                    plan: plan,
+                    isReadOnly: !store.canUseReadyPlan
+                ) { message, tone in
                     toastPresentation = ToastPresentation(message: message, tone: tone)
                 }
             } else {
-                GlassCard {
-                    EmptyStateView(
-                        systemImage: "sparkles",
-                        text: store.scenarioConfig.scenario == .soloPractice
-                            ? "还没有练唱单，先按今天的练唱目标排一份。"
-                            : "还没有歌单，先按今晚的局排一份。"
-                    )
-                    SecondaryGlassButton(
-                        title: store.scenarioConfig.scenario == .soloPractice ? "排练唱单" : "排今晚歌单",
-                        systemImage: "person.3.sequence"
-                    ) {
-                        store.setStage(.scenario)
-                    }
+                planFreshnessStatus
+                if case .absent = store.planGenerationState {
+                    missingPlanCard
                 }
             }
         }
         .floatingToast($toastPresentation)
         .safeAreaInset(edge: .bottom) {
-            if let undo = store.lastRemovedTrackUndo {
-                UndoBanner(message: "已移除《\(undo.title)》", actionTitle: "撤销移除") {
-                    store.undoLastTrackRemoval()
+            if store.canUseReadyPlan {
+                if let undo = store.lastRemovedTrackUndo {
+                    UndoBanner(message: "已移除《\(undo.title)》", actionTitle: "撤销移除") {
+                        store.undoLastTrackRemoval()
+                    }
+                    .padding(.horizontal, DesignSystem.pageHorizontalPadding)
+                    .padding(.bottom, SpacingTokens.xs)
+                } else if let message = store.feedbackStatusMessage, store.lastFeedbackUndo != nil {
+                    UndoBanner(message: message, actionTitle: "撤销上次选择") {
+                        store.undoLastFeedback()
+                    }
+                    .padding(.horizontal, DesignSystem.pageHorizontalPadding)
+                    .padding(.bottom, SpacingTokens.xs)
                 }
-                .padding(.horizontal, DesignSystem.pageHorizontalPadding)
-                .padding(.bottom, SpacingTokens.xs)
-            } else if let message = store.feedbackStatusMessage, store.lastFeedbackUndo != nil {
-                UndoBanner(message: message, actionTitle: "撤销上次选择") {
-                    store.undoLastFeedback()
-                }
-                .padding(.horizontal, DesignSystem.pageHorizontalPadding)
-                .padding(.bottom, SpacingTokens.xs)
             }
+        }
+    }
+
+    private var missingPlanCard: some View {
+        GlassCard {
+            EmptyStateView(
+                systemImage: "sparkles",
+                text: store.scenarioConfig.scenario == .soloPractice
+                    ? "还没有练唱单，先按今天的练唱目标排一份。"
+                    : "还没有歌单，先按今晚的局排一份。"
+            )
+            SecondaryGlassButton(
+                title: store.scenarioConfig.scenario == .soloPractice ? "排练唱单" : "排今晚歌单",
+                systemImage: "person.3.sequence"
+            ) {
+                store.setStage(.scenario)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var planFreshnessStatus: some View {
+        switch store.planGenerationState {
+        case .absent:
+            EmptyView()
+        case .ready where store.canUseReadyPlan:
+            EmptyView()
+        case .ready:
+            GlassCard {
+                Text("这份歌单需要重新排一版")
+                    .font(TypographyTokens.section)
+                    .stageText()
+                Text("当前选择已经有变化，重新排好前，暂时不能分享或生成开唱小抄。")
+                    .font(TypographyTokens.caption)
+                    .foregroundStyle(DesignSystem.muted)
+                    .fixedSize(horizontal: false, vertical: true)
+                PrimaryGradientButton(
+                    title: "按最新选择重排",
+                    systemImage: "arrow.triangle.2.circlepath"
+                ) {
+                    store.generatePlan()
+                }
+            }
+            .accessibilityIdentifier("stale-plan-banner")
+        case .generating:
+            GlassCard {
+                LoadingStateView(text: "正在按最新选择排歌")
+                SecondaryGlassButton(title: "取消重排", systemImage: "xmark.circle") {
+                    store.cancelCurrentPlanGeneration()
+                }
+            }
+            .accessibilityIdentifier("plan-generation-progress")
+        case let .stale(snapshot):
+            GlassCard {
+                Text("这是上一版歌单")
+                    .font(TypographyTokens.section)
+                    .stageText()
+                Text("\(snapshot.reason)。重新排好前，暂时不能分享或生成开唱小抄。")
+                    .font(TypographyTokens.caption)
+                    .foregroundStyle(DesignSystem.muted)
+                    .fixedSize(horizontal: false, vertical: true)
+                PrimaryGradientButton(
+                    title: "按最新选择重排",
+                    systemImage: "arrow.triangle.2.circlepath"
+                ) {
+                    store.generatePlan()
+                }
+            }
+            .accessibilityElement(children: .contain)
+            .accessibilityIdentifier("stale-plan-banner")
+        case let .failed(message, retryable, previous):
+            GlassCard {
+                ErrorStateView(text: message)
+                if previous != nil {
+                    Text("上一版还在，重新排好前不会用于分享或开唱小抄。")
+                        .font(TypographyTokens.caption)
+                        .foregroundStyle(DesignSystem.muted)
+                }
+                if retryable {
+                    PrimaryGradientButton(
+                        title: "重新排一版",
+                        systemImage: "arrow.clockwise"
+                    ) {
+                        store.generatePlan()
+                    }
+                }
+            }
+            .accessibilityIdentifier("plan-generation-failure")
         }
     }
 }
@@ -122,6 +208,7 @@ private struct RemovedTracksManagementCard: View {
 
 struct SongPlanTimeline: View {
     let plan: SongPlan
+    let isReadOnly: Bool
     let onToast: (String, ToastTone) -> Void
 
     var body: some View {
@@ -141,6 +228,7 @@ struct SongPlanTimeline: View {
                         inputSource: plan.inputSource,
                         voiceSource: plan.voiceProfile?.source,
                         hasValidMeasuredRange: plan.voiceProfile?.hasValidMeasuredRange == true,
+                        isReadOnly: isReadOnly,
                         onToast: onToast
                     )
                 }
@@ -182,6 +270,7 @@ struct SongRecommendationCard: View {
     let inputSource: RecommendationInputSource
     let voiceSource: VoiceProfileSource?
     let hasValidMeasuredRange: Bool
+    let isReadOnly: Bool
     let onToast: (String, ToastTone) -> Void
 
     var body: some View {
@@ -268,7 +357,8 @@ struct SongRecommendationCard: View {
     }
 
     private var visibleFeedbackTags: [SongFeedbackKind] {
-        item.feedbackTags.filter {
+        guard !isReadOnly else { return [] }
+        return item.feedbackTags.filter {
             scenario != .soloPractice || $0 != .chorusFriendly
         }
     }
@@ -327,8 +417,10 @@ struct SongRecommendationCard: View {
 
     private var actionRow: some View {
         HStack(spacing: SpacingTokens.xs) {
-            compactActionButton(item.isLocked ? "取消锁定" : "锁定", systemImage: item.isLocked ? "lock.open" : "lock", tint: DesignSystem.amber) {
-                store.toggleLock(trackID: item.track.id)
+            if !isReadOnly {
+                compactActionButton(item.isLocked ? "取消锁定" : "锁定", systemImage: item.isLocked ? "lock.open" : "lock", tint: DesignSystem.amber) {
+                    store.toggleLock(trackID: item.track.id)
+                }
             }
             Button {
                 Haptics.selection()
@@ -387,23 +479,25 @@ struct SongRecommendationCard: View {
                     hasValidMeasuredRange: hasValidMeasuredRange
                 )
             }
-            Text("这首怎么样")
-                .font(TypographyTokens.caption.weight(.semibold))
-                .foregroundStyle(DesignSystem.muted)
-            LazyVGrid(columns: [GridItem(.adaptive(minimum: 92), spacing: SpacingTokens.xs)], spacing: SpacingTokens.xs) {
-                feedbackButton(.sung, systemImage: "music.mic")
-                feedbackButton(.liked, systemImage: "heart")
-                feedbackButton(.tooHigh, systemImage: "arrow.up.circle")
-                feedbackButton(.unfamiliar, systemImage: "questionmark.circle")
-                if scenario != .soloPractice {
-                    feedbackButton(.chorusFriendly, systemImage: "person.3")
+            if !isReadOnly {
+                Text("这首怎么样")
+                    .font(TypographyTokens.caption.weight(.semibold))
+                    .foregroundStyle(DesignSystem.muted)
+                LazyVGrid(columns: [GridItem(.adaptive(minimum: 92), spacing: SpacingTokens.xs)], spacing: SpacingTokens.xs) {
+                    feedbackButton(.sung, systemImage: "music.mic")
+                    feedbackButton(.liked, systemImage: "heart")
+                    feedbackButton(.tooHigh, systemImage: "arrow.up.circle")
+                    feedbackButton(.unfamiliar, systemImage: "questionmark.circle")
+                    if scenario != .soloPractice {
+                        feedbackButton(.chorusFriendly, systemImage: "person.3")
+                    }
+                    compactActionButton("移除", systemImage: "minus.circle", tint: DesignSystem.danger) {
+                        let isLocked = store.lockedTrackIDs.contains(item.track.id)
+                        let message = store.removeTrack(trackID: item.track.id)
+                        onToast(message, isLocked ? .warning : .success)
+                    }
+                    .accessibilityLabel("移除《\(item.track.title)》并补位")
                 }
-                compactActionButton("移除", systemImage: "minus.circle", tint: DesignSystem.danger) {
-                    let isLocked = store.lockedTrackIDs.contains(item.track.id)
-                    let message = store.removeTrack(trackID: item.track.id)
-                    onToast(message, isLocked ? .warning : .success)
-                }
-                .accessibilityLabel("移除《\(item.track.title)》并补位")
             }
         }
         .padding(.top, SpacingTokens.xs)

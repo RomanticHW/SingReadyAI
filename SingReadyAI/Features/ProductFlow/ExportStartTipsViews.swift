@@ -28,7 +28,7 @@ struct ExportCenterView: View {
                     : "复制歌单、直接分享，或者存一张海报。",
                 systemImage: "square.and.arrow.up"
             )
-            if let plan = store.songPlan {
+            if let plan = store.readySongPlan {
                 GlassCard {
                     Text(isSoloPractice ? "保存练唱单" : "发给朋友")
                         .font(TypographyTokens.section)
@@ -84,7 +84,9 @@ struct ExportCenterView: View {
                 GlassCard {
                     EmptyStateView(
                         systemImage: "square.and.arrow.up",
-                        text: isSoloPractice ? "还没有可保存的练唱单，可以先排一份。" : "还没有能发的歌单，可以先排一份。"
+                        text: store.visibleSongPlan == nil
+                            ? (isSoloPractice ? "还没有可保存的练唱单，可以先排一份。" : "还没有能发的歌单，可以先排一份。")
+                            : store.readyPlanUnavailableMessage
                     )
                     SecondaryGlassButton(title: isSoloPractice ? "排练唱单" : "排今晚歌单", systemImage: "sparkles") {
                         store.setStage(.scenario)
@@ -96,7 +98,7 @@ struct ExportCenterView: View {
     }
 
     private var isSoloPractice: Bool {
-        store.songPlan?.scenario == .soloPractice || store.scenarioConfig.scenario == .soloPractice
+        store.visibleSongPlan?.scenario == .soloPractice || store.scenarioConfig.scenario == .soloPractice
     }
 
     private func copy(_ value: String, message: String = "已复制到剪贴板") {
@@ -357,38 +359,40 @@ struct StartTipsView: View {
     private let contentPolicy = StartTipsContentPolicy()
 
     var body: some View {
-        let content = currentContent
         FlowPage {
-            HeroHeader(
-                eyebrow: isSoloPractice ? "练唱小抄" : "开唱小抄",
-                title: content.heroTitle,
-                subtitle: content.heroSubtitle,
-                systemImage: "quote.bubble"
-            )
-            TagCloud(values: content.tags)
-            StartTipCard(title: content.openingTitle, lines: content.openingLines)
-            StartTipCard(title: content.fallbackTitle, lines: content.fallbackLines)
-            if store.songPlan == nil {
+            if let plan = store.readySongPlan {
+                let content = contentPolicy.content(for: plan)
+                HeroHeader(
+                    eyebrow: isSoloPractice ? "练唱小抄" : "开唱小抄",
+                    title: content.heroTitle,
+                    subtitle: content.heroSubtitle,
+                    systemImage: "quote.bubble"
+                )
+                TagCloud(values: content.tags)
+                StartTipCard(title: content.openingTitle, lines: content.openingLines)
+                StartTipCard(title: content.fallbackTitle, lines: content.fallbackLines)
+                StartTipCard(title: content.sharingTitle, lines: content.sharingLines)
+            } else {
+                HeroHeader(
+                    eyebrow: isSoloPractice ? "练唱小抄" : "开唱小抄",
+                    title: "先把歌单更新好",
+                    subtitle: store.readyPlanUnavailableMessage,
+                    systemImage: "quote.bubble"
+                )
                 SecondaryGlassButton(
-                    title: isSoloPractice ? "排一份练唱单" : "排一份今晚歌单",
+                    title: store.visibleSongPlan == nil
+                        ? (isSoloPractice ? "排一份练唱单" : "排一份今晚歌单")
+                        : "按最新选择重排",
                     systemImage: "sparkles"
                 ) {
                     store.setStage(.scenario)
                 }
             }
-            StartTipCard(title: content.sharingTitle, lines: content.sharingLines)
         }
-    }
-
-    private var currentContent: StartTipsContent {
-        if let plan = store.songPlan {
-            return contentPolicy.content(for: plan)
-        }
-        return contentPolicy.content(for: store.scenarioConfig.scenario)
     }
 
     private var isSoloPractice: Bool {
-        store.songPlan?.scenario == .soloPractice || store.scenarioConfig.scenario == .soloPractice
+        store.visibleSongPlan?.scenario == .soloPractice || store.scenarioConfig.scenario == .soloPractice
     }
 }
 

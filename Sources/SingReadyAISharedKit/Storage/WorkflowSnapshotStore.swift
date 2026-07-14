@@ -54,7 +54,7 @@ public struct WorkflowReviewSong: Codable, Identifiable, Equatable, Sendable {
         let normalizedArtist = artist?.trimmingCharacters(in: .whitespacesAndNewlines)
         self.artist = normalizedArtist?.isEmpty == false ? normalizedArtist : nil
         self.source = source
-        self.rawText = rawText
+        self.rawText = rawText?.isEmpty == true ? nil : rawText
         self.confidence = min(max(confidence, 0), 1)
         self.versionTags = versionTags
         self.isDeleted = isDeleted
@@ -75,6 +75,37 @@ public struct WorkflowReviewSong: Codable, Identifiable, Equatable, Sendable {
             confidence: song.confidence,
             versionTags: song.versionTags,
             isDeleted: isDeleted
+        )
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case id
+        case title
+        case artist
+        case source
+        case rawText
+        case confidence
+        case versionTags
+        case isDeleted
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.init(
+            id: try container.decode(UUID.self, forKey: .id),
+            title: try container.decode(String.self, forKey: .title),
+            artist: try container.decodeIfPresent(String.self, forKey: .artist),
+            source: try container.decode(ImportSource.self, forKey: .source),
+            rawText: try container.decodeIfPresent(String.self, forKey: .rawText),
+            confidence: try container.decode(Double.self, forKey: .confidence),
+            versionTags: try container.decodeIfPresent(
+                [String].self,
+                forKey: .versionTags
+            ) ?? [],
+            isDeleted: try container.decodeIfPresent(
+                Bool.self,
+                forKey: .isDeleted
+            ) ?? false
         )
     }
 
@@ -653,6 +684,23 @@ public enum WorkflowCommitResult: Equatable, Sendable {
     case superseded
 }
 
+/// 把快照内容与它对应的内存修订绑定在一起，避免调用方在异步
+/// 提交返回后用当时的最新修订冒充已经写入的修订。
+public struct WorkflowSnapshotCommitCandidate: Sendable {
+    public let snapshot: WorkflowSnapshot
+    public let revision: UInt64
+
+    public init(snapshot: WorkflowSnapshot, revision: UInt64) {
+        self.snapshot = snapshot
+        self.revision = revision
+    }
+}
+
+public enum WorkflowSnapshotCommitResult: Equatable, Sendable {
+    case applied(revision: UInt64)
+    case superseded
+}
+
 enum WorkflowPersistenceOperation: Equatable, Sendable {
     case loadRecentPlaylists
     case recordRecentPlaylist
@@ -764,6 +812,16 @@ public actor WorkflowPersistenceExecutor {
         return .applied
     }
 
+    public func commitWorkflowSnapshot(
+        _ candidate: WorkflowSnapshotCommitCandidate,
+        generation: UInt64
+    ) async throws -> WorkflowSnapshotCommitResult {
+        guard generation == workflowSnapshotGeneration else { return .superseded }
+        beforeOperation(.saveWorkflowSnapshot)
+        try workflowSnapshotStore.save(candidate.snapshot)
+        return .applied(revision: candidate.revision)
+    }
+
     public func clearWorkflowSnapshot(
         request: UInt64
     ) throws -> WorkflowPersistenceRequestResult<Void> {
@@ -807,6 +865,9 @@ public struct WorkflowPersistenceRequestGate: Equatable, Sendable {
         request == generation
     }
 }
+
+/// 保护异步状态迁移，避免整份工作流替换后旧迁移继续发布或重试写盘。
+public typealias WorkflowStateTransitionGate = WorkflowPersistenceRequestGate
 
 /// 独立保存用户最近一次有效实测音域。
 ///

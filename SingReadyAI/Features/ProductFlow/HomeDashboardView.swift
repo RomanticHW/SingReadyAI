@@ -62,17 +62,23 @@ struct HomeDashboardView: View {
                 HomeFeatureGrid {
                     HomeFeatureCard(
                         title: exportActionTitle,
-                        subtitle: exportActionSubtitle,
+                        subtitle: store.canUseReadyPlan
+                            ? exportActionSubtitle
+                            : "排好当前歌单后可用",
                         systemImage: "square.and.arrow.up",
-                        tint: DesignSystem.cyan
+                        tint: DesignSystem.cyan,
+                        isDisabled: !store.canUseReadyPlan
                     ) {
                         Task { await store.jumpToStage(.export) }
                     }
                     HomeFeatureCard(
                         title: tipsActionTitle,
-                        subtitle: tipsActionSubtitle,
+                        subtitle: store.canUseReadyPlan
+                            ? tipsActionSubtitle
+                            : "排好当前歌单后可用",
                         systemImage: "quote.bubble",
-                        tint: DesignSystem.primary
+                        tint: DesignSystem.primary,
+                        isDisabled: !store.canUseReadyPlan
                     ) {
                         Task { await store.jumpToStage(.startTips) }
                     }
@@ -98,7 +104,7 @@ struct HomeDashboardView: View {
     }
 
     private var isSoloPractice: Bool {
-        store.songPlan?.scenario == .soloPractice || store.scenarioConfig.scenario == .soloPractice
+        store.visibleSongPlan?.scenario == .soloPractice || store.scenarioConfig.scenario == .soloPractice
     }
 
     private var finalToolsTitle: String {
@@ -289,9 +295,9 @@ private struct TonightSnapshotCard: View {
     var body: some View {
         GlassCard {
             HStack(alignment: .top, spacing: SpacingTokens.sm) {
-                Image(systemName: store.songPlan == nil ? "music.note.list" : "checkmark.circle.fill")
+                Image(systemName: store.visibleSongPlan == nil ? "music.note.list" : "checkmark.circle.fill")
                     .font(.title3.weight(.semibold))
-                    .foregroundStyle(store.songPlan == nil ? DesignSystem.cyan : DesignSystem.success)
+                    .foregroundStyle(store.visibleSongPlan == nil ? DesignSystem.cyan : DesignSystem.success)
                 VStack(alignment: .leading, spacing: SpacingTokens.xs) {
                     Text(title)
                         .font(TypographyTokens.section)
@@ -306,7 +312,15 @@ private struct TonightSnapshotCard: View {
             if let playlist = store.importedPlaylist {
                 TagCloud(values: ["\(playlist.songs.count) 首歌", playlist.source.displayName, store.scenarioConfig.scenario.displayName])
             }
-            if store.songPlan != nil {
+            planStateActions
+        }
+    }
+
+    @ViewBuilder
+    private var planStateActions: some View {
+        switch store.planGenerationState {
+        case .ready:
+            if store.canUseReadyPlan {
                 PrimaryGradientButton(
                     title: isSoloPractice ? "继续调整练唱单" : "继续调整今晚歌单",
                     systemImage: "slider.horizontal.3"
@@ -321,7 +335,39 @@ private struct TonightSnapshotCard: View {
                         store.setStage(.startTips)
                     }
                 }
-            } else if store.importedPlaylist != nil {
+            } else {
+                replanAndViewPreviousActions
+            }
+        case .stale:
+            replanAndViewPreviousActions
+        case let .generating(_, previous):
+            LoadingStateView(text: "正在按最新选择排歌")
+                .accessibilityIdentifier("home-plan-generation-progress")
+            ResponsiveActionRow {
+                SecondaryGlassButton(title: "取消重排", systemImage: "xmark.circle") {
+                    store.cancelCurrentPlanGeneration()
+                }
+                if previous != nil {
+                    SecondaryGlassButton(title: "查看上一版", systemImage: "clock.arrow.circlepath") {
+                        store.setStage(.result)
+                    }
+                }
+            }
+        case let .failed(message, retryable, previous):
+            ErrorStateView(text: message)
+                .accessibilityIdentifier("home-plan-generation-failure")
+            if retryable {
+                PrimaryGradientButton(title: "重新排一版", systemImage: "arrow.clockwise") {
+                    store.generatePlan()
+                }
+            }
+            if previous != nil {
+                SecondaryGlassButton(title: "查看上一版", systemImage: "clock.arrow.circlepath") {
+                    store.setStage(.result)
+                }
+            }
+        case .absent:
+            if store.importedPlaylist != nil {
                 SecondaryGlassButton(title: resumeActionTitle, systemImage: resumeActionIcon) {
                     store.setStage(store.resumeStage)
                 }
@@ -329,8 +375,21 @@ private struct TonightSnapshotCard: View {
         }
     }
 
+    @ViewBuilder
+    private var replanAndViewPreviousActions: some View {
+        PrimaryGradientButton(
+            title: "按最新选择重排",
+            systemImage: "arrow.triangle.2.circlepath"
+        ) {
+            store.generatePlan()
+        }
+        SecondaryGlassButton(title: "查看上一版", systemImage: "clock.arrow.circlepath") {
+            store.setStage(.result)
+        }
+    }
+
     private var title: String {
-        if let plan = store.songPlan {
+        if let plan = store.visibleSongPlan {
             return plan.title
         }
         if let playlist = store.importedPlaylist {
@@ -340,10 +399,26 @@ private struct TonightSnapshotCard: View {
     }
 
     private var detail: String {
-        if store.songPlan != nil {
+        switch store.planGenerationState {
+        case .generating:
+            return store.visibleSongPlan == nil
+                ? "正在按你刚刚的选择排歌，随时可以取消。"
+                : "上一版可以继续查看；新一版排好后再分享或看开唱小抄。"
+        case let .failed(_, _, previous):
+            return previous == nil
+                ? "这次没有排好，可以直接重试。"
+                : "上一版可以继续查看；重新排好前不会用于分享或开唱小抄。"
+        case .stale:
+            return "上一版歌单还在；按最新选择重排后，才能分享或查看开唱小抄。"
+        case .ready:
+            guard store.canUseReadyPlan else {
+                return "上一版歌单还在；按最新选择重排后，才能分享或查看开唱小抄。"
+            }
             return isSoloPractice
                 ? "练唱单已经排好，可以继续调整，也可以保存下来随时看。"
                 : "歌单已经排好，可以继续调整，也可以直接发给朋友。"
+        case .absent:
+            break
         }
         if store.importedPlaylist != nil {
             return "可以看看哪些歌在本地参考里有匹配，或者直接按场景排一版。"
@@ -352,7 +427,7 @@ private struct TonightSnapshotCard: View {
     }
 
     private var isSoloPractice: Bool {
-        store.songPlan?.scenario == .soloPractice || store.scenarioConfig.scenario == .soloPractice
+        store.visibleSongPlan?.scenario == .soloPractice || store.scenarioConfig.scenario == .soloPractice
     }
 
     private var exportActionTitle: String {
@@ -392,17 +467,35 @@ private struct HomeFeatureCard: View {
     let subtitle: String
     let systemImage: String
     let tint: Color
+    let isDisabled: Bool
     let action: () -> Void
+
+    init(
+        title: String,
+        subtitle: String,
+        systemImage: String,
+        tint: Color,
+        isDisabled: Bool = false,
+        action: @escaping () -> Void
+    ) {
+        self.title = title
+        self.subtitle = subtitle
+        self.systemImage = systemImage
+        self.tint = tint
+        self.isDisabled = isDisabled
+        self.action = action
+    }
 
     var body: some View {
         Button {
+            guard !isDisabled else { return }
             Haptics.selection()
             action()
         } label: {
             VStack(alignment: .leading, spacing: SpacingTokens.sm) {
                 Image(systemName: systemImage)
                     .font(.title3.weight(.semibold))
-                    .foregroundStyle(tint)
+                    .foregroundStyle(isDisabled ? DesignSystem.muted : tint)
                 VStack(alignment: .leading, spacing: SpacingTokens.xxs) {
                     Text(title)
                         .font(TypographyTokens.callout.weight(.semibold))
@@ -418,9 +511,9 @@ private struct HomeFeatureCard: View {
             .frame(maxWidth: .infinity, minHeight: 116, alignment: .leading)
             .liquidGlassSurface(
                 cornerRadius: DesignSystem.cornerRadius,
-                tint: tint.opacity(0.035),
+                tint: isDisabled ? .clear : tint.opacity(0.035),
                 fallback: DesignSystem.cardBackgroundLow,
-                interactive: true
+                interactive: !isDisabled
             )
             .overlay(
                 RoundedRectangle(cornerRadius: DesignSystem.cornerRadius, style: .continuous)
@@ -429,7 +522,9 @@ private struct HomeFeatureCard: View {
             .clipShape(RoundedRectangle(cornerRadius: DesignSystem.cornerRadius, style: .continuous))
         }
         .buttonStyle(PressedScaleButtonStyle(scale: 0.97))
-        .foregroundStyle(DesignSystem.ink)
+        .foregroundStyle(isDisabled ? DesignSystem.muted : DesignSystem.ink)
+        .disabled(isDisabled)
         .accessibilityLabel(title)
+        .accessibilityHint(isDisabled ? "排好当前歌单后可用" : subtitle)
     }
 }

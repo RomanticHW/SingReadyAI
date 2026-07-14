@@ -232,11 +232,32 @@ extension DemoWorkflowStore {
     }
 
     func applyFeedback(trackID: String, kind: SongFeedbackKind) {
+        guard canUseReadyPlan else {
+            errorMessage = readyPlanUnavailableMessage
+            return
+        }
         let previousTags = feedbackProfile.feedback(for: trackID)
         let trackTitle = trackDisplayTitle(for: trackID)
-        feedbackProfile.toggle(trackID: trackID, kind: kind)
-        SongFeedbackLocalStore().save(feedbackProfile)
+        var nextProfile = feedbackProfile
+        nextProfile.toggle(trackID: trackID, kind: kind)
+        var nextRevisions = revisions
+        nextRevisions.feedback &+= 1
+        do {
+            try SongFeedbackLocalStore().save(
+                SongFeedbackRecord(
+                    revision: nextRevisions.feedback,
+                    profile: nextProfile
+                )
+            )
+        } catch {
+            errorMessage = "这次选择暂时没保存下来，请稍后再试。"
+            return
+        }
+        feedbackProfile = nextProfile
+        replaceWorkflowRevisions(nextRevisions)
+        standaloneFeedbackRevision = nextRevisions.feedback
         hasStandaloneFeedbackRecord = true
+        invalidatePlan(reason: "歌曲反馈已更新")
         generatePlan()
         lastFeedbackUndo = SongFeedbackUndoAction(
             trackID: trackID,
@@ -244,7 +265,7 @@ extension DemoWorkflowStore {
             kind: kind,
             previousTags: previousTags
         )
-        let isSelected = feedbackProfile.contains(trackID: trackID, kind: kind)
+        let isSelected = nextProfile.contains(trackID: trackID, kind: kind)
         feedbackStatusMessage = isSelected
             ? "已记录\(trackTitle)：\(kind.displayName)"
             : "已取消\(trackTitle)的\(kind.displayName)"
@@ -252,10 +273,31 @@ extension DemoWorkflowStore {
     }
 
     func undoLastFeedback() {
+        guard canUseReadyPlan else {
+            errorMessage = readyPlanUnavailableMessage
+            return
+        }
         guard let action = lastFeedbackUndo else { return }
-        feedbackProfile.setFeedback(trackID: action.trackID, kinds: action.previousTags)
-        SongFeedbackLocalStore().save(feedbackProfile)
+        var nextProfile = feedbackProfile
+        nextProfile.setFeedback(trackID: action.trackID, kinds: action.previousTags)
+        var nextRevisions = revisions
+        nextRevisions.feedback &+= 1
+        do {
+            try SongFeedbackLocalStore().save(
+                SongFeedbackRecord(
+                    revision: nextRevisions.feedback,
+                    profile: nextProfile
+                )
+            )
+        } catch {
+            errorMessage = "这次撤销暂时没保存下来，请稍后再试。"
+            return
+        }
+        feedbackProfile = nextProfile
+        replaceWorkflowRevisions(nextRevisions)
+        standaloneFeedbackRevision = nextRevisions.feedback
         hasStandaloneFeedbackRecord = true
+        invalidatePlan(reason: "歌曲反馈已更新")
         generatePlan()
         feedbackStatusMessage = "已撤销\(action.trackTitle)：\(action.kind.displayName)"
         statusMessage = feedbackStatusMessage ?? statusMessage
@@ -287,7 +329,7 @@ extension DemoWorkflowStore {
     }
 
     private func trackDisplayTitle(for trackID: String) -> String {
-        let planTracks = songPlan?.sections.flatMap(\.items).map(\.track) ?? []
+        let planTracks = visibleSongPlan?.sections.flatMap(\.items).map(\.track) ?? []
         let matchTracks = matches.flatMap { match in
             [match.acceptedTrack].compactMap(\.self) + match.alternatives
         }

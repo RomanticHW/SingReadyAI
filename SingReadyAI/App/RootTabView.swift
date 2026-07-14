@@ -115,7 +115,8 @@ struct ProductFlowShell: View {
                     stages: WorkflowStage.allCases,
                     current: stage,
                     scenario: activeScenario,
-                    isEnabled: !store.isWorkflowMutationNavigationLocked
+                    isEnabled: !store.isWorkflowMutationNavigationLocked,
+                    canUseReadyPlan: store.canUseReadyPlan
                 ) { selectedStage in
                     Task {
                         await store.jumpToStage(selectedStage, animated: !accessibilityReduceMotion)
@@ -130,7 +131,7 @@ struct ProductFlowShell: View {
     }
 
     private var activeScenario: KTVScenario {
-        store.songPlan?.scenario ?? store.scenarioConfig.scenario
+        store.visibleSongPlan?.scenario ?? store.scenarioConfig.scenario
     }
 
     @ViewBuilder

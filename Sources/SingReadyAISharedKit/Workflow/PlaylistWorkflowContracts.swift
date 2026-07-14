@@ -43,6 +43,7 @@ public struct PlanBasis: Codable, Equatable, Sendable {
     public let voiceFingerprint: String
     public let feedbackRevision: UInt64
     public let trackControlsRevision: UInt64
+    public let inputSource: RecommendationInputSource
     public let catalogRevision: String
 
     public var isWellFormed: Bool {
@@ -57,6 +58,7 @@ public struct PlanBasis: Codable, Equatable, Sendable {
         voiceFingerprint: String,
         feedbackRevision: UInt64,
         trackControlsRevision: UInt64,
+        inputSource: RecommendationInputSource = .legacyUnknown,
         catalogRevision: String
     ) {
         self.matchBasis = matchBasis
@@ -66,6 +68,7 @@ public struct PlanBasis: Codable, Equatable, Sendable {
         self.voiceFingerprint = voiceFingerprint
         self.feedbackRevision = feedbackRevision
         self.trackControlsRevision = trackControlsRevision
+        self.inputSource = inputSource
         self.catalogRevision = catalogRevision == matchBasis.catalogRevision
             ? catalogRevision
             : matchBasis.catalogRevision
@@ -79,6 +82,7 @@ public struct PlanBasis: Codable, Equatable, Sendable {
         case voiceFingerprint
         case feedbackRevision
         case trackControlsRevision
+        case inputSource
         case catalogRevision
     }
 
@@ -101,6 +105,10 @@ public struct PlanBasis: Codable, Equatable, Sendable {
             voiceFingerprint: try container.decode(String.self, forKey: .voiceFingerprint),
             feedbackRevision: try container.decode(UInt64.self, forKey: .feedbackRevision),
             trackControlsRevision: try container.decode(UInt64.self, forKey: .trackControlsRevision),
+            inputSource: try container.decodeIfPresent(
+                RecommendationInputSource.self,
+                forKey: .inputSource
+            ) ?? .legacyUnknown,
             catalogRevision: catalogRevision
         )
     }
@@ -479,6 +487,110 @@ public enum PlanGenerationState: Sendable {
     case failed(message: String, retryable: Bool, previous: StalePlanSnapshot?)
 }
 
+public extension PlanGenerationState {
+    var visiblePlan: SongPlan? {
+        switch self {
+        case .absent:
+            return nil
+        case let .ready(plan, _):
+            return plan
+        case let .stale(snapshot):
+            return snapshot.plan
+        case let .generating(_, previous), let .failed(_, _, previous):
+            return previous?.plan
+        }
+    }
+
+    func readyPlan(validFor currentBasis: PlanBasis?) -> SongPlan? {
+        guard let currentBasis,
+              case let .ready(plan, basis) = self,
+              PlaylistWorkflowValidityPolicy.accepts(
+                  planBasis: basis,
+                  current: currentBasis
+              ) else {
+            return nil
+        }
+        return plan
+    }
+
+    func invalidated(reason: String) -> PlanGenerationState {
+        let previous: StalePlanSnapshot?
+        switch self {
+        case .absent:
+            previous = nil
+        case let .ready(plan, basis):
+            previous = StalePlanSnapshot(
+                plan: plan,
+                previousBasis: basis,
+                reason: reason
+            )
+        case let .stale(snapshot):
+            previous = StalePlanSnapshot(
+                plan: snapshot.plan,
+                previousBasis: snapshot.previousBasis,
+                reason: reason
+            )
+        case let .generating(_, snapshot), let .failed(_, _, snapshot):
+            previous = snapshot.map {
+                StalePlanSnapshot(
+                    plan: $0.plan,
+                    previousBasis: $0.previousBasis,
+                    reason: reason
+                )
+            }
+        }
+        return previous.map(PlanGenerationState.stale) ?? .absent
+    }
+
+    func preparingGeneration(for basis: PlanBasis) -> PlanGenerationState {
+        let previous: StalePlanSnapshot?
+        switch self {
+        case .absent:
+            previous = nil
+        case let .ready(plan, oldBasis):
+            previous = StalePlanSnapshot(
+                plan: plan,
+                previousBasis: oldBasis,
+                reason: "正在按最新选择重排"
+            )
+        case let .stale(snapshot):
+            previous = snapshot
+        case let .generating(_, snapshot), let .failed(_, _, snapshot):
+            previous = snapshot
+        }
+        return .generating(basis: basis, previous: previous)
+    }
+
+    func failing(message: String, retryable: Bool) -> PlanGenerationState {
+        let previous: StalePlanSnapshot?
+        switch self {
+        case let .generating(_, snapshot), let .failed(_, _, snapshot):
+            previous = snapshot
+        case let .ready(plan, basis):
+            previous = StalePlanSnapshot(
+                plan: plan,
+                previousBasis: basis,
+                reason: message
+            )
+        case let .stale(snapshot):
+            previous = snapshot
+        case .absent:
+            previous = nil
+        }
+        return .failed(message: message, retryable: retryable, previous: previous)
+    }
+
+    static func legacyStale(plan: SongPlan) -> PlanGenerationState {
+        .stale(
+            StalePlanSnapshot(
+                plan: plan,
+                previousBasis: nil,
+                reason: "这份旧歌单需要按当前选择重新排一版"
+            )
+        )
+    }
+}
+
 public enum PlaylistWorkflowValidityPolicy {
     public static func accepts(matchBasis: MatchBasis, current: MatchBasis) -> Bool {
         matchBasis == current
@@ -486,6 +598,21 @@ public enum PlaylistWorkflowValidityPolicy {
 
     public static func accepts(planBasis: PlanBasis, current: PlanBasis) -> Bool {
         planBasis.isWellFormed && current.isWellFormed && planBasis == current
+    }
+
+    public static func accepts(
+        plan: SongPlan,
+        planBasis: PlanBasis,
+        currentBasis: PlanBasis,
+        scenarioConfig: ScenarioConfig,
+        inputSource: RecommendationInputSource
+    ) -> Bool {
+        accepts(planBasis: planBasis, current: currentBasis)
+            && planBasis.inputSource == inputSource
+            && currentBasis.inputSource == inputSource
+            && plan.scenario == scenarioConfig.scenario
+            && plan.scenarioConfig == scenarioConfig
+            && plan.inputSource == inputSource
     }
 
     public static func restoredMatchState(

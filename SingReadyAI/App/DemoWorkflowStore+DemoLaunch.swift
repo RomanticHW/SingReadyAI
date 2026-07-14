@@ -24,6 +24,11 @@ extension DemoWorkflowStore {
         feedbackStatusMessage = nil
         lastFeedbackUndo = nil
         voiceProfile = nil
+        do {
+            try await voiceProfileStore.clear()
+        } catch {
+            errorMessage = "测试场景的音域记录暂时没清理干净。"
+        }
         scenarioConfig = ScenarioConfig()
 
         if launchStage == .home {
@@ -75,10 +80,19 @@ extension DemoWorkflowStore {
                     chorusPreference: .moreChorus
                 )
                 generatePlan(navigate: false, schedulesPersistence: false)
+                await planGenerationTask?.value
                 _ = await persistWorkflowSnapshot()
             }
             #endif
             replaceNavigation(with: .matchReport)
+            #if DEBUG
+            if ProcessInfo.processInfo.arguments.contains("-singreadySeedGeneratingPlanState"),
+               let basis = currentPlanBasis {
+                setPlanGenerationState(
+                    planGenerationState.preparingGeneration(for: basis)
+                )
+            }
+            #endif
             return
         }
         if launchStage == .matchReport,
@@ -177,8 +191,9 @@ extension DemoWorkflowStore {
         }
 
         generatePlan(navigate: false, schedulesPersistence: false)
+        await planGenerationTask?.value
         if ProcessInfo.processInfo.arguments.contains("-singreadyLongLockedTrackTitle"),
-           var plan = songPlan,
+           var plan = visibleSongPlan,
            let sectionIndex = plan.sections.firstIndex(where: { !$0.items.isEmpty }),
            let itemIndex = plan.sections[sectionIndex].items.indices.first {
             let track = plan.sections[sectionIndex].items[itemIndex].track
@@ -210,7 +225,9 @@ extension DemoWorkflowStore {
             )
             plan.sections[sectionIndex].items[itemIndex].isLocked = true
             lockedTrackIDs.insert(trackID)
-            songPlan = plan
+            if case let .ready(_, basis) = planGenerationState {
+                setPlanGenerationState(.ready(plan: plan, basis: basis))
+            }
         }
         if ProcessInfo.processInfo.arguments.contains("-singreadyCandidateChangeAfterPlan"),
            let candidate = catalog.last {
@@ -227,6 +244,18 @@ extension DemoWorkflowStore {
         default:
             break
         }
+        do {
+            try SongFeedbackLocalStore().save(
+                SongFeedbackRecord(
+                    revision: revisions.feedback,
+                    profile: feedbackProfile
+                )
+            )
+            standaloneFeedbackRevision = revisions.feedback
+            hasStandaloneFeedbackRecord = true
+        } catch {
+            errorMessage = "测试场景的歌曲反馈暂时没保存下来。"
+        }
         _ = await persistWorkflowSnapshot()
         if seedsStaleFeedbackSnapshot {
             let standaloneTruth = SongFeedbackProfile(
@@ -234,7 +263,14 @@ extension DemoWorkflowStore {
                     uniqueKeysWithValues: catalog.map { ($0.id, [.tooHigh]) }
                 )
             )
-            SongFeedbackLocalStore().save(standaloneTruth)
+            let standaloneRevision = revisions.feedback &+ 1
+            try? SongFeedbackLocalStore().save(
+                SongFeedbackRecord(
+                    revision: standaloneRevision,
+                    profile: standaloneTruth
+                )
+            )
+            standaloneFeedbackRevision = standaloneRevision
             hasStandaloneFeedbackRecord = true
         }
     }

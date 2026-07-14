@@ -107,6 +107,8 @@ extension DemoWorkflowStore {
         let inFlightVoiceRecording = voiceRecordingTask
         await cancelCurrentImportAndWait()
         cancelWorkflowOperation()
+        // cancelWorkflowOperation 可能刚启动一笔计划状态写入；清空边界必须立即让它失效。
+        planStateTransitionGate.invalidate()
         cancelVoiceRecording()
         await inFlightVoiceRecording?.value
         cancelExternalCandidateRequest()
@@ -179,6 +181,7 @@ extension DemoWorkflowStore {
         voiceProfile = nil
         SongFeedbackLocalStore().clear()
         hasStandaloneFeedbackRecord = true
+        standaloneFeedbackRevision = 0
 
         statusMessage = didFail ? "部分本机记录暂时没清掉，请稍后再试。" : "本机记录已清除"
         errorMessage = didFail ? statusMessage : nil
@@ -357,6 +360,8 @@ extension DemoWorkflowStore {
         }
         setCommittingImportedWorkflow(true)
         defer { setCommittingImportedWorkflow(false) }
+        // 必须在 actor 提交前失效旧迁移，防止旧请求被 supersede 后换新 generation 重试。
+        planStateTransitionGate.invalidate()
 
         do {
             let result = try await workflowPersistenceExecutor.commitWorkflowSnapshot(
@@ -398,6 +403,7 @@ extension DemoWorkflowStore {
     }
 
     private func publishImportedWorkflow(_ snapshot: WorkflowSnapshot) {
+        planStateTransitionGate.invalidate()
         cancelExternalCandidateRequest()
         let wasApplyingSnapshot = isApplyingRestoredWorkflowSnapshot
         isApplyingRestoredWorkflowSnapshot = true
@@ -413,7 +419,7 @@ extension DemoWorkflowStore {
         voiceProfile = snapshot.voiceProfile
         recommendationInputSource = snapshot.recommendationInputSource
         scenarioConfig = snapshot.scenarioConfig
-        songPlan = nil
+        setPlanGenerationState(.absent)
         hasAdvancedToScenario = false
         lockedTrackIDs = []
         removedTrackIDs = []
@@ -507,6 +513,9 @@ extension DemoWorkflowStore {
         }
 
         replaceReviewSongs(updatedSongs)
+        let invalidatedPlanState = planGenerationState.invalidated(
+            reason: "歌单内容已更新"
+        )
         var nextRevisions = revisions
         nextRevisions.review &+= 1
         replaceWorkflowRevisions(nextRevisions)
@@ -515,7 +524,7 @@ extension DemoWorkflowStore {
         replaceCompletedAnalysis(nil)
         setMatchOperationState(.notStarted)
         hasAdvancedToScenario = false
-        songPlan = nil
+        setPlanGenerationState(invalidatedPlanState)
         externalCandidateTracks = []
         externalCandidateStatus = "歌单内容已变更，请重新找同歌手备选"
         lockedTrackIDs = []
@@ -640,10 +649,13 @@ extension DemoWorkflowStore {
                 matches: output.matches,
                 preferenceProfile: output.preferenceProfile
             )
+            let invalidatedPlanState = self.planGenerationState.invalidated(
+                reason: "歌曲参考已重新核对"
+            )
             guard let candidate = self.workflowSnapshotForPersistence(
                 completedAnalysis: analysis,
                 revisions: nextRevisions,
-                songPlan: nil,
+                planGenerationState: invalidatedPlanState,
                 externalCandidateTracks: []
             ) else {
                 return .failed("当前歌单暂时无法保存，请重新导入后再试。")
@@ -661,6 +673,7 @@ extension DemoWorkflowStore {
             self.publishCompletedAnalysis(
                 analysis,
                 revisions: nextRevisions,
+                planGenerationState: invalidatedPlanState,
                 request: request,
                 navigate: navigate,
                 startingStage: startingStage
@@ -745,6 +758,7 @@ extension DemoWorkflowStore {
     private func publishCompletedAnalysis(
         _ analysis: CompletedPlaylistAnalysis,
         revisions nextRevisions: WorkflowRevisionLedger,
+        planGenerationState nextPlanGenerationState: PlanGenerationState,
         request: UInt64,
         navigate: Bool,
         startingStage: WorkflowStage
@@ -754,7 +768,7 @@ extension DemoWorkflowStore {
         isApplyingRestoredWorkflowSnapshot = true
         replaceCompletedAnalysis(analysis)
         replaceWorkflowRevisions(nextRevisions)
-        songPlan = nil
+        setPlanGenerationState(nextPlanGenerationState)
         externalCandidateTracks = []
         externalCandidateStatus = "还没找同歌手备选"
         lastRemovedTrackUndo = nil
@@ -777,6 +791,7 @@ extension DemoWorkflowStore {
         _ action: MatchReviewAction
     ) async {
         guard !isApplyingMatchReviewAction,
+              !isWorking,
               let currentAnalysis = completedAnalysis,
               currentAnalysis.basis == currentMatchBasis else { return }
         let startingReviewRevision = revisions.review
@@ -788,6 +803,12 @@ extension DemoWorkflowStore {
             let updatedAnalysis = try currentAnalysis.applying(action, profiler: profiler)
             var nextRevisions = revisions
             nextRevisions.match = updatedAnalysis.matchRevision
+            let invalidatedPlanState = planGenerationState.invalidated(
+                reason: "歌曲确认已更新"
+            )
+            // 匹配确认会提交整份工作流；先终止旧的取消/失效迁移，
+            // 避免它在被 supersede 后换用更高 generation 覆盖确认结果。
+            planStateTransitionGate.invalidate()
             let generation = workflowSnapshotPersistenceGate.begin()
             await workflowPersistenceExecutor.reserveWorkflowMutation(generation: generation)
             #if DEBUG
@@ -807,7 +828,7 @@ extension DemoWorkflowStore {
             guard let candidate = workflowSnapshotForPersistence(
                 completedAnalysis: updatedAnalysis,
                 revisions: nextRevisions,
-                songPlan: nil,
+                planGenerationState: invalidatedPlanState,
                 externalCandidateTracks: externalCandidateTracks
             ) else { return }
             let result = try await workflowPersistenceExecutor.commitWorkflowSnapshot(
@@ -824,7 +845,7 @@ extension DemoWorkflowStore {
             isApplyingRestoredWorkflowSnapshot = true
             replaceCompletedAnalysis(updatedAnalysis)
             replaceWorkflowRevisions(nextRevisions)
-            songPlan = nil
+            setPlanGenerationState(invalidatedPlanState)
             lastRemovedTrackUndo = nil
             isApplyingRestoredWorkflowSnapshot = wasApplyingSnapshot
             lastWorkflowSnapshotAttemptRevision = workflowSnapshotRevision

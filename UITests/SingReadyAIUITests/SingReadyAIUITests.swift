@@ -44,9 +44,7 @@ final class SingReadyAIUITests: XCTestCase {
             ("核对参考匹配", "把歌单放进来"),
             ("测一下音域", "唱 10 秒就行"),
             ("排今晚歌单", "排一份今晚歌单"),
-            ("今晚歌单", "还没有歌单"),
-            ("发给朋友", "还没有能发的歌单"),
-            ("开唱小抄", "今晚怎么开场")
+            ("今晚歌单", "还没有歌单")
         ]
 
         for testCase in cases {
@@ -61,6 +59,11 @@ final class SingReadyAIUITests: XCTestCase {
             waitForText(testCase.expectedText, in: app)
             app.terminate()
         }
+
+        let app = XCUIApplication()
+        app.launchArguments = ["-singreadyStage", "home"]
+        app.launch()
+        assertStageMenuReadyOutputsUnavailable(in: app)
     }
 
     func testHomeFeatureCardsOpenModulesWithoutCreatingDemoPlan() throws {
@@ -68,10 +71,7 @@ final class SingReadyAIUITests: XCTestCase {
         app.launchArguments = ["-singreadyStage", "home"]
         app.launch()
 
-        tapButton("发给朋友", in: app)
-        waitForText("还没有能发的歌单", in: app)
-        XCTAssertTrue(app.buttons["排今晚歌单"].waitForExistence(timeout: 8))
-        XCTAssertFalse(app.buttons["保存海报"].exists)
+        assertHomeReadyOutputsUnavailable(in: app)
     }
 
     func testHomeGroupsFunctionsByUseCase() throws {
@@ -87,8 +87,7 @@ final class SingReadyAIUITests: XCTestCase {
         XCTAssertFalse(app.staticTexts.matching(NSPredicate(format: "label CONTAINS %@", "最后")).firstMatch.exists)
         XCTAssertFalse(app.staticTexts.matching(NSPredicate(format: "label CONTAINS %@", "步骤")).firstMatch.exists)
 
-        tapButton("开唱小抄", in: app)
-        waitForText("今晚怎么开场", in: app)
+        assertHomeReadyOutputsUnavailable(in: app)
     }
 
     func testContentViewportIsNotCrowdedByTopBar() throws {
@@ -987,7 +986,10 @@ final class SingReadyAIUITests: XCTestCase {
 
     func testChangingScenarioInvalidatesOldPlanUntilRegenerated() throws {
         let app = XCUIApplication()
-        app.launchArguments = ["-singreadyStage", "result"]
+        app.launchArguments = [
+            "-singreadyStage", "result",
+            "-singreadyDelayPlanGeneration"
+        ]
         app.launch()
         waitForText("朋友局歌单", in: app)
 
@@ -995,16 +997,46 @@ final class SingReadyAIUITests: XCTestCase {
         app.buttons["打开排今晚歌单"].tap()
         tapButton("选择情侣局", in: app)
         app.buttons["打开功能菜单"].tap()
-        app.buttons["打开首页"].tap()
+        app.buttons["打开今晚歌单"].tap()
 
-        XCTAssertTrue(app.buttons["继续排今晚歌单"].waitForExistence(timeout: 8))
-        XCTAssertFalse(app.buttons["继续调整今晚歌单"].exists)
+        XCTAssertTrue(app.otherElements["stale-plan-banner"].waitForExistence(timeout: 8))
+        waitForText("朋友局歌单", in: app)
+        XCTAssertFalse(app.buttons["发给朋友"].exists)
+
+        app.buttons["按最新选择重排"].tap()
+        XCTAssertTrue(
+            app.descendants(matching: .any)["plan-generation-progress"]
+                .waitForExistence(timeout: 8)
+        )
+        waitForText("情侣局歌单", in: app, timeout: 12)
+        XCTAssertFalse(app.otherElements["stale-plan-banner"].exists)
         app.terminate()
 
         let relaunched = XCUIApplication()
         relaunched.launch()
-        XCTAssertTrue(relaunched.buttons["继续排今晚歌单"].waitForExistence(timeout: 8))
-        XCTAssertFalse(relaunched.buttons["继续调整今晚歌单"].exists)
+        XCTAssertTrue(relaunched.buttons["继续调整今晚歌单"].waitForExistence(timeout: 8))
+    }
+
+    func testColdRelaunchDoesNotRestoreInFlightPlanAsReady() throws {
+        let app = launchReadyPlanAndBeginReplan()
+        app.terminate()
+
+        let relaunched = XCUIApplication()
+        relaunched.launch()
+
+        assertRestoredPlanNeedsRegeneration(in: relaunched)
+    }
+
+    func testColdRelaunchDoesNotRestoreCancelledPlanAsReady() throws {
+        let app = launchReadyPlanAndBeginReplan()
+        tapButton("取消重排", in: app)
+        XCTAssertTrue(app.buttons["按最新选择重排"].waitForExistence(timeout: 8))
+        app.terminate()
+
+        let relaunched = XCUIApplication()
+        relaunched.launch()
+
+        assertRestoredPlanNeedsRegeneration(in: relaunched)
     }
 
     func testClearLocalDataCancelsInFlightImportWithoutResurrection() throws {
@@ -1630,29 +1662,60 @@ final class SingReadyAIUITests: XCTestCase {
         XCTAssertTrue(app.buttons["不熟"].firstMatch.isSelected)
     }
 
-    func testStandaloneFeedbackTruthRefreshesStaleRestoredPlan() throws {
-        let seedingApp = XCUIApplication()
-        seedingApp.launchArguments = [
-            "-singreadyStage", "result",
-            "-singreadySeedStaleFeedbackSnapshot"
-        ]
-        seedingApp.launch()
-        waitForText("调整场景", in: seedingApp)
-        seedingApp.terminate()
+    func testColdLaunchRestoresStalePlanAsReadOnlyUntilRegenerated() throws {
+        persistStaleFeedbackSnapshot()
 
         let relaunched = XCUIApplication()
         relaunched.launch()
 
-        let resume = relaunched.buttons["继续调整今晚歌单"]
-        XCTAssertTrue(resume.waitForExistence(timeout: 8))
+        assertHomeReadyOutputsUnavailable(in: relaunched)
+        assertStageMenuReadyOutputsUnavailable(in: relaunched)
+
+        let previousPlan = relaunched.buttons["查看上一版"]
+        XCTAssertTrue(
+            scrollHomeActionBelowNavigationBar(previousPlan, in: relaunched),
+            "失效歌单应允许从首页查看上一版"
+        )
+        previousPlan.tap()
+
+        XCTAssertTrue(
+            relaunched.descendants(matching: .any)["stale-plan-banner"]
+                .waitForExistence(timeout: 8)
+        )
+        XCTAssertFalse(relaunched.buttons["发给朋友"].exists)
+
+        tapSongDetail(in: relaunched)
+        let collapseDetail = relaunched.buttons.matching(
+            NSPredicate(format: "label BEGINSWITH %@", "收起")
+        ).firstMatch
+        XCTAssertTrue(collapseDetail.waitForExistence(timeout: 8), "上一版歌曲详情应保持可查看")
+        XCTAssertFalse(songActionButton("喜欢", in: relaunched).exists)
+        XCTAssertFalse(songActionButton("锁定", in: relaunched).exists)
+        XCTAssertFalse(songActionButton("移除", in: relaunched).exists)
+    }
+
+    func testStandaloneFeedbackTruthRefreshesStaleRestoredPlan() throws {
+        persistStaleFeedbackSnapshot()
+
+        let relaunched = XCUIApplication()
+        relaunched.launch()
+
+        assertHomeReadyOutputsUnavailable(in: relaunched)
+        assertStageMenuReadyOutputsUnavailable(in: relaunched)
+
+        let resume = relaunched.buttons["按最新选择重排"]
+        XCTAssertTrue(
+            scrollHomeActionBelowNavigationBar(resume, in: relaunched),
+            "首页应提供按最新反馈重排的主操作"
+        )
         resume.tap()
         waitForText("调整场景", in: relaunched)
         tapSongDetail(in: relaunched)
 
         let liked = songActionButton("喜欢", in: relaunched)
         let tooHigh = songActionButton("太高", in: relaunched)
-        XCTAssertTrue(liked.waitForExistence(timeout: 4))
-        XCTAssertTrue(tooHigh.waitForExistence(timeout: 4))
+        XCTAssertTrue(scrollToHittable(liked, in: relaunched, timeout: 8))
+        XCTAssertTrue(scrollToHittable(tooHigh, in: relaunched, timeout: 8))
         XCTAssertEqual(liked.value as? String, "未选择")
         XCTAssertEqual(tooHigh.value as? String, "已选择")
     }
@@ -1725,7 +1788,7 @@ final class SingReadyAIUITests: XCTestCase {
         let automaticRow = app.descendants(matching: .any)["match-result-00000000-0000-0000-0000-000000000201"]
         let requiredRow = app.descendants(matching: .any)["match-result-00000000-0000-0000-0000-000000000202"]
         let unmatchedRow = app.descendants(matching: .any)["match-result-00000000-0000-0000-0000-000000000203"]
-        waitForText("参考命中 2/5", in: app)
+        waitForText("参考命中 1/5", in: app)
         XCTAssertTrue(automaticRow.waitForExistence(timeout: 8))
         XCTAssertTrue(waitForElement(requiredRow, in: app))
         waitForText("晴天", in: app)
@@ -1738,7 +1801,7 @@ final class SingReadyAIUITests: XCTestCase {
         confirmButton.tap()
 
         waitForText("已确认", in: app, scrollDirection: .down)
-        waitForText("参考命中 3/5", in: app, scrollDirection: .down)
+        waitForText("参考命中 2/5", in: app, scrollDirection: .down)
         XCTAssertTrue(waitForElement(unmatchedRow, in: app))
         waitForText("不存在的测试歌名", in: app)
         XCTAssertFalse(app.buttons["match-confirm-00000000-0000-0000-0000-000000000202-t029"].exists)
@@ -1772,6 +1835,86 @@ final class SingReadyAIUITests: XCTestCase {
 
         waitForText("已确认", in: app, timeout: 10, scrollDirection: .down)
         XCTAssertFalse(confirmButton.exists)
+    }
+
+    func testMatchConfirmationIsDisabledWhileReplanStateIsActive() throws {
+        let app = XCUIApplication()
+        app.launchArguments = [
+            "-singreadyStage", "matchReport",
+            "-singreadyMixedMatchReview",
+            "-singreadyExistingPlanForCandidateLifecycle",
+            "-singreadySeedGeneratingPlanState"
+        ]
+        app.launch()
+
+        let confirmButton = app.buttons[
+            "match-confirm-00000000-0000-0000-0000-000000000202-t029"
+        ]
+        XCTAssertTrue(waitForElement(confirmButton, in: app))
+        XCTAssertFalse(confirmButton.isEnabled, "重排状态结束前不能同时提交匹配确认")
+    }
+
+    func testMatchConfirmationWaitsForCancelledReplanAndSurvivesRelaunch() throws {
+        let app = XCUIApplication()
+        app.launchArguments = [
+            "-singreadyStage", "matchReport",
+            "-singreadyMixedMatchReview",
+            "-singreadyExistingPlanForCandidateLifecycle",
+            "-singreadyDelayPlanGeneration"
+        ]
+        app.launch()
+
+        let confirmButton = app.buttons[
+            "match-confirm-00000000-0000-0000-0000-000000000202-t029"
+        ]
+        XCTAssertTrue(waitForElement(confirmButton, in: app))
+
+        app.buttons["打开功能菜单"].tap()
+        app.buttons["打开排今晚歌单"].tap()
+        tapButton("再排一版", in: app)
+        XCTAssertTrue(
+            app.descendants(matching: .any)["plan-generation-progress"]
+                .waitForExistence(timeout: 8)
+        )
+
+        app.buttons["打开功能菜单"].tap()
+        app.buttons["打开核对参考匹配"].tap()
+        let cancelledReplanConfirmButton = app.buttons[
+            "match-confirm-00000000-0000-0000-0000-000000000202-t029"
+        ]
+        XCTAssertTrue(waitForElement(cancelledReplanConfirmButton, in: app))
+
+        let confirmationEnabled = XCTNSPredicateExpectation(
+            predicate: NSPredicate(format: "enabled == true"),
+            object: cancelledReplanConfirmButton
+        )
+        wait(for: [confirmationEnabled], timeout: 8)
+        XCTAssertTrue(scrollToHittable(cancelledReplanConfirmButton, in: app))
+        cancelledReplanConfirmButton.tap()
+        let confirmationCompleted = XCTNSPredicateExpectation(
+            predicate: NSPredicate(format: "exists == false"),
+            object: cancelledReplanConfirmButton
+        )
+        wait(for: [confirmationCompleted], timeout: 10)
+        waitForText("参考命中 2/5", in: app, timeout: 10, scrollDirection: .down)
+        app.terminate()
+
+        let relaunched = XCUIApplication()
+        relaunched.launch()
+        XCTAssertTrue(relaunched.buttons["打开功能菜单"].waitForExistence(timeout: 8))
+        relaunched.buttons["打开功能菜单"].tap()
+        relaunched.buttons["打开核对参考匹配"].tap()
+        waitForText(
+            "参考命中 2/5",
+            in: relaunched,
+            timeout: 12,
+            scrollDirection: .down
+        )
+        XCTAssertFalse(
+            relaunched.buttons[
+                "match-confirm-00000000-0000-0000-0000-000000000202-t029"
+            ].exists
+        )
     }
 
     func testConfirmingMatchKeepsAlreadyLoadedExternalCandidates() throws {
@@ -2011,13 +2154,13 @@ final class SingReadyAIUITests: XCTestCase {
         tapButton("有挑战", in: app)
         app.buttons["打开功能菜单"].tap()
         app.buttons["打开首页"].tap()
-        XCTAssertTrue(app.buttons["继续排今晚歌单"].waitForExistence(timeout: 8))
+        XCTAssertTrue(app.buttons["按最新选择重排"].waitForExistence(timeout: 8))
         XCTAssertFalse(app.buttons["继续核对参考匹配"].exists)
 
         app.terminate()
         let relaunched = XCUIApplication()
         relaunched.launch()
-        XCTAssertTrue(relaunched.buttons["继续排今晚歌单"].waitForExistence(timeout: 8))
+        XCTAssertTrue(relaunched.buttons["按最新选择重排"].waitForExistence(timeout: 8))
         XCTAssertFalse(relaunched.buttons["继续核对参考匹配"].exists)
     }
 
@@ -2125,14 +2268,34 @@ final class SingReadyAIUITests: XCTestCase {
 
         app.buttons["打开功能菜单"].tap()
         app.buttons["打开首页"].tap()
-        XCTAssertTrue(app.buttons["继续排今晚歌单"].waitForExistence(timeout: 8))
+        XCTAssertTrue(app.buttons["按最新选择重排"].waitForExistence(timeout: 8))
         XCTAssertFalse(app.buttons["继续调整今晚歌单"].exists)
 
         app.terminate()
         let relaunched = XCUIApplication()
         relaunched.launch()
-        XCTAssertTrue(relaunched.buttons["继续排今晚歌单"].waitForExistence(timeout: 8))
+        XCTAssertTrue(relaunched.buttons["按最新选择重排"].waitForExistence(timeout: 8))
         XCTAssertFalse(relaunched.buttons["继续调整今晚歌单"].exists)
+    }
+
+    func testDelayedVoiceRestoreKeepsReadyOutputsClosedUntilPlanBecomesStale() throws {
+        persistMeasuredVoiceAgainstReadyPlanSnapshot()
+
+        let relaunched = XCUIApplication()
+        relaunched.launchArguments = ["-singreadyDelayVoiceProfileRestoreRace"]
+        relaunched.launch()
+
+        XCTAssertFalse(relaunched.buttons["直接发给朋友"].exists)
+        XCTAssertFalse(relaunched.buttons["查看开唱小抄"].exists)
+        assertStageMenuReadyOutputsUnavailableWithoutScrolling(in: relaunched)
+
+        XCTAssertTrue(
+            relaunched.buttons["按最新选择重排"].waitForExistence(timeout: 12),
+            "实测音域恢复完成后，旧歌单应明确转为待重排"
+        )
+        assertHomeReadyOutputsUnavailable(in: relaunched)
+        XCTAssertFalse(relaunched.buttons["继续调整今晚歌单"].exists)
+        XCTAssertFalse(relaunched.buttons["直接发给朋友"].exists)
     }
 
     func testStandaloneMeasuredVoiceSurvivesColdRelaunch() throws {
@@ -2215,22 +2378,23 @@ final class SingReadyAIUITests: XCTestCase {
         XCTAssertFalse(relaunched.staticTexts["本次音区大概这样"].exists)
     }
 
-    func testCandidateSetChangeInvalidatesOldPlanUntilRegenerated() throws {
+    func testCandidateSetChangeDoesNotInvalidateFormalPlan() throws {
         let app = XCUIApplication()
         app.launchArguments = ["-singreadyStage", "result", "-singreadyCandidateChangeAfterPlan"]
         app.launch()
 
-        waitForText("还没有歌单，先按今晚的局排一份。", in: app)
+        waitForText("朋友局歌单", in: app)
+        XCTAssertTrue(app.buttons["发给朋友"].exists)
         app.buttons["打开功能菜单"].tap()
         app.buttons["打开首页"].tap()
-        XCTAssertTrue(app.buttons["继续排今晚歌单"].waitForExistence(timeout: 8))
-        XCTAssertFalse(app.buttons["继续调整今晚歌单"].exists)
+        XCTAssertTrue(app.buttons["继续调整今晚歌单"].waitForExistence(timeout: 8))
+        XCTAssertFalse(app.buttons["按最新选择重排"].exists)
 
         app.terminate()
         let relaunched = XCUIApplication()
         relaunched.launch()
-        XCTAssertTrue(relaunched.buttons["继续排今晚歌单"].waitForExistence(timeout: 8))
-        XCTAssertFalse(relaunched.buttons["继续调整今晚歌单"].exists)
+        XCTAssertTrue(relaunched.buttons["继续调整今晚歌单"].waitForExistence(timeout: 8))
+        XCTAssertFalse(relaunched.buttons["按最新选择重排"].exists)
     }
 
     func testLeavingVoicePageCancelsRecordingWithoutReopeningIt() throws {
@@ -2481,6 +2645,118 @@ final class SingReadyAIUITests: XCTestCase {
         }
     }
 
+    private func assertHomeReadyOutputsUnavailable(in app: XCUIApplication) {
+        waitForText("先做哪件事", in: app)
+
+        let export = app.buttons["发给朋友"]
+        XCTAssertTrue(waitForElement(export, in: app), "首页应保留发给朋友入口")
+        XCTAssertFalse(export.isEnabled, "没有可用歌单时，发给朋友入口必须关闭")
+
+        let startTips = app.buttons["开唱小抄"]
+        XCTAssertTrue(waitForElement(startTips, in: app), "首页应保留开唱小抄入口")
+        XCTAssertFalse(startTips.isEnabled, "没有可用歌单时，开唱小抄入口必须关闭")
+
+        waitForText("排好当前歌单后可用", in: app)
+    }
+
+    private func assertStageMenuReadyOutputsUnavailable(in app: XCUIApplication) {
+        let menu = app.buttons["打开功能菜单"]
+        XCTAssertTrue(menu.waitForExistence(timeout: 8))
+        menu.tap()
+
+        let export = app.buttons["stage-menu-export"]
+        XCTAssertTrue(waitForElement(export, in: app), "功能菜单应保留发给朋友入口")
+        XCTAssertFalse(export.isEnabled, "没有可用歌单时，功能菜单不能进入发给朋友")
+
+        let startTips = app.buttons["stage-menu-startTips"]
+        XCTAssertTrue(waitForElement(startTips, in: app), "功能菜单应保留开唱小抄入口")
+        XCTAssertFalse(startTips.isEnabled, "没有可用歌单时，功能菜单不能进入开唱小抄")
+
+        let done = app.buttons["完成"]
+        XCTAssertTrue(done.waitForExistence(timeout: 8))
+        done.tap()
+    }
+
+    private func assertStageMenuReadyOutputsUnavailableWithoutScrolling(in app: XCUIApplication) {
+        let menu = app.buttons["打开功能菜单"]
+        XCTAssertTrue(menu.waitForExistence(timeout: 4))
+        menu.tap()
+
+        let export = app.buttons["stage-menu-export"]
+        XCTAssertTrue(export.waitForExistence(timeout: 4), "恢复完成前应能确认发给朋友入口已关闭")
+        XCTAssertFalse(export.isEnabled)
+
+        let startTips = app.buttons["stage-menu-startTips"]
+        XCTAssertTrue(startTips.waitForExistence(timeout: 4), "恢复完成前应能确认开唱小抄入口已关闭")
+        XCTAssertFalse(startTips.isEnabled)
+
+        let done = app.buttons["完成"]
+        XCTAssertTrue(done.waitForExistence(timeout: 4))
+        done.tap()
+    }
+
+    private func persistStaleFeedbackSnapshot() {
+        let seedingApp = XCUIApplication()
+        seedingApp.launchArguments = [
+            "-singreadyStage", "result",
+            "-singreadySeedStaleFeedbackSnapshot"
+        ]
+        seedingApp.launch()
+        waitForText("调整场景", in: seedingApp)
+        seedingApp.terminate()
+    }
+
+    private func persistMeasuredVoiceAgainstReadyPlanSnapshot() {
+        let seedingApp = XCUIApplication()
+        seedingApp.launchArguments = [
+            "-singreadyStage", "result",
+            "-singreadySimulatedRecording"
+        ]
+        seedingApp.launch()
+
+        waitForText("朋友局歌单", in: seedingApp)
+        XCTAssertTrue(seedingApp.buttons["发给朋友"].waitForExistence(timeout: 8))
+        seedingApp.buttons["打开功能菜单"].tap()
+        let voice = seedingApp.buttons["stage-menu-voice"]
+        XCTAssertTrue(waitForElement(voice, in: seedingApp))
+        voice.tap()
+        tapButton("重新测一下", in: seedingApp)
+        waitForText("本次音区大概这样", in: seedingApp, timeout: 8)
+        seedingApp.terminate()
+    }
+
+    private func launchReadyPlanAndBeginReplan() -> XCUIApplication {
+        let app = XCUIApplication()
+        app.launchArguments = [
+            "-singreadyStage", "result",
+            "-singreadyDelayPlanGeneration"
+        ]
+        app.launch()
+
+        waitForText("朋友局歌单", in: app, timeout: 12)
+        XCTAssertTrue(app.buttons["发给朋友"].waitForExistence(timeout: 8))
+        app.buttons["打开功能菜单"].tap()
+        let scenario = app.buttons["stage-menu-scenario"]
+        XCTAssertTrue(waitForElement(scenario, in: app))
+        scenario.tap()
+        waitForText("按今晚的局来排", in: app)
+
+        tapButton("再排一版", in: app)
+        XCTAssertTrue(
+            app.descendants(matching: .any)["plan-generation-progress"]
+                .waitForExistence(timeout: 8),
+            "重排开始后应立即显示生成进度"
+        )
+        return app
+    }
+
+    private func assertRestoredPlanNeedsRegeneration(in app: XCUIApplication) {
+        XCTAssertTrue(app.buttons["按最新选择重排"].waitForExistence(timeout: 8))
+        XCTAssertFalse(app.buttons["继续调整今晚歌单"].exists)
+        XCTAssertFalse(app.buttons["直接发给朋友"].exists)
+        assertStageMenuReadyOutputsUnavailable(in: app)
+    }
+
     private enum ScrollDirection {
         case up
         case down
@@ -2644,6 +2920,19 @@ final class SingReadyAIUITests: XCTestCase {
             }
         }
         return element.exists && element.isHittable
+    }
+
+    private func scrollHomeActionBelowNavigationBar(
+        _ element: XCUIElement,
+        in app: XCUIApplication,
+        timeout: TimeInterval = 8
+    ) -> Bool {
+        let deadline = Date().addingTimeInterval(timeout)
+        while (!element.exists || !element.isHittable || element.frame.minY < 120),
+              Date() < deadline {
+            app.swipeDown()
+        }
+        return element.exists && element.isHittable && element.frame.minY >= 120
     }
 
     private func edgeSwipeBack(in app: XCUIApplication) {
