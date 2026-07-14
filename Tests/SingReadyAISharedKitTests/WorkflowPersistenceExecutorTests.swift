@@ -82,6 +82,70 @@ final class WorkflowPersistenceExecutorTests: XCTestCase {
         XCTAssertEqual(try snapshotStore.load()?.importedPlaylist.title, "新候选 C")
     }
 
+    func testMatchCancellationReservationSupersedesAnalysisBeforeCommitStarts() async throws {
+        let directory = try makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let snapshotURL = directory.appendingPathComponent("workflow_snapshot.json")
+        let snapshotStore = WorkflowSnapshotStore(url: snapshotURL)
+        try snapshotStore.save(makeSnapshot(title: "稳定分析 A"))
+        let executor = WorkflowPersistenceExecutor(
+            recentPlaylistStore: RecentPlaylistStore(
+                url: directory.appendingPathComponent("recent_playlists.json")
+            ),
+            workflowSnapshotStore: snapshotStore
+        )
+
+        await executor.reserveWorkflowMutation(generation: 20)
+        await executor.reserveWorkflowMutation(generation: 21)
+        let result = try await executor.commitWorkflowSnapshot(
+            makeSnapshot(title: "已取消的分析 B"),
+            generation: 20
+        )
+
+        XCTAssertEqual(result, .superseded)
+        XCTAssertEqual(try snapshotStore.load()?.importedPlaylist.title, "稳定分析 A")
+    }
+
+    func testAppliedAnalysisRemainsAuthoritativeWhenCancellationArrivesAfterLinearization() async throws {
+        let directory = try makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let snapshotURL = directory.appendingPathComponent("workflow_snapshot.json")
+        let commitStarted = expectation(description: "analysis commit entered actor")
+        let allowCommitToFinish = DispatchSemaphore(value: 0)
+        let executor = WorkflowPersistenceExecutor(
+            recentPlaylistStore: RecentPlaylistStore(
+                url: directory.appendingPathComponent("recent_playlists.json")
+            ),
+            workflowSnapshotStore: WorkflowSnapshotStore(url: snapshotURL),
+            beforeOperation: { operation in
+                guard operation == .saveWorkflowSnapshot else { return }
+                commitStarted.fulfill()
+                _ = allowCommitToFinish.wait(timeout: .now() + 1)
+            }
+        )
+
+        await executor.reserveWorkflowMutation(generation: 30)
+        let commitTask = Task {
+            try await executor.commitWorkflowSnapshot(
+                makeSnapshot(title: "已线性提交的分析 B"),
+                generation: 30
+            )
+        }
+        await fulfillment(of: [commitStarted], timeout: 1)
+        let cancellationTask = Task {
+            await executor.reserveWorkflowMutation(generation: 31)
+        }
+        allowCommitToFinish.signal()
+
+        let commitResult = try await commitTask.value
+        XCTAssertEqual(commitResult, .applied)
+        await cancellationTask.value
+        XCTAssertEqual(
+            try WorkflowSnapshotStore(url: snapshotURL).load()?.importedPlaylist.title,
+            "已线性提交的分析 B"
+        )
+    }
+
     func testAtomicWorkflowCommitFailureKeepsPreviousStableSnapshot() async throws {
         let directory = try makeTemporaryDirectory()
         defer { try? FileManager.default.removeItem(at: directory) }

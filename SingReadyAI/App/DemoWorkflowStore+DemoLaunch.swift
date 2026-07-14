@@ -17,7 +17,8 @@ extension DemoWorkflowStore {
             isApplyingRestoredWorkflowSnapshot = wasApplyingRestoredWorkflowSnapshot
         }
         errorMessage = nil
-        isWorking = false
+        cancelWorkflowOperation()
+        setMatchOperationState(.notStarted)
         feedbackProfile = .empty
         hasStandaloneFeedbackRecord = false
         feedbackStatusMessage = nil
@@ -50,6 +51,13 @@ extension DemoWorkflowStore {
             }
             await loadRecentPlaylists()
             replaceNavigation(with: .importHub)
+            return
+        }
+
+        if launchStage == .review,
+           ProcessInfo.processInfo.arguments.contains("-singreadyLargeMixedReview") {
+            await prepareLargeMixedReviewState()
+            replaceNavigation(with: .review)
             return
         }
 
@@ -249,6 +257,46 @@ extension DemoWorkflowStore {
         )
     }
 
+    private func prepareLargeMixedReviewState() async {
+        guard !catalog.isEmpty else { return }
+        let songs = (0..<120).map { index -> ImportedSong in
+            let track = catalog[index % catalog.count]
+            switch index % 3 {
+            case 0:
+                return ImportedSong(
+                    title: track.title,
+                    artist: track.artist,
+                    source: .plainText,
+                    confidence: 1
+                )
+            case 1:
+                return ImportedSong(
+                    title: track.title,
+                    source: .plainText,
+                    confidence: 0.9
+                )
+            default:
+                return ImportedSong(
+                    title: "待查歌曲 \(index + 1)",
+                    artist: "测试歌手 \(index + 1)",
+                    source: .plainText,
+                    confidence: 1
+                )
+            }
+        }
+        let playlist = ImportedPlaylist(
+            source: .plainText,
+            title: "大型混合歌单",
+            songs: songs,
+            parseConfidence: 0.95
+        )
+        try? await installStableDemoWorkflow(
+            playlist: playlist,
+            recommendationInputSource: .userImport
+        )
+        statusMessage = "120 首歌已导入，可以先看建议核对的部分。"
+    }
+
     private func prepareMixedMatchReviewState() async {
         let songs = [
             ImportedSong(
@@ -304,7 +352,7 @@ extension DemoWorkflowStore {
             await beginMatchingReviewedSongs(navigate: false)
             return
         }
-        matches = [
+        let preparedMatches = [
             MatchResult(
                 importedSong: songs[0],
                 matchedTrack: exact,
@@ -347,7 +395,21 @@ extension DemoWorkflowStore {
                 reason: "找到一首可明确采用的替代歌"
             )
         ]
-        preferenceProfile = profiler.buildProfile(importedPlaylist: playlist, matches: matches)
+        if let basis = currentMatchBasis {
+            var nextRevisions = revisions
+            nextRevisions.match &+= 1
+            replaceWorkflowRevisions(nextRevisions)
+            replaceCompletedAnalysis(CompletedPlaylistAnalysis(
+                basis: basis,
+                matchRevision: nextRevisions.match,
+                matches: preparedMatches,
+                preferenceProfile: profiler.buildProfile(
+                    importedPlaylist: playlist,
+                    matches: preparedMatches
+                )
+            ))
+            setMatchOperationState(.ready(basis))
+        }
         if ProcessInfo.processInfo.arguments.contains("-singreadySeedExternalCandidate") {
             externalCandidateTracks = [unmatchedBackup]
             externalCandidateStatus = "已保留 1 首公开备选"
@@ -395,7 +457,7 @@ extension DemoWorkflowStore {
             await beginMatchingReviewedSongs(navigate: false)
             return
         }
-        matches = [
+        let preparedMatches = [
             MatchResult(
                 importedSong: songs[0],
                 matchedTrack: nil,
@@ -422,7 +484,21 @@ extension DemoWorkflowStore {
                 reason: "本地参考曲库中未找到足够接近的歌曲"
             )
         ]
-        preferenceProfile = profiler.buildProfile(importedPlaylist: playlist, matches: matches)
+        if let basis = currentMatchBasis {
+            var nextRevisions = revisions
+            nextRevisions.match &+= 1
+            replaceWorkflowRevisions(nextRevisions)
+            replaceCompletedAnalysis(CompletedPlaylistAnalysis(
+                basis: basis,
+                matchRevision: nextRevisions.match,
+                matches: preparedMatches,
+                preferenceProfile: profiler.buildProfile(
+                    importedPlaylist: playlist,
+                    matches: preparedMatches
+                )
+            ))
+            setMatchOperationState(.ready(basis))
+        }
         statusMessage = "还没有足够的本地参考信息"
     }
 }

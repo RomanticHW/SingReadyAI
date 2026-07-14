@@ -24,8 +24,8 @@ extension DemoWorkflowStore {
         importedPlaylist = nil
         replaceReviewSongs([])
         replaceWorkflowRevisions(WorkflowRevisionLedger())
-        matches = []
-        preferenceProfile = nil
+        replaceCompletedAnalysis(nil)
+        setMatchOperationState(.notStarted)
         recommendationInputSource = .userImport
         songPlan = nil
         hasAdvancedToScenario = false
@@ -160,86 +160,6 @@ extension DemoWorkflowStore {
         }
     }
 
-    func run(
-        _ loadingMessage: String,
-        operation: @escaping (UInt64, MonotonicOperationDeadline) async throws -> Void
-    ) async {
-        guard !isWorking,
-              let request = workflowOperationGate.beginIfIdle() else { return }
-        isWorking = true
-        errorMessage = nil
-        statusMessage = loadingMessage
-        #if DEBUG
-        let timeoutNanoseconds: UInt64 = ProcessInfo.processInfo.arguments.contains("-singreadyShortImportTimeout")
-            ? 500_000_000
-            : 20_000_000_000
-        #else
-        let timeoutNanoseconds: UInt64 = 20_000_000_000
-        #endif
-        let operationDeadline = MonotonicOperationDeadline(timeoutNanoseconds: timeoutNanoseconds)
-        let task: Task<WorkflowOperationOutcome, Never> = Task { @MainActor [weak self] in
-            guard let self else { return .discarded }
-            let outcome: WorkflowOperationOutcome
-            do {
-                try await operation(request, operationDeadline)
-                outcome = .succeeded
-            } catch is CancellationError {
-                outcome = .cancelled
-            } catch {
-                outcome = .failed(error.localizedDescription)
-            }
-            guard self.workflowOperationGate.finish(request) else {
-                return .discarded
-            }
-            return outcome
-        }
-        workflowOperationTask = task
-        let timeoutTask = Task { @MainActor [weak self] in
-            do {
-                let remainingNanoseconds = operationDeadline.remainingNanoseconds()
-                if remainingNanoseconds > 0 {
-                    try await Task.sleep(nanoseconds: remainingNanoseconds)
-                }
-            } catch {
-                return
-            }
-            guard let self,
-                  self.workflowOperationGate.finish(request) else { return }
-            task.cancel()
-            self.workflowOperationTask = nil
-            self.workflowOperationTimeoutTask = nil
-            self.isWorking = false
-            self.errorMessage = "处理时间太久，已取消。可以重试，或改用粘贴文本。"
-            self.statusMessage = self.errorMessage ?? Self.idleStatusMessage
-        }
-        workflowOperationTimeoutTask = timeoutTask
-        defer { timeoutTask.cancel() }
-        let outcome = await task.value
-        #if DEBUG
-        if ProcessInfo.processInfo.arguments.contains("-singreadyDelayWorkflowCompletion") {
-            try? await Task.sleep(nanoseconds: 700_000_000)
-        }
-        #endif
-        switch outcome {
-        case .succeeded:
-            break
-        case .cancelled:
-            statusMessage = Self.idleStatusMessage
-        case let .failed(message):
-            errorMessage = message
-            statusMessage = message
-        case .discarded:
-            return
-        }
-        workflowOperationTask = nil
-        workflowOperationTimeoutTask = nil
-        isWorking = false
-    }
-
-    func acceptsWorkflowOperation(_ request: UInt64) -> Bool {
-        !Task.isCancelled && workflowOperationGate.accepts(request)
-    }
-
     func acceptsImportOperation(_ request: UInt64) -> Bool {
         !Task.isCancelled && importOperationGate.accepts(request)
     }
@@ -249,15 +169,19 @@ extension DemoWorkflowStore {
     }
 
     func cancelWorkflowOperation() {
+        let hadActiveMatch = isWorking || matchOperationTask != nil
         planPreparationGeneration &+= 1
         planPreparationTask?.cancel()
         planPreparationTask = nil
-        workflowOperationGate.cancel()
-        workflowOperationTask?.cancel()
-        workflowOperationTimeoutTask?.cancel()
-        workflowOperationTask = nil
-        workflowOperationTimeoutTask = nil
-        isWorking = false
+        matchOperationGate.cancel()
+        matchOperationTask?.cancel()
+        matchOperationTimeoutTask?.cancel()
+        matchOperationTask = nil
+        matchOperationTimeoutTask = nil
+        if hadActiveMatch {
+            setMatchOperationState(.cancelled)
+            reserveCancellationOfCurrentMatchCommit()
+        }
     }
 
     func cancelCurrentImport() {
@@ -340,7 +264,17 @@ extension DemoWorkflowStore {
     func cancelCurrentMatching() {
         guard isWorking else { return }
         cancelWorkflowOperation()
+        setMatchOperationState(.cancelled)
         statusMessage = "已取消本次核对"
+    }
+
+    private func reserveCancellationOfCurrentMatchCommit() {
+        let cancellationGeneration = workflowSnapshotPersistenceGate.begin()
+        Task { [workflowPersistenceExecutor] in
+            await workflowPersistenceExecutor.reserveWorkflowMutation(
+                generation: cancellationGeneration
+            )
+        }
     }
 
     func acceptsLocalDataEpoch(_ epoch: UInt64) -> Bool {

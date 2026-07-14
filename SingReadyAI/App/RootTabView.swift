@@ -104,9 +104,10 @@ struct ProductFlowShell: View {
             PremiumBackground()
             currentPage(stage)
         }
+        .disabled(store.isApplyingMatchReviewAction)
         .navigationTitle(navigationTitle(for: stage))
         .navigationBarTitleDisplayMode(.inline)
-        .navigationBarBackButtonHidden(store.isCommittingImportedWorkflow)
+        .navigationBarBackButtonHidden(store.isWorkflowMutationNavigationLocked)
         .nativeNavigationBarSurface()
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
@@ -114,7 +115,7 @@ struct ProductFlowShell: View {
                     stages: WorkflowStage.allCases,
                     current: stage,
                     scenario: activeScenario,
-                    isEnabled: !store.isCommittingImportedWorkflow
+                    isEnabled: !store.isWorkflowMutationNavigationLocked
                 ) { selectedStage in
                     Task {
                         await store.jumpToStage(selectedStage, animated: !accessibilityReduceMotion)

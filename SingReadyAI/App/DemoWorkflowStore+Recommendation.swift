@@ -264,7 +264,8 @@ extension DemoWorkflowStore {
         importedPlaylist = playlist
         recommendationInputSource = .popularFallback
         replaceReviewSongs(playlist.songs.map(EditableImportedSongDraft.init))
-        matches = zip(playlist.songs, seedTracks).map { song, track in
+        replaceWorkflowRevisions(WorkflowRevisionLedger())
+        let preparedMatches = zip(playlist.songs, seedTracks).map { song, track in
             MatchResult(
                 importedSong: song,
                 matchedTrack: track,
@@ -274,7 +275,21 @@ extension DemoWorkflowStore {
                 reason: "来自常见 K 歌参考"
             )
         }
-        preferenceProfile = profiler.buildProfile(importedPlaylist: playlist, matches: matches)
+        if let basis = currentMatchBasis {
+            var nextRevisions = revisions
+            nextRevisions.match &+= 1
+            replaceWorkflowRevisions(nextRevisions)
+            replaceCompletedAnalysis(CompletedPlaylistAnalysis(
+                basis: basis,
+                matchRevision: nextRevisions.match,
+                matches: preparedMatches,
+                preferenceProfile: profiler.buildProfile(
+                    importedPlaylist: playlist,
+                    matches: preparedMatches
+                )
+            ))
+            setMatchOperationState(.ready(basis))
+        }
         statusMessage = "先按热门 K 歌排一版，导入自己的歌单会更贴合你。"
     }
 }

@@ -292,6 +292,8 @@ public struct WorkflowSnapshot: Codable, Sendable {
         removedTrackIDs: [String],
         feedbackProfile: SongFeedbackProfile,
         hasAdvancedToScenario: Bool = false,
+        legacySongPlan: SongPlan? = nil,
+        legacyExternalCandidateTracks: [KTVTrack] = [],
         updatedAt: Date = Date()
     ) {
         self.init(
@@ -309,7 +311,12 @@ public struct WorkflowSnapshot: Codable, Sendable {
             feedbackProfile: feedbackProfile,
             hasAdvancedToScenario: hasAdvancedToScenario,
             updatedAt: updatedAt,
-            legacyDerivationBridge: .empty
+            legacyDerivationBridge: LegacyWorkflowDerivationBridge(
+                matches: [],
+                preferenceProfile: nil,
+                songPlan: legacySongPlan,
+                externalCandidateTracks: legacyExternalCandidateTracks
+            )
         )
     }
 

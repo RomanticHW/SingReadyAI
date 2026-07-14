@@ -305,6 +305,71 @@ final class ProductClosureTests: XCTestCase {
         XCTAssertEqual(profile.topArtists.first?.name, track.artist)
     }
 
+    func testCompletedAnalysisAdoptsAlternativeAndRebuildsProfileAtomically() throws {
+        let original = makeTrack(
+            id: "atomic-original",
+            title: "原曲",
+            artist: "原歌手",
+            genre: "民谣"
+        )
+        let alternative = makeTrack(
+            id: "atomic-alternative",
+            title: "替代歌",
+            artist: "替代歌手",
+            genre: "摇滚"
+        )
+        let importedSong = ImportedSong(
+            title: original.title,
+            artist: original.artist,
+            source: .plainText,
+            confidence: 1
+        )
+        let resultID = UUID()
+        let basis = MatchBasis(
+            playlistID: UUID(),
+            reviewRevision: 2,
+            catalogRevision: "catalog-a"
+        )
+        let analysis = CompletedPlaylistAnalysis(
+            basis: basis,
+            matchRevision: 5,
+            matches: [
+                MatchResult(
+                    id: resultID,
+                    importedSong: importedSong,
+                    disposition: .acceptedOriginalExact(track: original),
+                    suggestedAlternatives: [alternative],
+                    score: 1,
+                    reason: "原曲命中"
+                )
+            ],
+            preferenceProfile: PreferenceProfiler().buildProfile(
+                importedPlaylist: ImportedPlaylist(
+                    id: basis.playlistID,
+                    source: .plainText,
+                    title: "原子替代",
+                    songs: [importedSong],
+                    parseConfidence: 1
+                ),
+                matches: []
+            )
+        )
+
+        let updated = try analysis.applying(
+            .adoptAlternative(resultID: resultID, trackID: alternative.id),
+            profiler: PreferenceProfiler()
+        )
+
+        XCTAssertEqual(updated.basis, basis)
+        XCTAssertEqual(updated.matchRevision, 6)
+        XCTAssertEqual(updated.matches.count, 1)
+        XCTAssertTrue(updated.matches[0].isAdoptedAlternative)
+        XCTAssertEqual(updated.matches[0].acceptedTrack?.id, alternative.id)
+        XCTAssertEqual(updated.preferenceProfile.topArtists.first?.name, alternative.artist)
+        XCTAssertEqual(updated.preferenceProfile.genreDistribution[alternative.genre], 1)
+        XCTAssertEqual(updated.preferenceProfile.ktvMatchRate, 0)
+    }
+
     func testAdoptedAlternativeContributesToProfileButNotOriginalMatchRate() throws {
         let replacement = makeTrack(
             id: "replacement",

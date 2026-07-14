@@ -65,6 +65,20 @@ extension DemoWorkflowStore {
     }
 
     func workflowSnapshotForPersistence() -> WorkflowSnapshot? {
+        workflowSnapshotForPersistence(
+            completedAnalysis: completedAnalysis,
+            revisions: revisions,
+            songPlan: songPlan,
+            externalCandidateTracks: externalCandidateTracks
+        )
+    }
+
+    func workflowSnapshotForPersistence(
+        completedAnalysis: CompletedPlaylistAnalysis?,
+        revisions: WorkflowRevisionLedger,
+        songPlan: SongPlan?,
+        externalCandidateTracks: [KTVTrack]
+    ) -> WorkflowSnapshot? {
         guard let importedPlaylist else { return nil }
         return WorkflowSnapshot(
             importedPlaylist: importedPlaylist,
@@ -81,17 +95,18 @@ extension DemoWorkflowStore {
                 )
             },
             revisions: revisions,
-            matches: matches,
-            preferenceProfile: preferenceProfile,
+            completedAnalysis: completedAnalysis,
+            persistedPlanRecord: nil,
+            externalCandidateCollection: nil,
             voiceProfile: voiceProfile,
             recommendationInputSource: recommendationInputSource,
             scenarioConfig: scenarioConfig,
-            songPlan: songPlan,
             lockedTrackIDs: Array(lockedTrackIDs),
             removedTrackIDs: Array(removedTrackIDs),
-            externalCandidateTracks: externalCandidateTracks,
             feedbackProfile: feedbackProfile,
-            hasAdvancedToScenario: hasAdvancedToScenario
+            hasAdvancedToScenario: hasAdvancedToScenario,
+            legacySongPlan: songPlan,
+            legacyExternalCandidateTracks: externalCandidateTracks
         )
     }
 
@@ -160,8 +175,22 @@ extension DemoWorkflowStore {
                 return draft
             })
             replaceWorkflowRevisions(snapshot.revisions)
-            matches = snapshot.matches
-            preferenceProfile = snapshot.preferenceProfile
+            let restoredAnalysis: CompletedPlaylistAnalysis?
+            if let basis = currentMatchBasis,
+               PlaylistWorkflowValidityPolicy.restoredMatchState(
+                   persistedAnalysis: snapshot.completedAnalysis,
+                   currentBasis: basis,
+                   currentMatchRevision: snapshot.revisions.match,
+                   playlist: snapshot.importedPlaylist,
+                   reviewSongs: snapshot.reviewSongs
+               ) == .ready(basis) {
+                restoredAnalysis = snapshot.completedAnalysis
+                setMatchOperationState(.ready(basis))
+            } else {
+                restoredAnalysis = nil
+                setMatchOperationState(.notStarted)
+            }
+            replaceCompletedAnalysis(restoredAnalysis)
             voiceProfile = snapshot.voiceProfile
             recommendationInputSource = snapshot.recommendationInputSource
             scenarioConfig = snapshot.scenarioConfig
@@ -302,8 +331,7 @@ extension DemoWorkflowStore {
             $importedPlaylist.dropFirst().map { _ in () }.eraseToAnyPublisher(),
             $reviewSongs.dropFirst().map { _ in () }.eraseToAnyPublisher(),
             $revisions.dropFirst().map { _ in () }.eraseToAnyPublisher(),
-            $matches.dropFirst().map { _ in () }.eraseToAnyPublisher(),
-            $preferenceProfile.dropFirst().map { _ in () }.eraseToAnyPublisher(),
+            $completedAnalysis.dropFirst().map { _ in () }.eraseToAnyPublisher(),
             $voiceProfile.dropFirst().map { _ in () }.eraseToAnyPublisher(),
             $recommendationInputSource.dropFirst().map { _ in () }.eraseToAnyPublisher(),
             $scenarioConfig.dropFirst().map { _ in () }.eraseToAnyPublisher(),
@@ -391,8 +419,8 @@ extension DemoWorkflowStore {
             return
         }
         invalidateExternalCandidateContext()
-        matches = []
-        preferenceProfile = nil
+        replaceCompletedAnalysis(nil)
+        setMatchOperationState(.notStarted)
         hasAdvancedToScenario = false
         songPlan = nil
         lockedTrackIDs = []

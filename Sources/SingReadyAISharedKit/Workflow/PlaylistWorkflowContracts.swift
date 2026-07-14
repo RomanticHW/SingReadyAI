@@ -257,6 +257,81 @@ public struct CompletedPlaylistAnalysis: Codable, Sendable {
     }
 }
 
+public enum MatchReviewAction: Sendable {
+    case confirmOriginal(resultID: UUID, trackID: String)
+    case adoptAlternative(resultID: UUID, trackID: String)
+}
+
+public enum MatchReviewActionError: Error, Equatable, LocalizedError, Sendable {
+    case resultNotFound
+    case trackNotSelectable
+
+    public var errorDescription: String? {
+        switch self {
+        case .resultNotFound:
+            return "这条匹配结果已经变化，请刷新后再试。"
+        case .trackNotSelectable:
+            return "这首歌已不在可选范围，请重新核对。"
+        }
+    }
+}
+
+public extension CompletedPlaylistAnalysis {
+    func applying(
+        _ action: MatchReviewAction,
+        profiler: PreferenceProfiler
+    ) throws -> CompletedPlaylistAnalysis {
+        let resultID: UUID
+        switch action {
+        case let .confirmOriginal(id, _), let .adoptAlternative(id, _):
+            resultID = id
+        }
+        guard let resultIndex = matches.firstIndex(where: { $0.id == resultID }) else {
+            throw MatchReviewActionError.resultNotFound
+        }
+
+        var updatedMatches = matches
+        let updatedResult: MatchResult?
+        switch action {
+        case let .confirmOriginal(_, trackID):
+            guard let track = matches[resultIndex].candidateTracks.first(where: {
+                $0.id == trackID && $0.catalogSource == .ktvCatalog
+            }) else {
+                throw MatchReviewActionError.trackNotSelectable
+            }
+            updatedResult = matches[resultIndex].confirming(track: track)
+        case let .adoptAlternative(_, trackID):
+            guard let track = (matches[resultIndex].candidateTracks + matches[resultIndex].suggestedAlternatives)
+                .first(where: { $0.id == trackID && $0.catalogSource == .ktvCatalog }) else {
+                throw MatchReviewActionError.trackNotSelectable
+            }
+            updatedResult = matches[resultIndex].adoptingAlternative(track: track)
+        }
+        guard let updatedResult else {
+            throw MatchReviewActionError.trackNotSelectable
+        }
+        updatedMatches[resultIndex] = updatedResult
+
+        let playlist = ImportedPlaylist(
+            id: basis.playlistID,
+            source: updatedMatches.first?.importedSong.source ?? .plainText,
+            title: "已整理歌单",
+            songs: updatedMatches.map(\.importedSong),
+            parseConfidence: updatedMatches.map(\.importedSong.confidence).reduce(0, +)
+                / Double(max(updatedMatches.count, 1))
+        )
+        return CompletedPlaylistAnalysis(
+            basis: basis,
+            matchRevision: matchRevision &+ 1,
+            matches: updatedMatches,
+            preferenceProfile: profiler.buildProfile(
+                importedPlaylist: playlist,
+                matches: updatedMatches
+            )
+        )
+    }
+}
+
 private struct ValidatedPlaylistAnalysis {
     let importedCount: Int
     let validReviewedCount: Int
@@ -416,10 +491,12 @@ public enum PlaylistWorkflowValidityPolicy {
     public static func restoredMatchState(
         persistedAnalysis: CompletedPlaylistAnalysis?,
         currentBasis: MatchBasis,
+        currentMatchRevision: UInt64,
         playlist: ImportedPlaylist,
         reviewSongs: [WorkflowReviewSong]
     ) -> MatchOperationState {
         guard let persistedAnalysis,
+              persistedAnalysis.matchRevision == currentMatchRevision,
               PlaylistAnalysisSnapshotValidator.validate(
                 playlist: playlist,
                 reviewSongs: reviewSongs,

@@ -17,15 +17,15 @@ final class DemoWorkflowStore: ObservableObject {
     @Published var importedPlaylist: ImportedPlaylist?
     @Published private(set) var reviewSongs: [EditableImportedSongDraft] = []
     @Published private(set) var revisions = WorkflowRevisionLedger()
-    @Published var matches: [MatchResult] = []
-    @Published var preferenceProfile: PreferenceProfile?
+    @Published private(set) var completedAnalysis: CompletedPlaylistAnalysis?
+    @Published private(set) var matchOperationState: MatchOperationState = .notStarted
+    @Published private(set) var isApplyingMatchReviewAction = false
     @Published var voiceProfile: VoiceProfile?
     @Published var recommendationInputSource: RecommendationInputSource = .userImport
     @Published var scenarioConfig = ScenarioConfig()
     @Published var songPlan: SongPlan?
     @Published var statusMessage = DemoWorkflowStore.idleStatusMessage
     @Published var errorMessage: String?
-    @Published var isWorking = false
     @Published private(set) var importOperationState: ImportOperationState = .idle
     @Published private(set) var isCommittingImportedWorkflow = false
     @Published var isUsingFallbackStore = false
@@ -67,9 +67,9 @@ final class DemoWorkflowStore: ObservableObject {
     #endif
     var voiceRecordingTask: Task<Void, Never>?
     var voiceMeasurementGate = VoiceMeasurementRequestGate()
-    var workflowOperationTask: Task<WorkflowOperationOutcome, Never>?
-    var workflowOperationTimeoutTask: Task<Void, Never>?
-    var workflowOperationGate = VoiceMeasurementRequestGate()
+    var matchOperationTask: Task<WorkflowOperationOutcome, Never>?
+    var matchOperationTimeoutTask: Task<Void, Never>?
+    var matchOperationGate = VoiceMeasurementRequestGate()
     var importOperationTask: Task<WorkflowOperationOutcome, Never>?
     var importOperationTimeoutTask: Task<Void, Never>?
     var importOperationGate = VoiceMeasurementRequestGate()
@@ -140,6 +140,35 @@ final class DemoWorkflowStore: ObservableObject {
         reviewSongs.filter { !$0.isDeleted }
     }
 
+    var matches: [MatchResult] {
+        completedAnalysis?.matches ?? []
+    }
+
+    var preferenceProfile: PreferenceProfile? {
+        completedAnalysis?.preferenceProfile
+    }
+
+    var isWorking: Bool {
+        if case .running = matchOperationState { return true }
+        return false
+    }
+
+    var matchingProgressText: String {
+        if case let .running(processed, total) = matchOperationState {
+            return "已处理 \(processed)/\(total) 首"
+        }
+        return "正在核对歌曲参考"
+    }
+
+    var currentMatchBasis: MatchBasis? {
+        guard let importedPlaylist else { return nil }
+        return MatchBasis(
+            playlistID: importedPlaylist.id,
+            reviewRevision: revisions.review,
+            catalogRevision: PlaylistWorkflowFingerprint.catalogRevision(for: catalog)
+        )
+    }
+
     var untitledReviewSongs: [EditableImportedSongDraft] {
         activeReviewSongs.filter { !$0.hasValidTitle }
     }
@@ -208,11 +237,22 @@ final class DemoWorkflowStore: ObservableObject {
     }
 
     var isImportInteractionDisabled: Bool {
-        isImportResolving || isCommittingImportedWorkflow || isManagingLocalData
+        isImportResolving
+            || isCommittingImportedWorkflow
+            || isWorking
+            || isApplyingMatchReviewAction
+            || isManagingLocalData
     }
 
     var isImportPersistenceLocked: Bool {
-        isImportResolving || isCommittingImportedWorkflow
+        isImportResolving
+            || isCommittingImportedWorkflow
+            || isWorking
+            || isApplyingMatchReviewAction
+    }
+
+    var isWorkflowMutationNavigationLocked: Bool {
+        isCommittingImportedWorkflow || isApplyingMatchReviewAction
     }
 
     func replaceReviewSongs(_ songs: [EditableImportedSongDraft]) {
@@ -221,6 +261,18 @@ final class DemoWorkflowStore: ObservableObject {
 
     func replaceWorkflowRevisions(_ ledger: WorkflowRevisionLedger) {
         revisions = ledger
+    }
+
+    func replaceCompletedAnalysis(_ analysis: CompletedPlaylistAnalysis?) {
+        completedAnalysis = analysis
+    }
+
+    func setMatchOperationState(_ state: MatchOperationState) {
+        matchOperationState = state
+    }
+
+    func setApplyingMatchReviewAction(_ isApplying: Bool) {
+        isApplyingMatchReviewAction = isApplying
     }
 
     func setImportOperationState(_ state: ImportOperationState) {
@@ -254,7 +306,7 @@ final class DemoWorkflowStore: ObservableObject {
     }
 
     func jumpToStage(_ stage: WorkflowStage, animated: Bool = true) async {
-        guard !isCommittingImportedWorkflow else { return }
+        guard !isWorkflowMutationNavigationLocked else { return }
         if stage == .scenario, importedPlaylist != nil {
             hasAdvancedToScenario = true
         }

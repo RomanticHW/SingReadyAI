@@ -408,8 +408,8 @@ extension DemoWorkflowStore {
             return draft
         })
         replaceWorkflowRevisions(snapshot.revisions)
-        matches = []
-        preferenceProfile = nil
+        replaceCompletedAnalysis(nil)
+        setMatchOperationState(.notStarted)
         voiceProfile = snapshot.voiceProfile
         recommendationInputSource = snapshot.recommendationInputSource
         scenarioConfig = snapshot.scenarioConfig
@@ -478,6 +478,7 @@ extension DemoWorkflowStore {
     }
 
     func commitReviewMutation(_ mutation: ReviewMutation) {
+        guard !isApplyingMatchReviewAction else { return }
         var updatedSongs = reviewSongs
         switch mutation {
         case let .updateTitle(id, value):
@@ -511,8 +512,8 @@ extension DemoWorkflowStore {
         replaceWorkflowRevisions(nextRevisions)
         cancelCurrentMatching()
         cancelExternalCandidateRequest()
-        matches = []
-        preferenceProfile = nil
+        replaceCompletedAnalysis(nil)
+        setMatchOperationState(.notStarted)
         hasAdvancedToScenario = false
         songPlan = nil
         externalCandidateTracks = []
@@ -544,7 +545,9 @@ extension DemoWorkflowStore {
             errorMessage = "歌单空了，请至少留一首歌"
             return .needsReview
         }
-        guard !isWorking else { return .unavailable }
+        guard !isWorking,
+              let basis = currentMatchBasis,
+              let request = matchOperationGate.beginIfIdle() else { return .unavailable }
         let reviewedPlaylist = ImportedPlaylist(
             id: importedPlaylist.id,
             source: importedPlaylist.source,
@@ -554,100 +557,316 @@ extension DemoWorkflowStore {
             createdAt: importedPlaylist.createdAt,
             parseConfidence: songs.map(\.confidence).reduce(0, +) / Double(max(songs.count, 1))
         )
+        var recentPlaylist = importedPlaylist
+        let reviewDraftsByID = Dictionary(
+            uniqueKeysWithValues: reviewSongs.map { ($0.id, $0) }
+        )
+        recentPlaylist.songs = importedPlaylist.songs.map { originalSong in
+            guard let draft = reviewDraftsByID[originalSong.id], !draft.isDeleted else {
+                return originalSong
+            }
+            return draft.importedSong()
+        }
+        recentPlaylist.parseConfidence = recentPlaylist.songs.map(\.confidence).reduce(0, +)
+            / Double(max(recentPlaylist.songs.count, 1))
         let startingStage = currentStage
-        var didCompleteMatching = false
-        await run("正在核对本地参考命中") { [self] request, _ in
+        let generation = workflowSnapshotPersistenceGate.begin()
+        errorMessage = nil
+        statusMessage = "正在核对歌曲参考"
+        setMatchOperationState(.running(processed: 0, total: songs.count))
+        await workflowPersistenceExecutor.reserveWorkflowMutation(generation: generation)
+        guard matchOperationGate.accepts(request),
+              currentStage == startingStage,
+              currentMatchBasis == basis else {
+            _ = matchOperationGate.finish(request)
+            if case .running = matchOperationState {
+                setMatchOperationState(.cancelled)
+            }
+            return .unavailable
+        }
+
+        #if DEBUG
+        let timeoutNanoseconds: UInt64 = ProcessInfo.processInfo.arguments.contains(
+            "-singreadyShortMatchTimeout"
+        ) ? 500_000_000 : 20_000_000_000
+        #else
+        let timeoutNanoseconds: UInt64 = 20_000_000_000
+        #endif
+        let deadline = MonotonicOperationDeadline(timeoutNanoseconds: timeoutNanoseconds)
+        let task: Task<WorkflowOperationOutcome, Never> = Task { @MainActor [weak self] in
+            guard let self else { return .discarded }
+            do {
             #if DEBUG
             if ProcessInfo.processInfo.arguments.contains("-singreadySlowPlaylistAnalysis") {
                 try await Task.sleep(nanoseconds: 8_000_000_000)
             }
+            if ProcessInfo.processInfo.arguments.contains("-singreadySlowPlaylistAnalysisProgress") {
+                try await Task.sleep(nanoseconds: 1_000_000_000)
+            }
             #endif
             let output = try await playlistAnalysisExecutor.analyze(
                 playlist: reviewedPlaylist,
-                catalog: catalog
+                catalog: catalog,
+                progress: { [weak self] processed, total in
+                    #if DEBUG
+                    if ProcessInfo.processInfo.arguments.contains(
+                        "-singreadySlowPlaylistAnalysisProgress"
+                    ) {
+                        try? await Task.sleep(nanoseconds: 250_000_000)
+                    }
+                    #endif
+                    await self?.publishMatchProgress(
+                        processed: processed,
+                        total: total,
+                        request: request,
+                        basis: basis
+                    )
+                }
             )
-            guard acceptsWorkflowOperation(request) else { return }
-            guard currentStage == startingStage,
-                  activeReviewSongs.map({ $0.importedSong() }) == songs else {
-                statusMessage = "歌名有变化，本次核对已取消"
+            try Task.checkCancellation()
+            guard self.matchOperationGate.accepts(request),
+                  self.currentStage == startingStage,
+                  self.currentMatchBasis == basis,
+                  self.activeReviewSongs.map({ $0.importedSong() }) == songs,
+                  output.matches.count == songs.count,
+                  self.workflowSnapshotPersistenceGate.accepts(generation) else {
+                return .discarded
+            }
+            var nextRevisions = self.revisions
+            nextRevisions.match &+= 1
+            let analysis = CompletedPlaylistAnalysis(
+                basis: basis,
+                matchRevision: nextRevisions.match,
+                matches: output.matches,
+                preferenceProfile: output.preferenceProfile
+            )
+            guard let candidate = self.workflowSnapshotForPersistence(
+                completedAnalysis: analysis,
+                revisions: nextRevisions,
+                songPlan: nil,
+                externalCandidateTracks: []
+            ) else {
+                return .failed("当前歌单暂时无法保存，请重新导入后再试。")
+            }
+
+            self.matchOperationTimeoutTask?.cancel()
+            let commitResult = try await self.workflowPersistenceExecutor.commitWorkflowSnapshot(
+                candidate,
+                generation: generation
+            )
+            guard commitResult == .applied else {
+                return .failed("这次核对已被新的操作替代，请重试。")
+            }
+
+            self.publishCompletedAnalysis(
+                analysis,
+                revisions: nextRevisions,
+                request: request,
+                navigate: navigate,
+                startingStage: startingStage
+            )
+            _ = await self.recordRecentImport(
+                recentPlaylist,
+                request: self.recentPlaylistPersistenceGate.begin(),
+                failureMessage: "整理结果已保留，但最近导入暂时没更新。"
+            )
+            return .succeeded
+            } catch is CancellationError {
+                return .cancelled
+            } catch {
+                return .failed("核对结果暂时没保存下来，整理内容和上次结果都还在。请重试。")
+            }
+        }
+        matchOperationTask = task
+        let timeoutTask = Task { @MainActor [weak self] in
+            let remaining = deadline.remainingNanoseconds()
+            if remaining > 0 {
+                do { try await Task.sleep(nanoseconds: remaining) } catch { return }
+            }
+            guard let self,
+                  self.matchOperationGate.finish(request) else { return }
+            task.cancel()
+            let cancellationGeneration = self.workflowSnapshotPersistenceGate.begin()
+            await self.workflowPersistenceExecutor.reserveWorkflowMutation(
+                generation: cancellationGeneration
+            )
+            self.matchOperationTask = nil
+            self.matchOperationTimeoutTask = nil
+            let message = "核对时间有点长，已停止。歌单内容都还在，可以重新核对。"
+            self.setMatchOperationState(.failed(message: message, retryable: true))
+            self.errorMessage = nil
+            self.statusMessage = message
+        }
+        matchOperationTimeoutTask = timeoutTask
+        let outcome = await task.value
+        timeoutTask.cancel()
+        matchOperationTask = nil
+        matchOperationTimeoutTask = nil
+
+        switch outcome {
+        case .succeeded:
+            _ = matchOperationGate.finish(request)
+            return .completed
+        case .cancelled:
+            guard matchOperationGate.finish(request) else { return .unavailable }
+            setMatchOperationState(.cancelled)
+            statusMessage = "已取消本次核对，整理内容和上次结果都还在。"
+        case let .failed(message):
+            guard matchOperationGate.finish(request) else { return .unavailable }
+            setMatchOperationState(.failed(message: message, retryable: true))
+            errorMessage = nil
+            statusMessage = message
+        case .discarded:
+            guard matchOperationGate.finish(request) else { return .unavailable }
+            setMatchOperationState(.cancelled)
+            statusMessage = "歌单内容有变化，本次核对已停止。"
+        }
+        return .unavailable
+    }
+
+    private func publishMatchProgress(
+        processed: Int,
+        total: Int,
+        request: UInt64,
+        basis: MatchBasis
+    ) {
+        guard matchOperationGate.accepts(request),
+              currentMatchBasis == basis else { return }
+        let boundedTotal = max(0, total)
+        let boundedProcessed = min(max(0, processed), boundedTotal)
+        if case let .running(currentProcessed, currentTotal) = matchOperationState,
+           currentTotal == boundedTotal,
+           boundedProcessed < currentProcessed {
+            return
+        }
+        setMatchOperationState(.running(processed: boundedProcessed, total: boundedTotal))
+    }
+
+    private func publishCompletedAnalysis(
+        _ analysis: CompletedPlaylistAnalysis,
+        revisions nextRevisions: WorkflowRevisionLedger,
+        request: UInt64,
+        navigate: Bool,
+        startingStage: WorkflowStage
+    ) {
+        cancelExternalCandidateRequest()
+        let wasApplyingSnapshot = isApplyingRestoredWorkflowSnapshot
+        isApplyingRestoredWorkflowSnapshot = true
+        replaceCompletedAnalysis(analysis)
+        replaceWorkflowRevisions(nextRevisions)
+        songPlan = nil
+        externalCandidateTracks = []
+        externalCandidateStatus = "还没找同歌手备选"
+        lastRemovedTrackUndo = nil
+        isApplyingRestoredWorkflowSnapshot = wasApplyingSnapshot
+        lastWorkflowSnapshotAttemptRevision = workflowSnapshotRevision
+        setMatchOperationState(.ready(analysis.basis))
+        errorMessage = nil
+        let statistics = MatchStatistics(matches: analysis.matches)
+        statusMessage = "已核对 \(statistics.verified) 首，\(statistics.pending) 首待确认，\(statistics.unmatched) 首暂未找到"
+
+        guard navigate,
+              matchOperationGate.accepts(request),
+              currentStage == startingStage else { return }
+        isCompletingWorkflowNavigation = true
+        defer { isCompletingWorkflowNavigation = false }
+        setStage(.matchReport)
+    }
+
+    private func applyMatchReviewAction(
+        _ action: MatchReviewAction
+    ) async {
+        guard !isApplyingMatchReviewAction,
+              let currentAnalysis = completedAnalysis,
+              currentAnalysis.basis == currentMatchBasis else { return }
+        let startingReviewRevision = revisions.review
+        let startingMatchRevision = revisions.match
+        setApplyingMatchReviewAction(true)
+        defer { setApplyingMatchReviewAction(false) }
+
+        do {
+            let updatedAnalysis = try currentAnalysis.applying(action, profiler: profiler)
+            var nextRevisions = revisions
+            nextRevisions.match = updatedAnalysis.matchRevision
+            let generation = workflowSnapshotPersistenceGate.begin()
+            await workflowPersistenceExecutor.reserveWorkflowMutation(generation: generation)
+            #if DEBUG
+            if ProcessInfo.processInfo.arguments.contains("-singreadyDelayMatchReviewCommit") {
+                try? await Task.sleep(nanoseconds: 4_000_000_000)
+            }
+            #endif
+            guard completedAnalysis?.basis == currentAnalysis.basis,
+                  completedAnalysis?.matchRevision == currentAnalysis.matchRevision,
+                  currentMatchBasis == currentAnalysis.basis,
+                  revisions.review == startingReviewRevision,
+                  revisions.match == startingMatchRevision,
+                  workflowSnapshotPersistenceGate.accepts(generation) else {
+                errorMessage = "这首歌的信息已更新，请重新选择。"
+                return
+            }
+            guard let candidate = workflowSnapshotForPersistence(
+                completedAnalysis: updatedAnalysis,
+                revisions: nextRevisions,
+                songPlan: nil,
+                externalCandidateTracks: externalCandidateTracks
+            ) else { return }
+            let result = try await workflowPersistenceExecutor.commitWorkflowSnapshot(
+                candidate,
+                generation: generation
+            )
+            guard result == .applied else {
+                errorMessage = "这首歌的信息已更新，请重新选择。"
                 return
             }
 
-            invalidateExternalCandidateContext()
-            self.importedPlaylist = reviewedPlaylist
-            matches = output.matches
-            preferenceProfile = output.preferenceProfile
-            statusMessage = matchRate >= 0.75
-                ? "这份歌单的本地参考命中较多"
-                : "还有几首需要核对备选"
-
-            _ = await recordRecentImport(
-                reviewedPlaylist,
-                request: recentPlaylistPersistenceGate.begin(),
-                failureMessage: "整理结果已保留，但最近导入暂时没更新。"
-            )
-            _ = await persistWorkflowSnapshot()
-            guard acceptsWorkflowOperation(request),
-                  currentStage == startingStage else { return }
-            didCompleteMatching = true
-            if navigate {
-                isCompletingWorkflowNavigation = true
-                defer { isCompletingWorkflowNavigation = false }
-                setStage(.matchReport)
+            cancelExternalCandidateRequest()
+            let wasApplyingSnapshot = isApplyingRestoredWorkflowSnapshot
+            isApplyingRestoredWorkflowSnapshot = true
+            replaceCompletedAnalysis(updatedAnalysis)
+            replaceWorkflowRevisions(nextRevisions)
+            songPlan = nil
+            lastRemovedTrackUndo = nil
+            isApplyingRestoredWorkflowSnapshot = wasApplyingSnapshot
+            lastWorkflowSnapshotAttemptRevision = workflowSnapshotRevision
+            setMatchOperationState(.ready(updatedAnalysis.basis))
+            errorMessage = nil
+            let resultID: UUID
+            let verb: String
+            switch action {
+            case let .confirmOriginal(id, _):
+                resultID = id
+                verb = "已确认"
+            case let .adoptAlternative(id, _):
+                resultID = id
+                verb = "已改用"
             }
+            if let track = updatedAnalysis.matches
+                .first(where: { $0.id == resultID })?
+                .acceptedTrack {
+                statusMessage = "\(verb)《\(track.title)》— \(track.artist)"
+            } else {
+                statusMessage = "匹配结果已更新"
+            }
+        } catch let error as MatchReviewActionError {
+            errorMessage = error.localizedDescription
+        } catch {
+            errorMessage = "这次修改暂时没保存下来，原来的匹配结果还在。请稍后重试。"
         }
-        return didCompleteMatching ? .completed : .unavailable
     }
 
     func confirmMatch(resultID: UUID, trackID: String) {
-        guard let resultIndex = matches.firstIndex(where: { $0.id == resultID }),
-              let track = matches[resultIndex].alternatives.first(where: { $0.id == trackID }),
-              let confirmed = matches[resultIndex].confirming(track: track),
-              let importedPlaylist else {
-            return
-        }
-        cancelExternalCandidateRequest()
-        let nextWorkflowState = MatchConfirmationStatePolicy.afterConfirmingMatch(
-            MatchConfirmationWorkflowState(
-                lockedTrackIDs: lockedTrackIDs,
-                removedTrackIDs: removedTrackIDs,
-                externalCandidateTracks: externalCandidateTracks,
-                songPlan: songPlan
+        Task { @MainActor [weak self] in
+            await self?.applyMatchReviewAction(
+                .confirmOriginal(resultID: resultID, trackID: trackID)
             )
-        )
-
-        matches[resultIndex] = confirmed
-        preferenceProfile = profiler.buildProfile(importedPlaylist: importedPlaylist, matches: matches)
-        lockedTrackIDs = nextWorkflowState.lockedTrackIDs
-        removedTrackIDs = nextWorkflowState.removedTrackIDs
-        externalCandidateTracks = nextWorkflowState.externalCandidateTracks
-        songPlan = nextWorkflowState.songPlan
-        statusMessage = "已采用《\(track.title)》- \(track.artist)作为参考匹配"
+        }
     }
 
     func adoptAlternative(resultID: UUID, trackID: String) {
-        guard let resultIndex = matches.firstIndex(where: { $0.id == resultID }),
-              let track = matches[resultIndex].alternatives.first(where: { $0.id == trackID }),
-              let adopted = matches[resultIndex].adoptingAlternative(track: track),
-              let importedPlaylist else {
-            return
-        }
-        cancelExternalCandidateRequest()
-        let nextWorkflowState = MatchConfirmationStatePolicy.afterConfirmingMatch(
-            MatchConfirmationWorkflowState(
-                lockedTrackIDs: lockedTrackIDs,
-                removedTrackIDs: removedTrackIDs,
-                externalCandidateTracks: externalCandidateTracks,
-                songPlan: songPlan
+        Task { @MainActor [weak self] in
+            await self?.applyMatchReviewAction(
+                .adoptAlternative(resultID: resultID, trackID: trackID)
             )
-        )
-
-        matches[resultIndex] = adopted
-        preferenceProfile = profiler.buildProfile(importedPlaylist: importedPlaylist, matches: matches)
-        lockedTrackIDs = nextWorkflowState.lockedTrackIDs
-        removedTrackIDs = nextWorkflowState.removedTrackIDs
-        externalCandidateTracks = nextWorkflowState.externalCandidateTracks
-        songPlan = nextWorkflowState.songPlan
-        statusMessage = "已采用替代歌：\(track.title) - \(track.artist)"
+        }
     }
 }

@@ -397,6 +397,7 @@ final class PlaylistWorkflowContractTests: XCTestCase {
             PlaylistWorkflowValidityPolicy.restoredMatchState(
                 persistedAnalysis: restored,
                 currentBasis: basis,
+                currentMatchRevision: 4,
                 playlist: playlist,
                 reviewSongs: reviewSongs
             ),
@@ -405,7 +406,18 @@ final class PlaylistWorkflowContractTests: XCTestCase {
         XCTAssertEqual(
             PlaylistWorkflowValidityPolicy.restoredMatchState(
                 persistedAnalysis: restored,
+                currentBasis: basis,
+                currentMatchRevision: 9,
+                playlist: playlist,
+                reviewSongs: reviewSongs
+            ),
+            .notStarted
+        )
+        XCTAssertEqual(
+            PlaylistWorkflowValidityPolicy.restoredMatchState(
+                persistedAnalysis: restored,
                 currentBasis: changedReview,
+                currentMatchRevision: 4,
                 playlist: playlist,
                 reviewSongs: reviewSongs
             ),
@@ -415,6 +427,7 @@ final class PlaylistWorkflowContractTests: XCTestCase {
             PlaylistWorkflowValidityPolicy.restoredMatchState(
                 persistedAnalysis: nil,
                 currentBasis: basis,
+                currentMatchRevision: 4,
                 playlist: playlist,
                 reviewSongs: reviewSongs
             ),
@@ -460,6 +473,7 @@ final class PlaylistWorkflowContractTests: XCTestCase {
                 PlaylistWorkflowValidityPolicy.restoredMatchState(
                     persistedAnalysis: malformed,
                     currentBasis: basis,
+                    currentMatchRevision: 4,
                     playlist: playlist,
                     reviewSongs: reviewSongs
                 ),
@@ -687,6 +701,127 @@ final class PlaylistWorkflowContractTests: XCTestCase {
         XCTAssertEqual(summary.validReviewedCount, 1)
         XCTAssertEqual(summary.verifiedCount, 0)
         XCTAssertTrue(summary.canContinue)
+    }
+
+    func testCompletedAnalysisAppliesIdentityConfirmationAsOneRevision() throws {
+        let song = ImportedSong(
+            title: "喜欢你",
+            source: .plainText,
+            confidence: 0.8
+        )
+        let candidate = makeTrack(id: "identity", title: "喜欢你", artist: "Beyond")
+        let untouchedSong = makeImportedSong(title: "暂未找到", artist: "歌手乙")
+        let resultID = UUID()
+        let basis = MatchBasis(
+            playlistID: UUID(),
+            reviewRevision: 4,
+            catalogRevision: "catalog-a"
+        )
+        let analysis = CompletedPlaylistAnalysis(
+            basis: basis,
+            matchRevision: 7,
+            matches: [
+                MatchResult(
+                    id: resultID,
+                    importedSong: song,
+                    disposition: .identityConfirmationRequired(candidates: [candidate]),
+                    score: 0.88,
+                    reason: "同名歌曲待确认"
+                ),
+                MatchResult(
+                    importedSong: untouchedSong,
+                    disposition: .unmatched,
+                    score: 0,
+                    reason: "暂未找到"
+                )
+            ],
+            preferenceProfile: makePreferenceProfile()
+        )
+
+        let updated = try analysis.applying(
+            .confirmOriginal(resultID: resultID, trackID: candidate.id),
+            profiler: PreferenceProfiler()
+        )
+
+        XCTAssertEqual(updated.basis, basis)
+        XCTAssertEqual(updated.matchRevision, 8)
+        XCTAssertEqual(updated.matches.count, analysis.matches.count)
+        XCTAssertEqual(updated.matches.first?.acceptedTrack?.id, candidate.id)
+        XCTAssertEqual(updated.matches.last?.importedSong.id, untouchedSong.id)
+        XCTAssertEqual(updated.preferenceProfile.topArtists.first?.name, candidate.artist)
+    }
+
+    func testCompletedAnalysisRejectsUnknownReviewActionWithoutPartialMutation() throws {
+        let song = makeImportedSong(title: "晴天", artist: "周杰伦")
+        let accepted = makeTrack(id: "accepted", title: song.title, artist: song.artist ?? "")
+        let alternative = makeTrack(id: "alternative", title: "稻香", artist: "周杰伦")
+        let resultID = UUID()
+        let analysis = CompletedPlaylistAnalysis(
+            basis: MatchBasis(
+                playlistID: UUID(),
+                reviewRevision: 2,
+                catalogRevision: "catalog-a"
+            ),
+            matchRevision: 3,
+            matches: [
+                MatchResult(
+                    id: resultID,
+                    importedSong: song,
+                    disposition: .acceptedOriginalExact(track: accepted),
+                    suggestedAlternatives: [alternative],
+                    score: 1,
+                    reason: "精确命中"
+                )
+            ],
+            preferenceProfile: makePreferenceProfile()
+        )
+
+        XCTAssertThrowsError(
+            try analysis.applying(
+                .adoptAlternative(resultID: resultID, trackID: "not-selectable"),
+                profiler: PreferenceProfiler()
+            )
+        )
+        XCTAssertEqual(analysis.matchRevision, 3)
+        XCTAssertEqual(analysis.matches.first?.acceptedTrack?.id, accepted.id)
+    }
+
+    func testCompletedAnalysisRejectsExternalCandidateAsAcceptedReference() throws {
+        let song = makeImportedSong(title: "晴天", artist: "周杰伦")
+        let externalCandidate = makeTrack(
+            id: "external-candidate",
+            title: song.title,
+            artist: song.artist ?? "",
+            catalogSource: .externalSimilar
+        )
+        let resultID = UUID()
+        let analysis = CompletedPlaylistAnalysis(
+            basis: MatchBasis(
+                playlistID: UUID(),
+                reviewRevision: 2,
+                catalogRevision: "catalog-a"
+            ),
+            matchRevision: 3,
+            matches: [
+                MatchResult(
+                    id: resultID,
+                    importedSong: song,
+                    disposition: .alternativeSuggested(candidates: [externalCandidate]),
+                    score: 0.7,
+                    reason: "仅供公开候选核对"
+                )
+            ],
+            preferenceProfile: makePreferenceProfile()
+        )
+
+        XCTAssertThrowsError(
+            try analysis.applying(
+                .adoptAlternative(resultID: resultID, trackID: externalCandidate.id),
+                profiler: PreferenceProfiler()
+            )
+        )
+        XCTAssertEqual(analysis.matchRevision, 3)
+        XCTAssertNil(analysis.matches[0].acceptedTrack)
     }
 
     func testExplicitOperationStatesCarryProgressRetryAndStalePlan() throws {

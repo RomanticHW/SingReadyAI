@@ -15,6 +15,19 @@ struct MatchReportView: View {
                     systemImage: "chart.bar.xaxis"
                 )
                 GlassCard {
+                    Text("歌曲参考核对完成")
+                        .font(TypographyTokens.section)
+                        .stageText()
+                    Text(
+                        "已核对 \(store.matchStats.verified) 首 · "
+                            + "待确认 \(store.matchStats.pending) 首 · "
+                            + "暂未找到 \(store.matchStats.unmatched) 首"
+                    )
+                    .font(TypographyTokens.callout.weight(.semibold))
+                    .foregroundStyle(DesignSystem.cyan)
+                    .accessibilityIdentifier("match-outcome-summary")
+                }
+                GlassCard {
                     HStack(alignment: .center) {
                         VStack(alignment: .leading, spacing: SpacingTokens.sm) {
                             Text("本地参考曲库")
@@ -30,6 +43,12 @@ struct MatchReportView: View {
                     }
                 }
                 matchMetricsView
+                if store.isApplyingMatchReviewAction {
+                    GlassCard {
+                        LoadingStateView(text: "正在保存你的选择")
+                    }
+                    .accessibilityIdentifier("match-review-saving")
+                }
                 VStack(alignment: .leading, spacing: SpacingTokens.sm) {
                     Text("逐首核对")
                         .font(TypographyTokens.section)
@@ -48,6 +67,7 @@ struct MatchReportView: View {
                                     store.adoptAlternative(resultID: result.id, trackID: trackID)
                                 }
                             )
+                            .disabled(store.isApplyingMatchReviewAction)
                         }
                     }
                     if visibleResultCount < store.matches.count {
@@ -345,14 +365,14 @@ private struct MatchResultCard: View {
                             Haptics.selection()
                             onAdoptAlternative(candidate.id)
                         } label: {
-                            Label("采用为替代歌", systemImage: "arrow.triangle.branch")
+                            Label("用这首替换", systemImage: "arrow.triangle.branch")
                                 .font(TypographyTokens.section)
                                 .frame(maxWidth: .infinity)
                                 .frame(minHeight: ComponentTokens.controlHeight)
                         }
                         .buttonStyle(.bordered)
                         .tint(DesignSystem.cyan)
-                        .accessibilityLabel("采用为替代歌：\(candidate.title) - \(candidate.artist)")
+                        .accessibilityLabel("用这首替换：\(candidate.title) - \(candidate.artist)")
                         .accessibilityIdentifier("match-adopt-\(result.importedSong.id.uuidString.lowercased())-\(candidate.id)")
                     }
                 }

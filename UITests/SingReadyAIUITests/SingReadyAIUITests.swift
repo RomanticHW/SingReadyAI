@@ -237,7 +237,7 @@ final class SingReadyAIUITests: XCTestCase {
         ]
         app.launch()
 
-        let matchButton = app.buttons["看看本地参考命中"]
+        let matchButton = app.buttons["核对歌曲参考"]
         XCTAssertTrue(scrollToHittable(matchButton, in: app))
         matchButton.tap()
         XCTAssertTrue(app.descendants(matching: .any)["matching-progress"].waitForExistence(timeout: 3))
@@ -257,6 +257,71 @@ final class SingReadyAIUITests: XCTestCase {
         lateNavigation.isInverted = true
         wait(for: [lateNavigation], timeout: 9)
         XCTAssertTrue(app.staticTexts["先把歌单放进来"].exists)
+    }
+
+    func testLargeReviewShowsMonotonicMatchingProgressBeforeSummary() throws {
+        let app = XCUIApplication()
+        app.launchArguments = [
+            "-singreadyStage", "review",
+            "-singreadyLargeMixedReview",
+            "-singreadySlowPlaylistAnalysisProgress"
+        ]
+        app.launch()
+
+        waitForText("120 首歌里有 40 首建议看一下", in: app)
+        let matchButton = app.buttons["核对歌曲参考"]
+        XCTAssertTrue(scrollToHittable(matchButton, in: app))
+        matchButton.tap()
+        waitForText("已处理 0/120 首", in: app)
+        let advancedProgress = app.staticTexts.matching(
+            NSPredicate(format: "label MATCHES %@", "已处理 (20|40|60|80|100|120)/120 首")
+        ).firstMatch
+        XCTAssertTrue(advancedProgress.waitForExistence(timeout: 6))
+
+        XCTAssertTrue(app.navigationBars["核对参考匹配"].waitForExistence(timeout: 15))
+        waitForText("已核对 40 首 · 待确认 40 首 · 暂未找到 40 首", in: app)
+        XCTAssertTrue(app.descendants(matching: .any)["match-metric-参考命中"].exists)
+        XCTAssertTrue(app.buttons["match-results-show-more"].exists)
+    }
+
+    func testCancellingLargeMatchKeepsAllReviewDrafts() throws {
+        let app = XCUIApplication()
+        app.launchArguments = [
+            "-singreadyStage", "review",
+            "-singreadyLargeMixedReview",
+            "-singreadySlowPlaylistAnalysis"
+        ]
+        app.launch()
+
+        waitForText("120 首歌里有 40 首建议看一下", in: app)
+        let matchButton = app.buttons["核对歌曲参考"]
+        XCTAssertTrue(scrollToHittable(matchButton, in: app))
+        matchButton.tap()
+        XCTAssertTrue(app.buttons["取消核对"].waitForExistence(timeout: 3))
+        app.buttons["取消核对"].tap()
+
+        waitForText("120 首歌里有 40 首建议看一下", in: app)
+        waitForText("已停止核对，已经整理的歌曲都还在。", in: app)
+        let retryButton = app.buttons["重新核对歌曲参考"]
+        XCTAssertTrue(scrollToHittable(retryButton, in: app))
+        XCTAssertTrue(retryButton.isEnabled)
+    }
+
+    func testLocalMatchTimeoutIsRetryableAndDoesNotBecomeImportFailure() throws {
+        let app = XCUIApplication()
+        app.launchArguments = [
+            "-singreadyStage", "review",
+            "-singreadySlowPlaylistAnalysis",
+            "-singreadyShortMatchTimeout"
+        ]
+        app.launch()
+
+        let matchButton = app.buttons["核对歌曲参考"]
+        XCTAssertTrue(scrollToHittable(matchButton, in: app))
+        matchButton.tap()
+        waitForText("核对时间有点长，已停止。歌单内容都还在，可以重新核对。", in: app, timeout: 5)
+        XCTAssertTrue(app.buttons["重新核对歌曲参考"].isEnabled)
+        XCTAssertFalse(app.buttons["取消本次导入"].exists)
     }
 
     func testCancellingScenarioPreparationDoesNotLateNavigateToReviewOrResult() throws {
@@ -373,7 +438,7 @@ final class SingReadyAIUITests: XCTestCase {
         tapButton("用示例歌单", in: app)
         waitForText("先看一眼歌名", in: app)
 
-        tapButton("看看本地参考命中", in: app)
+        tapButton("核对歌曲参考", in: app)
         waitForText("本地参考基本都命中", in: app)
 
         tapButton("测一下音域", in: app, timeout: 35)
@@ -714,7 +779,7 @@ final class SingReadyAIUITests: XCTestCase {
 
         waitForText("歌名不能为空，补上后才能继续。", in: app)
         waitForText("补歌名", in: app)
-        XCTAssertFalse(app.buttons["看看本地参考命中"].firstMatch.isEnabled)
+        XCTAssertFalse(app.buttons["核对歌曲参考"].firstMatch.isEnabled)
 
         let deleteButton = app.buttons["删除未命名歌曲"].firstMatch
         XCTAssertTrue(deleteButton.exists)
@@ -857,7 +922,7 @@ final class SingReadyAIUITests: XCTestCase {
         firstTitle.tap()
         firstTitle.typeText("现场版")
         tapButton("删除稻香", in: app)
-        tapButton("看看本地参考命中", in: app)
+        tapButton("核对歌曲参考", in: app)
         XCTAssertTrue(app.navigationBars["核对参考匹配"].waitForExistence(timeout: 20))
         XCTAssertFalse(app.descendants(matching: .any)["matching-progress"].exists)
         app.terminate()
@@ -1282,11 +1347,11 @@ final class SingReadyAIUITests: XCTestCase {
         waitForText("歌单里的歌都删掉了", in: app)
         XCTAssertTrue(app.buttons["重新导入歌单"].waitForExistence(timeout: 8))
         XCTAssertTrue(app.buttons["撤销删除"].exists)
-        XCTAssertFalse(app.buttons["看看本地参考命中"].exists)
+        XCTAssertFalse(app.buttons["核对歌曲参考"].exists)
 
         app.buttons["撤销删除"].tap()
         waitForText("晴天", in: app)
-        XCTAssertTrue(app.buttons["看看本地参考命中"].exists)
+        XCTAssertTrue(app.buttons["核对歌曲参考"].exists)
     }
 
     func testVoiceResultUsesResultCopy() throws {
@@ -1679,6 +1744,36 @@ final class SingReadyAIUITests: XCTestCase {
         XCTAssertFalse(app.buttons["match-confirm-00000000-0000-0000-0000-000000000202-t029"].exists)
     }
 
+    func testSavingMatchReviewActionLocksNavigationUntilTheChoiceIsCommitted() throws {
+        let app = XCUIApplication()
+        app.launchArguments = [
+            "-singreadyStage", "matchReport",
+            "-singreadyMixedMatchReview",
+            "-singreadyDelayMatchReviewCommit"
+        ]
+        app.launch()
+
+        let confirmButton = app.buttons[
+            "match-confirm-00000000-0000-0000-0000-000000000202-t029"
+        ]
+        XCTAssertTrue(scrollToHittable(confirmButton, in: app))
+        confirmButton.tap()
+
+        let stageMenu = app.buttons["打开功能菜单"]
+        let menuDisabled = XCTNSPredicateExpectation(
+            predicate: NSPredicate(format: "enabled == false"),
+            object: stageMenu
+        )
+        wait(for: [menuDisabled], timeout: 3)
+        let screenEdge = app.coordinate(withNormalizedOffset: CGVector(dx: 0.01, dy: 0.5))
+        let dragTarget = app.coordinate(withNormalizedOffset: CGVector(dx: 0.8, dy: 0.5))
+        screenEdge.press(forDuration: 0.1, thenDragTo: dragTarget)
+        XCTAssertFalse(stageMenu.isEnabled)
+
+        waitForText("已确认", in: app, timeout: 10, scrollDirection: .down)
+        XCTAssertFalse(confirmButton.exists)
+    }
+
     func testConfirmingMatchKeepsAlreadyLoadedExternalCandidates() throws {
         let app = XCUIApplication()
         app.launchArguments = [
@@ -1712,7 +1807,7 @@ final class SingReadyAIUITests: XCTestCase {
 
         let adoptButton = app.buttons["match-adopt-00000000-0000-0000-0000-000000000205-t001"]
         XCTAssertTrue(scrollToHittable(adoptButton, in: app))
-        XCTAssertEqual(adoptButton.label, "采用为替代歌：晴天 - 周杰伦")
+        XCTAssertEqual(adoptButton.label, "用这首替换：晴天 - 周杰伦")
         adoptButton.tap()
 
         waitForText("已采用替代", in: app, scrollDirection: .down)
@@ -1720,7 +1815,7 @@ final class SingReadyAIUITests: XCTestCase {
         XCTAssertTrue(waitForElement(adoptedMetric, in: app, scrollDirection: .down))
         XCTAssertEqual(adoptedMetric.label, "已采用替代 1")
         waitForText("已采用替代歌：晴天 - 周杰伦", in: app, scrollDirection: .up)
-        waitForText("参考命中 2/5", in: app, scrollDirection: .down)
+        waitForText("参考命中 1/5", in: app, scrollDirection: .down)
         XCTAssertFalse(app.buttons["match-adopt-00000000-0000-0000-0000-000000000205-t001"].exists)
     }
 

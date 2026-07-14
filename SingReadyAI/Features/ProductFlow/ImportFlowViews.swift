@@ -477,20 +477,40 @@ struct ImportReviewView: View {
 
     @ViewBuilder
     private var matchButton: some View {
-        if store.isWorking {
+        switch store.matchOperationState {
+        case .running:
             GlassCard {
-                LoadingStateView(text: "正在核对本地参考命中")
+                LoadingStateView(text: store.matchingProgressText)
                     .accessibilityIdentifier("matching-progress")
                 SecondaryGlassButton(title: "取消核对", systemImage: "xmark.circle") {
                     store.cancelCurrentMatching()
                 }
             }
-        } else {
-            PrimaryGradientButton(title: "看看本地参考命中", systemImage: "chart.bar.xaxis") {
-                ReviewMatchingLauncher.begin(store: store)
+        case .cancelled:
+            GlassCard {
+                Text("已停止核对，已经整理的歌曲都还在。")
+                    .font(TypographyTokens.callout)
+                    .foregroundStyle(DesignSystem.muted)
+                    .fixedSize(horizontal: false, vertical: true)
+                matchingActionButton(title: "重新核对歌曲参考")
             }
-            .disabled(store.activeReviewSongs.isEmpty || !store.untitledReviewSongs.isEmpty)
+        case let .failed(message, retryable):
+            GlassCard {
+                ErrorStateView(text: message)
+                if retryable {
+                    matchingActionButton(title: "重新核对歌曲参考")
+                }
+            }
+        case .notStarted, .ready:
+            matchingActionButton(title: "核对歌曲参考")
         }
+    }
+
+    private func matchingActionButton(title: String) -> some View {
+        PrimaryGradientButton(title: title, systemImage: "chart.bar.xaxis") {
+            ReviewMatchingLauncher.begin(store: store)
+        }
+        .disabled(store.activeReviewSongs.isEmpty || !store.untitledReviewSongs.isEmpty)
     }
 
     private var reviewSubtitle: String {
@@ -501,10 +521,10 @@ struct ImportReviewView: View {
         let untitled = store.untitledReviewSongs.count
         let uncertain = store.lowConfidenceReviewSongs.count
         if untitled > 0 {
-            return "\(total) 首歌里有 \(untitled) 首缺少歌名，补上后才能核对参考命中。"
+            return "\(total) 首歌里有 \(untitled) 首缺少歌名，补上后才能核对歌曲参考。"
         }
         if uncertain == 0 {
-            return "\(total) 首歌都整理好了，不想改就直接核对参考命中。"
+            return "\(total) 首歌都整理好了，不想改就直接核对歌曲参考。"
         }
         return "\(total) 首歌里有 \(uncertain) 首建议看一下，可能是歌手或版本名。"
     }

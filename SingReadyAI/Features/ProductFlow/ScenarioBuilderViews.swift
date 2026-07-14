@@ -78,7 +78,7 @@ struct ScenarioBuilderView: View {
     private var generateButton: some View {
         if store.isWorking {
             VStack(spacing: SpacingTokens.xs) {
-                LoadingStateView(text: "正在核对歌单参考")
+                LoadingStateView(text: store.matchingProgressText)
                 SecondaryGlassButton(title: "取消核对", systemImage: "xmark.circle") {
                     store.cancelCurrentMatching()
                 }
