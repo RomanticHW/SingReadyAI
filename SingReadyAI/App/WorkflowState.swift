@@ -123,6 +123,23 @@ struct EditableImportedSongDraft: Identifiable, Hashable {
     }
 }
 
+struct ImportReviewSummary: Equatable {
+    let totalCount: Int
+    let attentionCount: Int
+    let missingTitleCount: Int
+
+    init(songs: [EditableImportedSongDraft]) {
+        let activeSongs = songs.filter { !$0.isDeleted }
+        totalCount = activeSongs.count
+        attentionCount = activeSongs.filter(\.needsAttention).count
+        missingTitleCount = activeSongs.filter { !$0.hasValidTitle }.count
+    }
+
+    var canStartMatching: Bool {
+        totalCount > 0 && missingTitleCount == 0
+    }
+}
+
 enum ReviewMutation: Equatable {
     case updateTitle(id: UUID, value: String)
     case updateArtist(id: UUID, value: String)

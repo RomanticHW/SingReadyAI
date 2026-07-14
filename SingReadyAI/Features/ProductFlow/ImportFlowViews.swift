@@ -413,18 +413,29 @@ private struct ImportActionTile: View {
 }
 
 struct ImportReviewView: View {
+    private enum DisplayMode {
+        case exceptions
+        case allSongs
+    }
+
+    private static let reviewPageSize = 20
+
+    @Environment(\.appAccessibilityFlags) private var flags
     @EnvironmentObject private var store: DemoWorkflowStore
+    @State private var displayMode: DisplayMode = .exceptions
+    @State private var visibleSongCount = reviewPageSize
+    @State private var retainedExceptionIDs: Set<UUID> = []
 
     var body: some View {
         FlowPage {
             HeroHeader(
                 eyebrow: "整理歌单",
                 title: "先看一眼歌名",
-                subtitle: reviewSubtitle,
+                subtitle: "默认只显示建议处理的歌曲，其他歌曲不用逐首确认。",
                 systemImage: "checklist"
             )
             if let playlist = store.importedPlaylist {
-                TagCloud(values: [playlist.source.displayName, "大多能认出来", playlist.title])
+                TagCloud(values: [playlist.source.displayName, playlist.title])
             }
             if store.reviewSongs.isEmpty {
                 GlassCard {
@@ -446,14 +457,43 @@ struct ImportReviewView: View {
                     }
                 }
             } else {
+                ImportReviewSummaryCard(summary: summary)
                 matchButton
                 if let undo = store.lastReviewSongUndo {
                     UndoBanner(message: "已删《\(undo.title)》", actionTitle: "撤销删除") {
                         store.undoReviewSongDeletion()
                     }
                 }
-                ForEach(store.reviewSongs) { draft in
-                    if !draft.isDeleted {
+                reviewSongList
+                if !visibleReviewSongs.isEmpty {
+                    matchButton
+                }
+                PrivacyNoteView(text: "这里只需要补齐缺少的歌名；歌手或版本信息不完整，也可以先匹配，下一步再统一核对。")
+            }
+        }
+        .onAppear(perform: resetReviewDisplay)
+        .onChange(of: store.importedPlaylist?.id) { _, _ in
+            resetReviewDisplay()
+        }
+    }
+
+    @ViewBuilder
+    private var reviewSongList: some View {
+        VStack(alignment: .leading, spacing: SpacingTokens.sm) {
+            if !displayedSongs.isEmpty {
+                HStack(alignment: .firstTextBaseline, spacing: SpacingTokens.sm) {
+                    Text(displayMode == .exceptions ? "建议处理" : "全部歌曲")
+                        .font(TypographyTokens.section)
+                        .stageText()
+                    Spacer()
+                    Text(visibleCountText)
+                        .font(TypographyTokens.caption)
+                        .foregroundStyle(DesignSystem.muted)
+                        .accessibilityIdentifier("review-visible-count")
+                }
+
+                LazyVStack(alignment: .leading, spacing: SpacingTokens.sm) {
+                    ForEach(visibleReviewSongs) { draft in
                         SongDraftEditor(
                             draft: draft,
                             onTitleChange: {
@@ -469,8 +509,34 @@ struct ImportReviewView: View {
                         .disabled(store.isWorking)
                     }
                 }
-                matchButton
-                PrivacyNoteView(text: "不确定的歌名先留给你看一眼，后面排歌会更准。")
+            }
+
+            if visibleReviewSongs.count < displayedSongs.count {
+                SecondaryGlassButton(title: "再显示 20 首", systemImage: "plus.circle") {
+                    visibleSongCount = min(
+                        visibleSongCount + Self.reviewPageSize,
+                        displayedSongs.count
+                    )
+                }
+            }
+
+            switch displayMode {
+            case .exceptions:
+                SecondaryGlassButton(title: "查看全部歌曲", systemImage: "list.bullet") {
+                    withAnimation(flags.reduceMotion ? nil : MotionTokens.micro) {
+                        displayMode = .allSongs
+                        visibleSongCount = Self.reviewPageSize
+                    }
+                }
+            case .allSongs:
+                if !exceptionSongs.isEmpty {
+                    SecondaryGlassButton(title: "只看建议处理", systemImage: "line.3.horizontal.decrease.circle") {
+                        withAnimation(flags.reduceMotion ? nil : MotionTokens.micro) {
+                            displayMode = .exceptions
+                            visibleSongCount = Self.reviewPageSize
+                        }
+                    }
+                }
             }
         }
     }
@@ -480,52 +546,79 @@ struct ImportReviewView: View {
         switch store.matchOperationState {
         case .running:
             GlassCard {
-                LoadingStateView(text: store.matchingProgressText)
+                LoadingStateView(text: matchingProgressText)
                     .accessibilityIdentifier("matching-progress")
-                SecondaryGlassButton(title: "取消核对", systemImage: "xmark.circle") {
+                SecondaryGlassButton(title: "取消匹配", systemImage: "xmark.circle") {
                     store.cancelCurrentMatching()
                 }
             }
         case .cancelled:
             GlassCard {
-                Text("已停止核对，已经整理的歌曲都还在。")
+                Text("已取消匹配，整理好的歌曲都还在。")
                     .font(TypographyTokens.callout)
                     .foregroundStyle(DesignSystem.muted)
                     .fixedSize(horizontal: false, vertical: true)
-                matchingActionButton(title: "重新核对歌曲参考")
+                matchingActionButton
             }
         case let .failed(message, retryable):
             GlassCard {
                 ErrorStateView(text: message)
                 if retryable {
-                    matchingActionButton(title: "重新核对歌曲参考")
+                    matchingActionButton
                 }
             }
         case .notStarted, .ready:
-            matchingActionButton(title: "核对歌曲参考")
+            matchingActionButton
         }
     }
 
-    private func matchingActionButton(title: String) -> some View {
-        PrimaryGradientButton(title: title, systemImage: "chart.bar.xaxis") {
+    private var matchingActionButton: some View {
+        PrimaryGradientButton(title: "开始批量匹配", systemImage: "chart.bar.xaxis") {
             ReviewMatchingLauncher.begin(store: store)
         }
-        .disabled(store.activeReviewSongs.isEmpty || !store.untitledReviewSongs.isEmpty)
+        .disabled(!summary.canStartMatching || store.isWorking)
     }
 
-    private var reviewSubtitle: String {
-        let total = store.activeReviewSongs.count
-        if !store.reviewSongs.isEmpty, total == 0 {
-            return "刚才的歌曲都已删除，可以撤销上一首或重新导入。"
+    private var summary: ImportReviewSummary {
+        ImportReviewSummary(songs: store.reviewSongs)
+    }
+
+    private var currentExceptionIDs: Set<UUID> {
+        Set(store.activeReviewSongs.lazy.filter(\.needsAttention).map(\.id))
+    }
+
+    private var exceptionSongs: [EditableImportedSongDraft] {
+        let exceptionIDs = retainedExceptionIDs.union(currentExceptionIDs)
+        return store.activeReviewSongs.filter { exceptionIDs.contains($0.id) }
+    }
+
+    private var displayedSongs: [EditableImportedSongDraft] {
+        switch displayMode {
+        case .exceptions:
+            return exceptionSongs
+        case .allSongs:
+            return store.activeReviewSongs
         }
-        let untitled = store.untitledReviewSongs.count
-        let uncertain = store.lowConfidenceReviewSongs.count
-        if untitled > 0 {
-            return "\(total) 首歌里有 \(untitled) 首缺少歌名，补上后才能核对歌曲参考。"
+    }
+
+    private var visibleReviewSongs: [EditableImportedSongDraft] {
+        Array(displayedSongs.prefix(visibleSongCount))
+    }
+
+    private var visibleCountText: String {
+        "已显示 \(visibleReviewSongs.count) / \(displayedSongs.count) 首"
+    }
+
+    private var matchingProgressText: String {
+        if case let .running(processed, total) = store.matchOperationState {
+            return "已处理 \(processed) / \(total) 首"
         }
-        if uncertain == 0 {
-            return "\(total) 首歌都整理好了，不想改就直接核对歌曲参考。"
-        }
-        return "\(total) 首歌里有 \(uncertain) 首建议看一下，可能是歌手或版本名。"
+        return "正在匹配歌曲"
+    }
+
+    private func resetReviewDisplay() {
+        displayMode = .exceptions
+        visibleSongCount = Self.reviewPageSize
+        retainedExceptionIDs = currentExceptionIDs
     }
 }

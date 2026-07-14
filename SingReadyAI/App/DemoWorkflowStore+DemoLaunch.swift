@@ -60,6 +60,20 @@ extension DemoWorkflowStore {
         }
 
         if launchStage == .review,
+           ProcessInfo.processInfo.arguments.contains("-singreadyLargeCleanReview") {
+            await prepareLargeCleanReviewState()
+            replaceNavigation(with: .review)
+            return
+        }
+
+        if launchStage == .review,
+           ProcessInfo.processInfo.arguments.contains("-singreadyLargeReviewExceptions") {
+            await prepareLargeReviewExceptionsState()
+            replaceNavigation(with: .review)
+            return
+        }
+
+        if launchStage == .review,
            ProcessInfo.processInfo.arguments.contains("-singreadyLargeMixedReview") {
             await prepareLargeMixedReviewState()
             replaceNavigation(with: .review)
@@ -346,6 +360,69 @@ extension DemoWorkflowStore {
             recommendationInputSource: .userImport
         )
         statusMessage = "120 首歌已导入，可以先看建议核对的部分。"
+    }
+
+    private func prepareLargeCleanReviewState() async {
+        guard !catalog.isEmpty else { return }
+        let songs = (0..<1_000).map { index -> ImportedSong in
+            let track = catalog[index % catalog.count]
+            return ImportedSong(
+                title: track.title,
+                artist: track.artist,
+                source: .plainText,
+                confidence: 1
+            )
+        }
+        let playlist = ImportedPlaylist(
+            source: .plainText,
+            title: "千首完整歌单",
+            songs: songs,
+            parseConfidence: 1
+        )
+        try? await installStableDemoWorkflow(
+            playlist: playlist,
+            recommendationInputSource: .userImport
+        )
+        statusMessage = "1000 首歌已整理完成，可以直接批量匹配。"
+    }
+
+    private func prepareLargeReviewExceptionsState() async {
+        let completeSongs = (1...40).map { index in
+            ImportedSong(
+                title: "正常歌曲 \(index)",
+                artist: "完整歌手 \(index)",
+                source: .plainText,
+                confidence: 1
+            )
+        }
+        let missingArtistSongs = (1...25).map { index in
+            ImportedSong(
+                title: "需核对歌曲 \(index)",
+                source: .plainText,
+                rawText: "需核对歌曲 \(index)",
+                confidence: 1
+            )
+        }
+        let missingTitleSongs = (1...3).map { index in
+            ImportedSong(
+                title: "",
+                artist: "待补歌名歌手 \(index)",
+                source: .plainText,
+                rawText: "待补歌名歌手 \(index)",
+                confidence: 1
+            )
+        }
+        let playlist = ImportedPlaylist(
+            source: .plainText,
+            title: "异常优先整理歌单",
+            songs: completeSongs + missingArtistSongs + missingTitleSongs,
+            parseConfidence: 0.95
+        )
+        try? await installStableDemoWorkflow(
+            playlist: playlist,
+            recommendationInputSource: .userImport
+        )
+        statusMessage = "68 首歌已导入，先补齐缺少的歌名。"
     }
 
     private func prepareMixedMatchReviewState() async {

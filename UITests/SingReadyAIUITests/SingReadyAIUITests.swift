@@ -236,7 +236,7 @@ final class SingReadyAIUITests: XCTestCase {
         ]
         app.launch()
 
-        let matchButton = app.buttons["核对歌曲参考"]
+        let matchButton = app.buttons["开始批量匹配"]
         XCTAssertTrue(scrollToHittable(matchButton, in: app))
         matchButton.tap()
         XCTAssertTrue(app.descendants(matching: .any)["matching-progress"].waitForExistence(timeout: 3))
@@ -258,6 +258,60 @@ final class SingReadyAIUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["先把歌单放进来"].exists)
     }
 
+    func testLargeCleanReviewSkipsEditorsAndCanStartBatchMatching() throws {
+        let app = XCUIApplication()
+        app.launchArguments = [
+            "-singreadyStage", "review",
+            "-singreadyLargeCleanReview"
+        ]
+        app.launch()
+
+        waitForText("共 1000 首 · 建议看 0 首 · 缺歌名 0 首", in: app)
+        waitForText("歌名都整理好了，可以直接批量匹配", in: app)
+        XCTAssertEqual(
+            app.descendants(matching: .any).matching(identifier: "review-song-editor").count,
+            0,
+            "零异常时不应创建全量编辑器"
+        )
+        XCTAssertTrue(app.buttons["开始批量匹配"].isEnabled)
+        XCTAssertTrue(app.buttons["查看全部歌曲"].exists)
+    }
+
+    func testLargeReviewDefaultsToExceptionsAndLoadsAllSongsTwentyAtATime() throws {
+        let app = XCUIApplication()
+        app.launchArguments = [
+            "-singreadyStage", "review",
+            "-singreadyLargeReviewExceptions"
+        ]
+        app.launch()
+
+        waitForText("共 68 首 · 建议看 28 首 · 缺歌名 3 首", in: app)
+        waitForText("补上歌名后才能开始匹配", in: app)
+        XCTAssertFalse(app.buttons["开始批量匹配"].isEnabled)
+        XCTAssertFalse(app.buttons["删除正常歌曲 1"].exists, "默认只展示建议处理的歌曲")
+        XCTAssertTrue(waitForElement(app.buttons["删除需核对歌曲 1"], in: app))
+        waitForText("已显示 20 / 28 首", in: app)
+
+        tapButton("查看全部歌曲", in: app)
+        waitForText("已显示 20 / 68 首", in: app)
+        XCTAssertTrue(waitForElement(app.buttons["删除正常歌曲 1"], in: app, scrollDirection: .down))
+        tapButton("再显示 20 首", in: app)
+        waitForText("已显示 40 / 68 首", in: app)
+    }
+
+    func testMissingArtistDoesNotBlockBatchMatching() throws {
+        let app = XCUIApplication()
+        app.launchArguments = [
+            "-singreadyStage", "review",
+            "-singreadyLargeMixedReview"
+        ]
+        app.launch()
+
+        waitForText("共 120 首 · 建议看 40 首 · 缺歌名 0 首", in: app)
+        waitForText("这些信息可能不完整，不处理也能继续", in: app)
+        XCTAssertTrue(app.buttons["开始批量匹配"].isEnabled)
+    }
+
     func testLargeReviewShowsMonotonicMatchingProgressBeforeSummary() throws {
         let app = XCUIApplication()
         app.launchArguments = [
@@ -267,20 +321,20 @@ final class SingReadyAIUITests: XCTestCase {
         ]
         app.launch()
 
-        waitForText("120 首歌里有 40 首建议看一下", in: app)
-        let matchButton = app.buttons["核对歌曲参考"]
+        waitForText("共 120 首 · 建议看 40 首 · 缺歌名 0 首", in: app)
+        let matchButton = app.buttons["开始批量匹配"]
         XCTAssertTrue(scrollToHittable(matchButton, in: app))
         matchButton.tap()
-        waitForText("已处理 0/120 首", in: app)
+        waitForText("已处理 0 / 120 首", in: app)
         let advancedProgress = app.staticTexts.matching(
-            NSPredicate(format: "label MATCHES %@", "已处理 (20|40|60|80|100|120)/120 首")
+            NSPredicate(format: "label MATCHES %@", "已处理 (20|40|60|80|100|120) / 120 首")
         ).firstMatch
         XCTAssertTrue(advancedProgress.waitForExistence(timeout: 6))
 
         XCTAssertTrue(app.navigationBars["核对参考匹配"].waitForExistence(timeout: 15))
-        waitForText("已核对 40 首 · 待确认 40 首 · 暂未找到 40 首", in: app)
-        XCTAssertTrue(app.descendants(matching: .any)["match-metric-参考命中"].exists)
-        XCTAssertTrue(app.buttons["match-results-show-more"].exists)
+        waitForText("已确认 40 / 待确认 40 / 未找到 40", in: app)
+        XCTAssertTrue(app.descendants(matching: .any)["match-outcome-summary"].exists)
+        XCTAssertTrue(app.buttons["按这份歌单排一版"].exists)
     }
 
     func testCancellingLargeMatchKeepsAllReviewDrafts() throws {
@@ -292,16 +346,16 @@ final class SingReadyAIUITests: XCTestCase {
         ]
         app.launch()
 
-        waitForText("120 首歌里有 40 首建议看一下", in: app)
-        let matchButton = app.buttons["核对歌曲参考"]
+        waitForText("共 120 首 · 建议看 40 首 · 缺歌名 0 首", in: app)
+        let matchButton = app.buttons["开始批量匹配"]
         XCTAssertTrue(scrollToHittable(matchButton, in: app))
         matchButton.tap()
-        XCTAssertTrue(app.buttons["取消核对"].waitForExistence(timeout: 3))
-        app.buttons["取消核对"].tap()
+        XCTAssertTrue(app.buttons["取消匹配"].waitForExistence(timeout: 3))
+        app.buttons["取消匹配"].tap()
 
-        waitForText("120 首歌里有 40 首建议看一下", in: app)
-        waitForText("已停止核对，已经整理的歌曲都还在。", in: app)
-        let retryButton = app.buttons["重新核对歌曲参考"]
+        waitForText("共 120 首 · 建议看 40 首 · 缺歌名 0 首", in: app)
+        waitForText("已取消匹配，整理好的歌曲都还在。", in: app)
+        let retryButton = app.buttons["开始批量匹配"]
         XCTAssertTrue(scrollToHittable(retryButton, in: app))
         XCTAssertTrue(retryButton.isEnabled)
     }
@@ -315,11 +369,11 @@ final class SingReadyAIUITests: XCTestCase {
         ]
         app.launch()
 
-        let matchButton = app.buttons["核对歌曲参考"]
+        let matchButton = app.buttons["开始批量匹配"]
         XCTAssertTrue(scrollToHittable(matchButton, in: app))
         matchButton.tap()
         waitForText("核对时间有点长，已停止。歌单内容都还在，可以重新核对。", in: app, timeout: 5)
-        XCTAssertTrue(app.buttons["重新核对歌曲参考"].isEnabled)
+        XCTAssertTrue(app.buttons["开始批量匹配"].isEnabled)
         XCTAssertFalse(app.buttons["取消本次导入"].exists)
     }
 
@@ -437,7 +491,7 @@ final class SingReadyAIUITests: XCTestCase {
         tapButton("用示例歌单", in: app)
         waitForText("先看一眼歌名", in: app)
 
-        tapButton("核对歌曲参考", in: app)
+        tapButton("开始批量匹配", in: app)
         waitForText("本地参考基本都命中", in: app)
 
         tapButton("测一下音域", in: app, timeout: 35)
@@ -762,7 +816,8 @@ final class SingReadyAIUITests: XCTestCase {
         waitForText("先看一眼歌名", in: app)
         XCTAssertFalse(app.staticTexts["100%"].exists)
         XCTAssertFalse(app.staticTexts["待确认"].exists)
-        waitForText("已整理", in: app)
+        waitForText("共 12 首 · 建议看 0 首 · 缺歌名 0 首", in: app)
+        waitForText("歌名都整理好了，可以直接批量匹配", in: app)
     }
 
     func testImportReviewRequiresEveryActiveSongToHaveATitle() throws {
@@ -770,6 +825,7 @@ final class SingReadyAIUITests: XCTestCase {
         app.launchArguments = ["-singreadyStage", "review"]
         app.launch()
 
+        tapButton("查看全部歌曲", in: app)
         let firstTitle = app.textFields["编辑歌名"].firstMatch
         XCTAssertTrue(firstTitle.waitForExistence(timeout: 8))
         firstTitle.tap()
@@ -778,7 +834,7 @@ final class SingReadyAIUITests: XCTestCase {
 
         waitForText("歌名不能为空，补上后才能继续。", in: app)
         waitForText("补歌名", in: app)
-        XCTAssertFalse(app.buttons["核对歌曲参考"].firstMatch.isEnabled)
+        XCTAssertFalse(app.buttons["开始批量匹配"].firstMatch.isEnabled)
 
         let deleteButton = app.buttons["删除未命名歌曲"].firstMatch
         XCTAssertTrue(deleteButton.exists)
@@ -916,12 +972,13 @@ final class SingReadyAIUITests: XCTestCase {
         app.launchArguments = ["-singreadyStage", "review"]
         app.launch()
 
+        tapButton("查看全部歌曲", in: app)
         let firstTitle = app.textFields["编辑歌名"].firstMatch
         XCTAssertTrue(firstTitle.waitForExistence(timeout: 8))
         firstTitle.tap()
         firstTitle.typeText("现场版")
         tapButton("删除稻香", in: app)
-        tapButton("核对歌曲参考", in: app)
+        tapButton("开始批量匹配", in: app)
         XCTAssertTrue(app.navigationBars["核对参考匹配"].waitForExistence(timeout: 20))
         XCTAssertFalse(app.descendants(matching: .any)["matching-progress"].exists)
         app.terminate()
@@ -935,6 +992,7 @@ final class SingReadyAIUITests: XCTestCase {
         XCTAssertEqual(recent.value as? String, "热门歌单，11 首")
         recent.tap()
         waitForText("先看一眼歌名", in: relaunched)
+        tapButton("查看全部歌曲", in: relaunched)
         XCTAssertEqual(relaunched.textFields["编辑歌名"].firstMatch.value as? String, "晴天现场版")
         XCTAssertFalse(relaunched.buttons["删除稻香"].exists)
     }
@@ -944,6 +1002,7 @@ final class SingReadyAIUITests: XCTestCase {
         app.launchArguments = ["-singreadyStage", "review"]
         app.launch()
 
+        tapButton("查看全部歌曲", in: app)
         let firstTitle = app.textFields["编辑歌名"].firstMatch
         XCTAssertTrue(firstTitle.waitForExistence(timeout: 8))
         firstTitle.tap()
@@ -956,6 +1015,7 @@ final class SingReadyAIUITests: XCTestCase {
         XCTAssertTrue(relaunched.buttons["继续整理这份歌单"].waitForExistence(timeout: 8))
         relaunched.buttons["继续整理这份歌单"].tap()
         waitForText("先看一眼歌名", in: relaunched)
+        tapButton("查看全部歌曲", in: relaunched)
         XCTAssertEqual(relaunched.textFields["编辑歌名"].firstMatch.value as? String, "晴天待核对")
     }
 
@@ -967,6 +1027,7 @@ final class SingReadyAIUITests: XCTestCase {
 
         app.buttons["打开功能菜单"].tap()
         app.buttons["打开整理歌单"].tap()
+        tapButton("查看全部歌曲", in: app)
         let firstTitle = app.textFields["编辑歌名"].firstMatch
         XCTAssertTrue(firstTitle.waitForExistence(timeout: 8))
         firstTitle.tap()
@@ -1354,6 +1415,7 @@ final class SingReadyAIUITests: XCTestCase {
         app.launchArguments = ["-singreadyStage", "review"]
         app.launch()
 
+        tapButton("查看全部歌曲", in: app)
         let deleteButton = app.buttons["删除晴天"]
         XCTAssertTrue(deleteButton.waitForExistence(timeout: 8))
         assertMinimumTouchTarget(deleteButton)
@@ -1372,6 +1434,7 @@ final class SingReadyAIUITests: XCTestCase {
         ]
         app.launch()
 
+        tapButton("查看全部歌曲", in: app)
         let deleteButton = app.buttons["删除晴天"]
         XCTAssertTrue(deleteButton.waitForExistence(timeout: 8))
         deleteButton.tap()
@@ -1379,11 +1442,11 @@ final class SingReadyAIUITests: XCTestCase {
         waitForText("歌单里的歌都删掉了", in: app)
         XCTAssertTrue(app.buttons["重新导入歌单"].waitForExistence(timeout: 8))
         XCTAssertTrue(app.buttons["撤销删除"].exists)
-        XCTAssertFalse(app.buttons["核对歌曲参考"].exists)
+        XCTAssertFalse(app.buttons["开始批量匹配"].exists)
 
         app.buttons["撤销删除"].tap()
         waitForText("晴天", in: app)
-        XCTAssertTrue(app.buttons["核对歌曲参考"].exists)
+        XCTAssertTrue(app.buttons["开始批量匹配"].exists)
     }
 
     func testVoiceResultUsesResultCopy() throws {

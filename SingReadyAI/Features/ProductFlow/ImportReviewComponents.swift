@@ -23,6 +23,51 @@ enum ReviewMatchingLauncher {
     }
 }
 
+struct ImportReviewSummaryCard: View {
+    let summary: ImportReviewSummary
+
+    var body: some View {
+        GlassCard {
+            Text(summaryText)
+                .font(TypographyTokens.section)
+                .foregroundStyle(DesignSystem.ink)
+                .fixedSize(horizontal: false, vertical: true)
+                .accessibilityIdentifier("review-summary")
+
+            Label(guidanceText, systemImage: guidanceSystemImage)
+                .font(TypographyTokens.callout)
+                .foregroundStyle(guidanceTint)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+
+    private var summaryText: String {
+        "共 \(summary.totalCount) 首 · 建议看 \(summary.attentionCount) 首 · 缺歌名 \(summary.missingTitleCount) 首"
+    }
+
+    private var guidanceText: String {
+        if summary.missingTitleCount > 0 {
+            return "补上歌名后才能开始匹配"
+        }
+        if summary.attentionCount > 0 {
+            return "这些信息可能不完整，不处理也能继续"
+        }
+        return "歌名都整理好了，可以直接批量匹配"
+    }
+
+    private var guidanceSystemImage: String {
+        if summary.missingTitleCount > 0 { return "exclamationmark.circle.fill" }
+        if summary.attentionCount > 0 { return "info.circle.fill" }
+        return "checkmark.circle.fill"
+    }
+
+    private var guidanceTint: Color {
+        if summary.missingTitleCount > 0 { return DesignSystem.warning }
+        if summary.attentionCount > 0 { return DesignSystem.muted }
+        return DesignSystem.success
+    }
+}
+
 struct SongDraftEditor: View {
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     let draft: EditableImportedSongDraft
@@ -90,6 +135,7 @@ struct SongDraftEditor: View {
                 .stroke(statusTint.opacity(draft.needsAttention ? 0.42 : 0.24), lineWidth: 1)
         )
         .clipShape(RoundedRectangle(cornerRadius: DesignSystem.radiusSmall, style: .continuous))
+        .accessibilityIdentifier("review-song-editor")
     }
 
     private var fieldColumns: [GridItem] {
