@@ -122,10 +122,39 @@ public enum PlaylistWorkflowFingerprint {
                         versionTags: track.versionTags
                     )
                     : ""
+                let externalMetadata = track.externalCandidateMetadata.map { metadata in
+                    stableRecord([
+                        metadata.relation.rawValue,
+                        String(metadata.relevance.bitPattern, radix: 16),
+                        stableSet(metadata.reasons),
+                        metadata.provider.rawValue
+                    ])
+                } ?? ""
                 return stableRecord([
                     canonicalText(track.id),
                     canonicalText(track.title),
                     canonicalText(track.artist),
+                    canonicalText(track.language),
+                    canonicalText(track.era),
+                    canonicalText(track.genre),
+                    stableSet(track.moodTags),
+                    stableSet(track.sceneTags),
+                    String(track.difficulty),
+                    String(track.vocalRangeLowMidi),
+                    String(track.vocalRangeHighMidi),
+                    String(track.energy.bitPattern, radix: 16),
+                    String(track.singAlongScore.bitPattern, radix: 16),
+                    String(track.ktvAvailability.bitPattern, radix: 16),
+                    track.duetFriendly ? "true" : "false",
+                    String(track.rapDensity.bitPattern, radix: 16),
+                    String(track.highNoteRisk.bitPattern, radix: 16),
+                    stableSet(track.aliases),
+                    stableSet(track.versionTags),
+                    stableSet(track.similarSongIds),
+                    track.externalURL.map { canonicalText($0.absoluteString) } ?? "",
+                    track.catalogSource.rawValue,
+                    track.confidenceNote.map(canonicalText) ?? "",
+                    externalMetadata,
                     identity.normalizedBaseTitle,
                     identity.hasExplicitMarker ? "explicit" : "studio",
                     stableRecord(versionKinds),
@@ -199,6 +228,10 @@ public enum PlaylistWorkflowFingerprint {
         }.joined(separator: ";")
     }
 
+    private static func stableSet(_ values: [String]) -> String {
+        stableRecord(values.map(canonicalText).sorted())
+    }
+
     private static func canonicalText(_ value: String) -> String {
         value.precomposedStringWithCanonicalMapping
             .trimmingCharacters(in: .whitespacesAndNewlines)
@@ -224,22 +257,22 @@ public struct CompletedPlaylistAnalysis: Codable, Sendable {
     }
 }
 
-public struct PlaylistPreparationSummary: Equatable, Sendable {
-    public let importedCount: Int
-    public let validReviewedCount: Int
-    public let verifiedCount: Int
-    public let pendingCount: Int
-    public let unmatchedCount: Int
-    public let canContinue: Bool
+private struct ValidatedPlaylistAnalysis {
+    let importedCount: Int
+    let validReviewedCount: Int
+    let verifiedCount: Int
+    let pendingCount: Int
+    let unmatchedCount: Int
+}
 
-    public init?(
+private enum PlaylistAnalysisSnapshotValidator {
+    static func validate(
         playlist: ImportedPlaylist,
         reviewSongs: [WorkflowReviewSong],
-        analysis: CompletedPlaylistAnalysis?,
+        analysis: CompletedPlaylistAnalysis,
         currentBasis: MatchBasis
-    ) {
-        guard let analysis,
-              currentBasis.playlistID == playlist.id,
+    ) -> ValidatedPlaylistAnalysis? {
+        guard currentBasis.playlistID == playlist.id,
               analysis.basis == currentBasis else {
             return nil
         }
@@ -289,13 +322,46 @@ public struct PlaylistPreparationSummary: Equatable, Sendable {
         }
 
         guard analyzedSongIDs == Set(activeReviewSongsByID.keys) else { return nil }
+        return ValidatedPlaylistAnalysis(
+            importedCount: playlist.songs.count,
+            validReviewedCount: activeReviewSongsByID.count,
+            verifiedCount: verifiedCount,
+            pendingCount: pendingCount,
+            unmatchedCount: unmatchedCount
+        )
+    }
+}
 
-        importedCount = playlist.songs.count
-        validReviewedCount = activeReviewSongsByID.count
-        self.verifiedCount = verifiedCount
-        self.pendingCount = pendingCount
-        self.unmatchedCount = unmatchedCount
-        canContinue = !activeReviewSongsByID.isEmpty
+public struct PlaylistPreparationSummary: Equatable, Sendable {
+    public let importedCount: Int
+    public let validReviewedCount: Int
+    public let verifiedCount: Int
+    public let pendingCount: Int
+    public let unmatchedCount: Int
+    public let canContinue: Bool
+
+    public init?(
+        playlist: ImportedPlaylist,
+        reviewSongs: [WorkflowReviewSong],
+        analysis: CompletedPlaylistAnalysis?,
+        currentBasis: MatchBasis
+    ) {
+        guard let analysis,
+              let validated = PlaylistAnalysisSnapshotValidator.validate(
+                playlist: playlist,
+                reviewSongs: reviewSongs,
+                analysis: analysis,
+                currentBasis: currentBasis
+              ) else {
+            return nil
+        }
+
+        importedCount = validated.importedCount
+        validReviewedCount = validated.validReviewedCount
+        verifiedCount = validated.verifiedCount
+        pendingCount = validated.pendingCount
+        unmatchedCount = validated.unmatchedCount
+        canContinue = validated.validReviewedCount > 0
     }
 }
 
@@ -349,10 +415,17 @@ public enum PlaylistWorkflowValidityPolicy {
 
     public static func restoredMatchState(
         persistedAnalysis: CompletedPlaylistAnalysis?,
-        currentBasis: MatchBasis
+        currentBasis: MatchBasis,
+        playlist: ImportedPlaylist,
+        reviewSongs: [WorkflowReviewSong]
     ) -> MatchOperationState {
         guard let persistedAnalysis,
-              persistedAnalysis.basis == currentBasis else {
+              PlaylistAnalysisSnapshotValidator.validate(
+                playlist: playlist,
+                reviewSongs: reviewSongs,
+                analysis: persistedAnalysis,
+                currentBasis: currentBasis
+              ) != nil else {
             return .notStarted
         }
         return .ready(persistedAnalysis.basis)

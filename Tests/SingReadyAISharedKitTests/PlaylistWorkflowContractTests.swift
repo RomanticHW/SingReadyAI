@@ -228,6 +228,69 @@ final class PlaylistWorkflowContractTests: XCTestCase {
         XCTAssertTrue(ordered.hasPrefix("catalog-v1-"))
     }
 
+    func testCatalogFingerprintTracksFormalMetadataAndIgnoresSetOrdering() {
+        let baseline = makeTrack(
+            id: "metadata",
+            title: "后来",
+            artist: "刘若英",
+            moodTags: ["温暖", "怀旧"],
+            sceneTags: ["朋友聚会", "合唱"],
+            difficulty: 3,
+            aliases: ["后来啊", "Hou Lai"],
+            similarSongIds: ["similar-b", "similar-a"],
+            externalURL: URL(string: "https://example.com/song")
+        )
+        let reorderedSets = makeTrack(
+            id: "metadata",
+            title: "后来",
+            artist: "刘若英",
+            moodTags: ["怀旧", "温暖"],
+            sceneTags: ["合唱", "朋友聚会"],
+            difficulty: 3,
+            aliases: ["Hou Lai", "后来啊"],
+            similarSongIds: ["similar-a", "similar-b"],
+            externalURL: URL(string: "https://example.com/song")
+        )
+        let changedDifficulty = makeTrack(
+            id: "metadata",
+            title: "后来",
+            artist: "刘若英",
+            moodTags: ["温暖", "怀旧"],
+            sceneTags: ["朋友聚会", "合唱"],
+            difficulty: 4,
+            aliases: ["后来啊", "Hou Lai"],
+            similarSongIds: ["similar-b", "similar-a"],
+            externalURL: URL(string: "https://example.com/song")
+        )
+        let changedRange = makeTrack(
+            id: "metadata",
+            title: "后来",
+            artist: "刘若英",
+            moodTags: ["温暖", "怀旧"],
+            sceneTags: ["朋友聚会", "合唱"],
+            difficulty: 3,
+            vocalRangeHighMidi: 70,
+            aliases: ["后来啊", "Hou Lai"],
+            similarSongIds: ["similar-b", "similar-a"],
+            externalURL: URL(string: "https://example.com/song")
+        )
+
+        let baselineRevision = PlaylistWorkflowFingerprint.catalogRevision(for: [baseline])
+
+        XCTAssertEqual(
+            baselineRevision,
+            PlaylistWorkflowFingerprint.catalogRevision(for: [reorderedSets])
+        )
+        XCTAssertNotEqual(
+            baselineRevision,
+            PlaylistWorkflowFingerprint.catalogRevision(for: [changedDifficulty])
+        )
+        XCTAssertNotEqual(
+            baselineRevision,
+            PlaylistWorkflowFingerprint.catalogRevision(for: [changedRange])
+        )
+    }
+
     func testScenarioAndVoiceFingerprintsTrackEffectiveInputs() {
         let scenario = ScenarioConfig(
             scenario: .friends,
@@ -290,8 +353,15 @@ final class PlaylistWorkflowContractTests: XCTestCase {
             source: .plainText,
             confidence: 1
         )
+        let playlist = ImportedPlaylist(
+            source: .plainText,
+            title: "恢复校验",
+            songs: [song],
+            parseConfidence: 1
+        )
+        let reviewSongs = [WorkflowReviewSong(song: song)]
         let basis = MatchBasis(
-            playlistID: UUID(),
+            playlistID: playlist.id,
             reviewRevision: 3,
             catalogRevision: "catalog-a"
         )
@@ -326,24 +396,76 @@ final class PlaylistWorkflowContractTests: XCTestCase {
         XCTAssertEqual(
             PlaylistWorkflowValidityPolicy.restoredMatchState(
                 persistedAnalysis: restored,
-                currentBasis: basis
+                currentBasis: basis,
+                playlist: playlist,
+                reviewSongs: reviewSongs
             ),
             .ready(basis)
         )
         XCTAssertEqual(
             PlaylistWorkflowValidityPolicy.restoredMatchState(
                 persistedAnalysis: restored,
-                currentBasis: changedReview
+                currentBasis: changedReview,
+                playlist: playlist,
+                reviewSongs: reviewSongs
             ),
             .notStarted
         )
         XCTAssertEqual(
             PlaylistWorkflowValidityPolicy.restoredMatchState(
                 persistedAnalysis: nil,
-                currentBasis: basis
+                currentBasis: basis,
+                playlist: playlist,
+                reviewSongs: reviewSongs
             ),
             .notStarted
         )
+
+        let staleSong = ImportedSong(
+            id: song.id,
+            title: "旧歌名",
+            artist: song.artist,
+            source: song.source,
+            confidence: song.confidence
+        )
+        let malformedAnalyses = [
+            CompletedPlaylistAnalysis(
+                basis: basis,
+                matchRevision: 4,
+                matches: [],
+                preferenceProfile: makePreferenceProfile()
+            ),
+            CompletedPlaylistAnalysis(
+                basis: basis,
+                matchRevision: 4,
+                matches: restored.matches + restored.matches,
+                preferenceProfile: makePreferenceProfile()
+            ),
+            CompletedPlaylistAnalysis(
+                basis: basis,
+                matchRevision: 4,
+                matches: [
+                    MatchResult(
+                        importedSong: staleSong,
+                        disposition: .unmatched,
+                        score: 0,
+                        reason: "旧结果"
+                    )
+                ],
+                preferenceProfile: makePreferenceProfile()
+            )
+        ]
+        for malformed in malformedAnalyses {
+            XCTAssertEqual(
+                PlaylistWorkflowValidityPolicy.restoredMatchState(
+                    persistedAnalysis: malformed,
+                    currentBasis: basis,
+                    playlist: playlist,
+                    reviewSongs: reviewSongs
+                ),
+                .notStarted
+            )
+        }
     }
 
     func testPreparationSummaryDerivesCountsFromOneCompleteAnalysis() throws {
@@ -646,31 +768,51 @@ final class PlaylistWorkflowContractTests: XCTestCase {
         id: String,
         title: String,
         artist: String,
+        language: String = "华语",
+        era: String = "2020s",
+        genre: String = "流行",
+        moodTags: [String] = ["温暖"],
+        sceneTags: [String] = ["朋友聚会"],
+        difficulty: Int = 3,
+        vocalRangeLowMidi: Int = 52,
+        vocalRangeHighMidi: Int = 67,
+        energy: Double = 0.7,
+        singAlongScore: Double = 0.8,
+        ktvAvailability: Double = 0.9,
+        duetFriendly: Bool = false,
+        rapDensity: Double = 0.1,
+        highNoteRisk: Double = 0.2,
+        aliases: [String] = [],
         versionTags: [String] = [],
+        similarSongIds: [String] = [],
+        externalURL: URL? = nil,
+        confidenceNote: String? = nil,
         catalogSource: TrackCatalogSource = .ktvCatalog
     ) -> KTVTrack {
         KTVTrack(
             id: id,
             title: title,
             artist: artist,
-            language: "华语",
-            era: "2020s",
-            genre: "流行",
-            moodTags: ["温暖"],
-            sceneTags: ["朋友聚会"],
-            difficulty: 3,
-            vocalRangeLowMidi: 52,
-            vocalRangeHighMidi: 67,
-            energy: 0.7,
-            singAlongScore: 0.8,
-            ktvAvailability: 0.9,
-            duetFriendly: false,
-            rapDensity: 0.1,
-            highNoteRisk: 0.2,
-            aliases: [],
+            language: language,
+            era: era,
+            genre: genre,
+            moodTags: moodTags,
+            sceneTags: sceneTags,
+            difficulty: difficulty,
+            vocalRangeLowMidi: vocalRangeLowMidi,
+            vocalRangeHighMidi: vocalRangeHighMidi,
+            energy: energy,
+            singAlongScore: singAlongScore,
+            ktvAvailability: ktvAvailability,
+            duetFriendly: duetFriendly,
+            rapDensity: rapDensity,
+            highNoteRisk: highNoteRisk,
+            aliases: aliases,
             versionTags: versionTags,
-            similarSongIds: [],
-            catalogSource: catalogSource
+            similarSongIds: similarSongIds,
+            externalURL: externalURL,
+            catalogSource: catalogSource,
+            confidenceNote: confidenceNote
         )
     }
 
