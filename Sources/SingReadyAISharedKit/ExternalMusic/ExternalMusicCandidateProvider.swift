@@ -324,6 +324,7 @@ public struct ExternalCandidateSeedSelector: Sendable {
     }
 }
 
+// Task 12 前的 legacy runtime bridge；当前 App 仍通过它维护外部候选轨道。
 public struct ExternalCandidateTrackAccumulator: Sendable {
     private let mapper: ExternalCandidateTrackMapper
 
@@ -554,6 +555,7 @@ public struct MusicBrainzMetadataResolver: SongMetadataResolving {
     }
 }
 
+// Task 12 前的 legacy runtime bridge；当前 App 仍通过它映射外部候选轨道。
 public struct ExternalCandidateTrackMapper: Sendable {
     public init() {}
 

@@ -141,6 +141,194 @@ final class ExternalCandidateContractTests: XCTestCase {
         XCTAssertEqual(restored.reasons, candidate.reasons)
     }
 
+    func testCollectionInitializerAndDecoderUseTheSameNormalizationBoundary() throws {
+        let basis = makeExternalCandidateBasis()
+        let lowerConfidence = ExternalSongCandidate(
+            title: "后来 Live",
+            artist: "刘若英",
+            source: .lastFM,
+            confidence: 0.71,
+            reasons: ["较低相关"]
+        )
+        let preferred = ExternalSongCandidate(
+            title: " 后来 现场版 ",
+            artist: " 刘若英 ",
+            source: .iTunes,
+            confidence: 0.94,
+            reasons: [" 公开结果一致 ", "同歌手公开曲目", "公开结果一致"]
+        )
+        let candidates = [lowerConfidence, preferred, preferred]
+        let initialized = ExternalCandidateCollection(basis: basis, candidates: candidates)
+        let payload = ExternalCandidateCollectionPayload(basis: basis, candidates: candidates)
+        let decoded = try JSONDecoder().decode(
+            ExternalCandidateCollection.self,
+            from: JSONEncoder().encode(payload)
+        )
+
+        XCTAssertEqual(decoded, initialized)
+        XCTAssertEqual(initialized.count, 1)
+        XCTAssertEqual(initialized.candidates.first?.title, "后来 现场版")
+        XCTAssertEqual(initialized.candidates.first?.artist, "刘若英")
+        XCTAssertEqual(initialized.candidates.first?.reasons, ["公开结果一致", "同歌手公开曲目"])
+    }
+
+    func testCollectionKeepsStudioKnownVersionsAndUnknownFingerprintsSeparate() {
+        let basis = makeExternalCandidateBasis()
+        let candidates = [
+            ExternalSongCandidate(title: "后来", artist: "刘若英", source: .lastFM, confidence: 0.70),
+            ExternalSongCandidate(title: "后来 Live", artist: "刘若英", source: .lastFM, confidence: 0.80),
+            ExternalSongCandidate(title: "后来 现场版", artist: "刘 若英", source: .iTunes, confidence: 0.90),
+            ExternalSongCandidate(title: "后来 Remix", artist: "刘若英", source: .lastFM, confidence: 0.85),
+            ExternalSongCandidate(title: "后来 特别版", artist: "刘若英", source: .musicBrainz, confidence: 0.75),
+            ExternalSongCandidate(title: "后来 民谣版", artist: "刘若英", source: .musicBrainz, confidence: 0.76)
+        ]
+
+        let collection = ExternalCandidateCollection(basis: basis, candidates: candidates)
+
+        XCTAssertEqual(collection.count, 5)
+        XCTAssertEqual(
+            collection.candidates.map(\.title),
+            ["后来 现场版", "后来 Remix", "后来 民谣版", "后来 特别版", "后来"]
+        )
+    }
+
+    func testCollectionEqualConfidenceTieBreakIsIndependentOfInputOrder() {
+        let basis = makeExternalCandidateBasis()
+        let candidates = [
+            ExternalSongCandidate(
+                title: "同一首歌 Live",
+                artist: "同一歌手",
+                source: .iTunes,
+                confidence: 0.88,
+                relation: .sameArtist,
+                reasons: ["理由乙", "理由甲"],
+                externalURL: URL(string: "https://example.com/b"),
+                appleTrackID: "200",
+                primaryGenreName: "Pop",
+                releaseYear: 2020
+            ),
+            ExternalSongCandidate(
+                title: "同一首歌 现场版",
+                artist: "同一歌手",
+                source: .iTunes,
+                confidence: 0.88,
+                relation: .sameArtist,
+                reasons: ["理由甲"],
+                externalURL: URL(string: "https://example.com/a"),
+                appleTrackID: "100",
+                musicBrainzRecordingID: "recording-a",
+                isrc: "ISRC-A",
+                primaryGenreName: "Mandopop",
+                releaseYear: 2019
+            ),
+            ExternalSongCandidate(
+                title: "同一首歌 LIVE",
+                artist: "同一歌手",
+                source: .lastFM,
+                confidence: 0.88,
+                relation: .similarTrack,
+                reasons: ["理由丙"],
+                externalURL: URL(string: "https://example.com/c")
+            )
+        ]
+        let orders = [
+            candidates,
+            Array(candidates.reversed()),
+            [candidates[1], candidates[2], candidates[0]]
+        ]
+
+        let accumulator = ExternalCandidateCollectionAccumulator()
+        let collections = orders.map {
+            accumulator.mergedCollection(
+                basis: basis,
+                existing: nil,
+                incoming: $0,
+                limit: 10
+            )
+        }
+
+        XCTAssertTrue(collections.dropFirst().allSatisfy { $0 == collections[0] })
+        XCTAssertEqual(collections[0].count, 1)
+        XCTAssertEqual(collections[0].candidates.first?.source, .iTunes)
+        XCTAssertEqual(collections[0].candidates.first?.appleTrackID, "100")
+        XCTAssertEqual(collections[0].candidates.first?.reasons, ["理由甲"])
+    }
+
+    func testAccumulatorInheritsOnlyMatchingBasisAndLimitsAfterStableSorting() {
+        let basis = makeExternalCandidateBasis(reviewRevision: 3, requestRevision: 4)
+        let changedBasis = makeExternalCandidateBasis(reviewRevision: 4, requestRevision: 5)
+        let existing = ExternalCandidateCollection(
+            basis: basis,
+            candidates: [
+                ExternalSongCandidate(title: "旧候选", artist: "歌手甲", source: .lastFM, confidence: 0.93),
+                ExternalSongCandidate(title: "重复候选", artist: "歌手乙", source: .lastFM, confidence: 0.60)
+            ]
+        )
+        let incoming = [
+            ExternalSongCandidate(title: "重复候选", artist: "歌手乙", source: .iTunes, confidence: 0.95),
+            ExternalSongCandidate(title: "新候选", artist: "歌手丙", source: .musicBrainz, confidence: 0.80)
+        ]
+        let accumulator = ExternalCandidateCollectionAccumulator()
+
+        let inherited = accumulator.mergedCollection(
+            basis: basis,
+            existing: existing,
+            incoming: incoming,
+            limit: 2
+        )
+        let reset = accumulator.mergedCollection(
+            basis: changedBasis,
+            existing: existing,
+            incoming: incoming,
+            limit: 2
+        )
+
+        XCTAssertEqual(inherited.candidates.map(\.title), ["重复候选", "旧候选"])
+        XCTAssertEqual(inherited.candidates.first?.source, .iTunes)
+        XCTAssertEqual(reset.basis, changedBasis)
+        XCTAssertEqual(reset.candidates.map(\.title), ["重复候选", "新候选"])
+    }
+
+    func testAccumulatorHandlesEmptyIdentityAndNonPositiveLimitDeterministically() {
+        let basis = makeExternalCandidateBasis()
+        let blankCandidates = [
+            ExternalSongCandidate(title: "  ", artist: "  ", source: .lastFM, confidence: 0.40),
+            ExternalSongCandidate(title: "", source: .iTunes, confidence: 0.80)
+        ]
+        let accumulator = ExternalCandidateCollectionAccumulator()
+
+        let forward = accumulator.mergedCollection(
+            basis: basis,
+            existing: nil,
+            incoming: blankCandidates,
+            limit: 1
+        )
+        let reversed = accumulator.mergedCollection(
+            basis: basis,
+            existing: nil,
+            incoming: Array(blankCandidates.reversed()),
+            limit: 1
+        )
+        let zero = accumulator.mergedCollection(
+            basis: basis,
+            existing: nil,
+            incoming: blankCandidates,
+            limit: 0
+        )
+        let negative = accumulator.mergedCollection(
+            basis: basis,
+            existing: nil,
+            incoming: blankCandidates,
+            limit: -1
+        )
+
+        XCTAssertEqual(forward, reversed)
+        XCTAssertEqual(forward.count, 1)
+        XCTAssertEqual(forward.candidates.first?.confidence, 0.8)
+        XCTAssertTrue(zero.candidates.isEmpty)
+        XCTAssertTrue(negative.candidates.isEmpty)
+    }
+
     func testLegacyExternalSongCandidateDefaultsRelationFromProvider() throws {
         let iTunes = try JSONDecoder().decode(
             ExternalSongCandidate.self,
@@ -1246,4 +1434,20 @@ final class ExternalCandidateContractTests: XCTestCase {
             "feedbackTags": []
         ]
     }
+}
+
+private struct ExternalCandidateCollectionPayload: Encodable {
+    let basis: ExternalCandidateBasis
+    let candidates: [ExternalSongCandidate]
+}
+
+private func makeExternalCandidateBasis(
+    reviewRevision: UInt64 = 1,
+    requestRevision: UInt64 = 1
+) -> ExternalCandidateBasis {
+    ExternalCandidateBasis(
+        playlistID: UUID(uuidString: "C81F4137-3BC6-434D-83B5-8D6D0842F034")!,
+        reviewRevision: reviewRevision,
+        requestRevision: requestRevision
+    )
 }

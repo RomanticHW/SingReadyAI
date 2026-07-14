@@ -2139,6 +2139,32 @@ final class ProductClosureTests: XCTestCase {
         XCTAssertEqual(merged.map(\.id), existing.map(\.id))
     }
 
+    func testExternalCandidateCountRemainsIndependentFromFormalPlanCount() throws {
+        let formalItems = [
+            makePlanItem(id: "formal-1", origin: .importedMatch),
+            makePlanItem(id: "formal-2", origin: .styleSupplement)
+        ]
+        let summary = try SongPlanGenerationSummary(
+            context: makeGenerationContext(importedSongCount: 1, verifiedSongCount: 1),
+            items: formalItems
+        )
+        let externalCandidates = ExternalCandidateCollection(
+            basis: ExternalCandidateBasis(
+                playlistID: summary.playlistID,
+                reviewRevision: 2,
+                requestRevision: 3
+            ),
+            candidates: [
+                ExternalSongCandidate(title: "公开候选一", artist: "歌手甲", source: .iTunes, confidence: 0.9),
+                ExternalSongCandidate(title: "公开候选二", artist: "歌手乙", source: .lastFM, confidence: 0.8)
+            ]
+        )
+
+        XCTAssertEqual(summary.formalPlanCount, formalItems.count)
+        XCTAssertEqual(externalCandidates.count, 2)
+        XCTAssertTrue(formalItems.allSatisfy { !$0.track.title.hasPrefix("公开候选") })
+    }
+
     private func makeProfile() -> PreferenceProfile {
         PreferenceProfile(
             topArtists: [("歌手A", 1)],

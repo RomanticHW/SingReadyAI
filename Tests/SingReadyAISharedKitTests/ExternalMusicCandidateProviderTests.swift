@@ -432,6 +432,44 @@ final class ExternalMusicCandidateProviderTests: XCTestCase {
         XCTAssertTrue(fetcher.requestedURLs.first?.absoluteString.contains("musicbrainz.org/ws/2/recording") == true)
     }
 
+    func testExternalCandidateCollectionRoundTripsOnlyPublicSourceMetadata() throws {
+        let basis = ExternalCandidateBasis(
+            playlistID: UUID(uuidString: "1D5387CB-A857-4E48-B6B9-1301731BEE29")!,
+            reviewRevision: 7,
+            requestRevision: 11
+        )
+        let candidate = ExternalSongCandidate(
+            title: "七里香",
+            artist: "周杰伦",
+            source: .iTunes,
+            confidence: 0.91,
+            relation: .sameArtist,
+            reasons: ["公开同歌手曲目"],
+            externalURL: URL(string: "https://music.apple.com/cn/song/3001"),
+            appleTrackID: "3001",
+            musicBrainzRecordingID: "recording-3001",
+            musicBrainzArtistID: "artist-3001",
+            isrc: "TWK970401001",
+            primaryGenreName: "Mandopop",
+            releaseYear: 2004
+        )
+        let collection = ExternalCandidateCollection(
+            basis: basis,
+            candidates: [candidate]
+        )
+
+        let data = try JSONEncoder().encode(collection)
+        let restored = try JSONDecoder().decode(ExternalCandidateCollection.self, from: data)
+        let json = try XCTUnwrap(String(data: data, encoding: .utf8))
+
+        XCTAssertEqual(restored, collection)
+        XCTAssertEqual(restored.count, 1)
+        XCTAssertEqual(restored.candidates.first, candidate)
+        for forbiddenKey in ["difficulty", "vocalRange", "sceneTags", "ktvAvailability"] {
+            XCTAssertFalse(json.contains(forbiddenKey), forbiddenKey)
+        }
+    }
+
     func testExternalCandidateMapperCreatesProvisionalKTVTrack() {
         let candidate = ExternalSongCandidate(
             title: "七里香",
@@ -508,7 +546,12 @@ final class ExternalMusicCandidateProviderTests: XCTestCase {
             )
         )
 
-        XCTAssertFalse(plan.sections.flatMap(\.items).contains { $0.track.id.hasPrefix("external:lastFM:") })
+        let formalItems = plan.sections.flatMap(\.items)
+        let externalTitles = Set(externalCandidates.map(\.title))
+
+        XCTAssertFalse(formalItems.contains { $0.track.id.hasPrefix("external:lastFM:") })
+        XCTAssertTrue(Set(formalItems.map(\.track.title)).isDisjoint(with: externalTitles))
+        XCTAssertEqual(plan.generationSummary?.formalPlanCount, formalItems.count)
     }
 }
 
