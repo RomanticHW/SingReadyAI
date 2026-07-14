@@ -15,7 +15,8 @@ final class DemoWorkflowStore: ObservableObject {
     @Published var pendingImports: [PendingImportPayload] = []
     @Published var recentPlaylists: [ImportedPlaylist] = []
     @Published var importedPlaylist: ImportedPlaylist?
-    @Published var reviewSongs: [EditableImportedSongDraft] = []
+    @Published private(set) var reviewSongs: [EditableImportedSongDraft] = []
+    @Published private(set) var revisions = WorkflowRevisionLedger()
     @Published var matches: [MatchResult] = []
     @Published var preferenceProfile: PreferenceProfile?
     @Published var voiceProfile: VoiceProfile?
@@ -25,6 +26,8 @@ final class DemoWorkflowStore: ObservableObject {
     @Published var statusMessage = DemoWorkflowStore.idleStatusMessage
     @Published var errorMessage: String?
     @Published var isWorking = false
+    @Published private(set) var importOperationState: ImportOperationState = .idle
+    @Published private(set) var isCommittingImportedWorkflow = false
     @Published var isUsingFallbackStore = false
     @Published var recordingState: VoiceRecordingState = .idle
     @Published var recordingRemainingSeconds = 10
@@ -67,6 +70,9 @@ final class DemoWorkflowStore: ObservableObject {
     var workflowOperationTask: Task<WorkflowOperationOutcome, Never>?
     var workflowOperationTimeoutTask: Task<Void, Never>?
     var workflowOperationGate = VoiceMeasurementRequestGate()
+    var importOperationTask: Task<WorkflowOperationOutcome, Never>?
+    var importOperationTimeoutTask: Task<Void, Never>?
+    var importOperationGate = VoiceMeasurementRequestGate()
     var planPreparationTask: Task<Void, Never>?
     var planPreparationGeneration: UInt64 = 0
     var isCompletingWorkflowNavigation = false
@@ -177,7 +183,7 @@ final class DemoWorkflowStore: ObservableObject {
     }
 
     var lowConfidenceReviewSongs: [EditableImportedSongDraft] {
-        activeReviewSongs.filter(\.needsReview)
+        activeReviewSongs.filter(\.needsAttention)
     }
 
     var matchStats: MatchStatistics {
@@ -191,7 +197,34 @@ final class DemoWorkflowStore: ObservableObject {
     }
 
     var shouldShowImportStatus: Bool {
-        isWorking || errorMessage != nil || statusMessage != Self.idleStatusMessage
+        importOperationState != .idle
+            || errorMessage != nil
+            || statusMessage != Self.idleStatusMessage
+    }
+
+    var isImportResolving: Bool {
+        if case .resolving = importOperationState { return true }
+        return false
+    }
+
+    var isImportInteractionDisabled: Bool {
+        isImportResolving || isCommittingImportedWorkflow || isManagingLocalData
+    }
+
+    func replaceReviewSongs(_ songs: [EditableImportedSongDraft]) {
+        reviewSongs = songs
+    }
+
+    func replaceWorkflowRevisions(_ ledger: WorkflowRevisionLedger) {
+        revisions = ledger
+    }
+
+    func setImportOperationState(_ state: ImportOperationState) {
+        importOperationState = state
+    }
+
+    func setCommittingImportedWorkflow(_ isCommitting: Bool) {
+        isCommittingImportedWorkflow = isCommitting
     }
 
     func setStage(_ stage: WorkflowStage, animated: Bool = true) {

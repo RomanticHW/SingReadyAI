@@ -2,6 +2,117 @@ import XCTest
 @testable import SingReadyAISharedKit
 
 final class WorkflowPersistenceExecutorTests: XCTestCase {
+    func testImportTextPreflightAcceptsExactCharacterAndPhysicalLineLimits() {
+        XCTAssertTrue(PlaylistImportTextPreflight.accepts(String(repeating: "歌", count: 50_000)))
+        let oneThousandPhysicalLines = Array(repeating: "歌", count: 1_000).joined(separator: "\n")
+        XCTAssertTrue(PlaylistImportTextPreflight.accepts(oneThousandPhysicalLines))
+    }
+
+    func testImportTextPreflightRejectsCharacterOverflowAndCountsBlankPhysicalLines() {
+        XCTAssertFalse(PlaylistImportTextPreflight.accepts(String(repeating: "歌", count: 50_001)))
+        let oneThousandAndOnePhysicalLines = Array(repeating: "", count: 1_001).joined(separator: "\n")
+        XCTAssertFalse(PlaylistImportTextPreflight.accepts(oneThousandAndOnePhysicalLines))
+        XCTAssertEqual(
+            PlaylistImportTextPreflight.limitMessage,
+            "每次最多导入 5 万字、1000 行，请分成几份再试。"
+        )
+    }
+
+    func testAtomicWorkflowCommitRejectsSnapshotSupersededBeforeLinearization() async throws {
+        let directory = try makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let snapshotURL = directory.appendingPathComponent("workflow_snapshot.json")
+        let snapshotStore = WorkflowSnapshotStore(url: snapshotURL)
+        let stableSnapshot = makeSnapshot(title: "当前歌单 A")
+        try snapshotStore.save(stableSnapshot)
+        let executor = WorkflowPersistenceExecutor(
+            recentPlaylistStore: RecentPlaylistStore(
+                url: directory.appendingPathComponent("recent_playlists.json")
+            ),
+            workflowSnapshotStore: snapshotStore
+        )
+
+        await executor.reserveWorkflowMutation(generation: 1)
+        await executor.reserveWorkflowMutation(generation: 2)
+        let result = try await executor.commitWorkflowSnapshot(
+            makeSnapshot(title: "迟到歌单 B"),
+            generation: 1
+        )
+
+        guard case .superseded = result else {
+            return XCTFail("被更新预约取代的候选不能写盘")
+        }
+        XCTAssertEqual(try snapshotStore.load()?.importedPlaylist.title, "当前歌单 A")
+    }
+
+    func testAtomicWorkflowCommitPublishesOnlyLatestReservedCandidate() async throws {
+        let directory = try makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let snapshotURL = directory.appendingPathComponent("workflow_snapshot.json")
+        let snapshotStore = WorkflowSnapshotStore(url: snapshotURL)
+        try snapshotStore.save(makeSnapshot(title: "当前歌单 A"))
+        let executor = WorkflowPersistenceExecutor(
+            recentPlaylistStore: RecentPlaylistStore(
+                url: directory.appendingPathComponent("recent_playlists.json")
+            ),
+            workflowSnapshotStore: snapshotStore
+        )
+
+        await executor.reserveWorkflowMutation(generation: 10)
+        await executor.reserveWorkflowMutation(generation: 11)
+        let staleResult = try await executor.commitWorkflowSnapshot(
+            makeSnapshot(title: "旧候选 B"),
+            generation: 10
+        )
+        let currentResult = try await executor.commitWorkflowSnapshot(
+            makeSnapshot(title: "新候选 C"),
+            generation: 11
+        )
+
+        guard case .superseded = staleResult else {
+            return XCTFail("B 应被 C 的预约取代")
+        }
+        guard case .applied = currentResult else {
+            return XCTFail("当前预约的 C 应完成提交")
+        }
+        XCTAssertEqual(try snapshotStore.load()?.importedPlaylist.title, "新候选 C")
+    }
+
+    func testAtomicWorkflowCommitFailureKeepsPreviousStableSnapshot() async throws {
+        let directory = try makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let snapshotURL = directory.appendingPathComponent("workflow_snapshot.json")
+        let snapshotStore = WorkflowSnapshotStore(url: snapshotURL)
+        try snapshotStore.save(makeSnapshot(title: "当前歌单 A"))
+        let executor = WorkflowPersistenceExecutor(
+            recentPlaylistStore: RecentPlaylistStore(
+                url: directory.appendingPathComponent("recent_playlists.json")
+            ),
+            workflowSnapshotStore: snapshotStore
+        )
+        let invalidSnapshot = makeSnapshot(
+            title: "无法编码的 B",
+            voiceProfile: VoiceProfile(
+                type: .unknown,
+                minMidi: 48,
+                maxMidi: 72,
+                stableLowMidi: 52,
+                stableHighMidi: 68,
+                averageMidi: .nan,
+                confidence: 0.8,
+                note: "非法浮点用于验证原子保存"
+            )
+        )
+
+        await executor.reserveWorkflowMutation(generation: 1)
+        do {
+            _ = try await executor.commitWorkflowSnapshot(invalidSnapshot, generation: 1)
+            XCTFail("非法快照应保存失败")
+        } catch {}
+
+        XCTAssertEqual(try snapshotStore.load()?.importedPlaylist.title, "当前歌单 A")
+    }
+
     @MainActor
     func testSlowRecentPlaylistLoadKeepsMainActorResponsive() async throws {
         let directory = try makeTemporaryDirectory()
@@ -244,14 +355,17 @@ final class WorkflowPersistenceExecutorTests: XCTestCase {
         )
     }
 
-    private func makeSnapshot(title: String) -> WorkflowSnapshot {
+    private func makeSnapshot(
+        title: String,
+        voiceProfile: VoiceProfile? = nil
+    ) -> WorkflowSnapshot {
         let playlist = makePlaylist(title: title)
         return WorkflowSnapshot(
             importedPlaylist: playlist,
             reviewSongs: playlist.songs.map { WorkflowReviewSong(song: $0) },
             matches: [],
             preferenceProfile: nil,
-            voiceProfile: nil,
+            voiceProfile: voiceProfile,
             recommendationInputSource: .userImport,
             scenarioConfig: ScenarioConfig(),
             songPlan: nil,

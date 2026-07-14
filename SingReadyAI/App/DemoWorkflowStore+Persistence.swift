@@ -79,6 +79,7 @@ extension DemoWorkflowStore {
                     isDeleted: draft.isDeleted
                 )
             },
+            revisions: revisions,
             matches: matches,
             preferenceProfile: preferenceProfile,
             voiceProfile: voiceProfile,
@@ -152,11 +153,12 @@ extension DemoWorkflowStore {
             isApplyingRestoredWorkflowSnapshot = true
             defer { isApplyingRestoredWorkflowSnapshot = false }
             importedPlaylist = snapshot.importedPlaylist
-            reviewSongs = snapshot.reviewSongs.map { savedSong in
+            replaceReviewSongs(snapshot.reviewSongs.map { savedSong in
                 var draft = EditableImportedSongDraft(song: savedSong.importedSong)
                 draft.isDeleted = savedSong.isDeleted
                 return draft
-            }
+            })
+            replaceWorkflowRevisions(snapshot.revisions)
             matches = snapshot.matches
             preferenceProfile = snapshot.preferenceProfile
             voiceProfile = snapshot.voiceProfile
@@ -254,25 +256,15 @@ extension DemoWorkflowStore {
         $navigationPath
             .dropFirst()
             .sink { [weak self] path in
-                guard let self,
-                      self.isWorking,
+                guard let self else { return }
+                if self.isImportResolving, !self.isCommittingImportedWorkflow {
+                    self.cancelCurrentImport()
+                    return
+                }
+                guard self.isWorking,
                       !self.isCompletingWorkflowNavigation else { return }
                 self.cancelWorkflowOperation()
                 self.statusMessage = Self.idleStatusMessage
-            }
-            .store(in: &workflowSnapshotSubscriptions)
-
-        $reviewSongs
-            .removeDuplicates()
-            .dropFirst()
-            .sink { [weak self] reviewSongs in
-                guard let self,
-                      !self.isApplyingRestoredWorkflowSnapshot else { return }
-                if self.isWorking, self.currentStage == .review {
-                    self.cancelWorkflowOperation()
-                    self.statusMessage = "歌名有变化，本次核对已取消"
-                }
-                self.invalidateDownstreamIfReviewChanged(reviewSongs)
             }
             .store(in: &workflowSnapshotSubscriptions)
 
@@ -308,6 +300,7 @@ extension DemoWorkflowStore {
         let changes: [AnyPublisher<Void, Never>] = [
             $importedPlaylist.dropFirst().map { _ in () }.eraseToAnyPublisher(),
             $reviewSongs.dropFirst().map { _ in () }.eraseToAnyPublisher(),
+            $revisions.dropFirst().map { _ in () }.eraseToAnyPublisher(),
             $matches.dropFirst().map { _ in () }.eraseToAnyPublisher(),
             $preferenceProfile.dropFirst().map { _ in () }.eraseToAnyPublisher(),
             $voiceProfile.dropFirst().map { _ in () }.eraseToAnyPublisher(),

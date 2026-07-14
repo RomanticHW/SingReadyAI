@@ -1,5 +1,34 @@
 import Foundation
 
+public enum PlaylistImportTextPreflight {
+    public static let maximumCharacterCount = 50_000
+    public static let maximumPhysicalLineCount = 1_000
+    public static let limitMessage = "每次最多导入 5 万字、1000 行，请分成几份再试。"
+
+    public static func accepts(_ text: String) -> Bool {
+        guard text.count <= maximumCharacterCount else { return false }
+
+        var physicalLineCount = 1
+        var previousScalarWasCarriageReturn = false
+        for scalar in text.unicodeScalars {
+            switch scalar.value {
+            case 13:
+                physicalLineCount += 1
+                previousScalarWasCarriageReturn = true
+            case 10:
+                if !previousScalarWasCarriageReturn {
+                    physicalLineCount += 1
+                }
+                previousScalarWasCarriageReturn = false
+            default:
+                previousScalarWasCarriageReturn = false
+            }
+            guard physicalLineCount <= maximumPhysicalLineCount else { return false }
+        }
+        return true
+    }
+}
+
 public enum VersionedStoreQuarantineReason: Equatable, Sendable {
     case corrupt
     case incompatibleVersion
@@ -300,6 +329,7 @@ public struct WorkflowSnapshot: Codable, Sendable {
     public init(
         importedPlaylist: ImportedPlaylist,
         reviewSongs: [WorkflowReviewSong],
+        revisions: WorkflowRevisionLedger = WorkflowRevisionLedger(),
         matches: [MatchResult],
         preferenceProfile: PreferenceProfile?,
         voiceProfile: VoiceProfile?,
@@ -316,7 +346,7 @@ public struct WorkflowSnapshot: Codable, Sendable {
         self.init(
             importedPlaylist: importedPlaylist,
             reviewSongs: reviewSongs,
-            revisions: WorkflowRevisionLedger(),
+            revisions: revisions,
             completedAnalysis: nil,
             persistedPlanRecord: nil,
             externalCandidateCollection: nil,
@@ -623,6 +653,11 @@ public enum WorkflowPersistenceRequestResult<Value: Sendable>: Sendable {
     case rejectedStaleRequest
 }
 
+public enum WorkflowCommitResult: Equatable, Sendable {
+    case applied
+    case superseded
+}
+
 enum WorkflowPersistenceOperation: Equatable, Sendable {
     case loadRecentPlaylists
     case recordRecentPlaylist
@@ -715,6 +750,23 @@ public actor WorkflowPersistenceExecutor {
         beforeOperation(.saveWorkflowSnapshot)
         try workflowSnapshotStore.save(snapshot)
         return .applied(())
+    }
+
+    /// 预约下一次工作流整体替换。预约和提交都在同一个 actor 内串行，
+    /// 因此检查 generation、同步原子写盘和返回结果共同构成唯一线性化点。
+    public func reserveWorkflowMutation(generation: UInt64) {
+        guard generation > workflowSnapshotGeneration else { return }
+        workflowSnapshotGeneration = generation
+    }
+
+    public func commitWorkflowSnapshot(
+        _ snapshot: WorkflowSnapshot,
+        generation: UInt64
+    ) async throws -> WorkflowCommitResult {
+        guard generation == workflowSnapshotGeneration else { return .superseded }
+        beforeOperation(.saveWorkflowSnapshot)
+        try workflowSnapshotStore.save(snapshot)
+        return .applied
     }
 
     public func clearWorkflowSnapshot(

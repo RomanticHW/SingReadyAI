@@ -103,10 +103,11 @@ struct EditableImportedSongDraft: Identifiable, Hashable {
         return trimmed.isEmpty ? "未命名歌曲" : trimmed
     }
 
-    var needsReview: Bool {
+    var needsAttention: Bool {
         !hasValidTitle
             || confidence < 0.72
             || artist.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            || !versionTags.isEmpty
     }
 
     func importedSong() -> ImportedSong {
@@ -120,6 +121,13 @@ struct EditableImportedSongDraft: Identifiable, Hashable {
             versionTags: versionTags
         )
     }
+}
+
+enum ReviewMutation: Equatable {
+    case updateTitle(id: UUID, value: String)
+    case updateArtist(id: UUID, value: String)
+    case delete(id: UUID)
+    case restore(id: UUID)
 }
 
 struct SongFeedbackUndoAction: Equatable {

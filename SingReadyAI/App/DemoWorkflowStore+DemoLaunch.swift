@@ -86,7 +86,10 @@ extension DemoWorkflowStore {
                 playlist.songs = Array(playlist.songs.prefix(1))
                 playlist.title = "单曲整理测试"
             }
-            prepareForReview(playlist: playlist, navigate: false, recommendationInputSource: .example)
+            try await installStableDemoWorkflow(
+                playlist: playlist,
+                recommendationInputSource: .example
+            )
         } catch {
             errorMessage = error.localizedDescription
             replaceNavigation(with: .importHub)
@@ -228,6 +231,24 @@ extension DemoWorkflowStore {
         }
     }
 
+    private func installStableDemoWorkflow(
+        playlist: ImportedPlaylist,
+        recommendationInputSource: RecommendationInputSource
+    ) async throws {
+        let generation = workflowSnapshotPersistenceGate.begin()
+        await workflowPersistenceExecutor.reserveWorkflowMutation(generation: generation)
+        let candidate = makeInitialWorkflowCandidate(
+            playlist: playlist,
+            inputSource: recommendationInputSource
+        )
+        _ = try await commitImportedWorkflow(
+            candidate,
+            generation: generation,
+            navigate: false,
+            recordsRecentPlaylist: false
+        )
+    }
+
     private func prepareMixedMatchReviewState() async {
         let songs = [
             ImportedSong(
@@ -272,7 +293,10 @@ extension DemoWorkflowStore {
             songs: songs,
             parseConfidence: 0.7
         )
-        prepareForReview(playlist: playlist, navigate: false, recommendationInputSource: .userImport)
+        try? await installStableDemoWorkflow(
+            playlist: playlist,
+            recommendationInputSource: .userImport
+        )
         guard let exact = catalog.first(where: { $0.id == "t001" }),
               let identity = catalog.first(where: { $0.id == "t029" }),
               let unmatchedBackup = catalog.first(where: { $0.id == "t003" }),
@@ -361,7 +385,10 @@ extension DemoWorkflowStore {
             songs: songs,
             parseConfidence: 0.6
         )
-        prepareForReview(playlist: playlist, navigate: false, recommendationInputSource: .userImport)
+        try? await installStableDemoWorkflow(
+            playlist: playlist,
+            recommendationInputSource: .userImport
+        )
         guard let identity = catalog.first(where: { $0.id == "t029" }),
               let alternative = catalog.first(where: { $0.id == "t001" }),
               let unmatchedBackup = catalog.first(where: { $0.id == "t003" }) else {

@@ -118,7 +118,7 @@ struct ImportHubView: View {
                     .font(TypographyTokens.callout)
                     .foregroundStyle(DesignSystem.muted)
             }
-            if store.isWorking {
+            if store.isImportResolving {
                 LoadingStateView(text: "正在整理歌单")
                 Button {
                     store.cancelCurrentImport()
@@ -174,7 +174,7 @@ struct ImportHubView: View {
                         .buttonStyle(PressedScaleButtonStyle(scale: 0.98))
                         .foregroundStyle(DesignSystem.ink)
                         .accessibilityLabel("整理\(payload.displayTitle ?? payload.sourceHint.displayName)")
-                        .disabled(store.isWorking || store.isManagingLocalData)
+                        .disabled(store.isImportInteractionDisabled)
 
                         Button(role: .destructive) {
                             pendingDeleteID = payload.id
@@ -183,7 +183,7 @@ struct ImportHubView: View {
                                 .frame(minWidth: ComponentTokens.minTouchTarget, minHeight: ComponentTokens.minTouchTarget)
                         }
                         .accessibilityLabel("删除待整理\(payload.displayTitle ?? payload.sourceHint.displayName)")
-                        .disabled(store.isWorking || store.isManagingLocalData)
+                        .disabled(store.isImportInteractionDisabled)
                     }
                     .padding(.vertical, SpacingTokens.xs)
                 }
@@ -207,7 +207,7 @@ struct ImportHubView: View {
                     .buttonStyle(PressedScaleButtonStyle(scale: 0.97))
                     .foregroundStyle(DesignSystem.ink)
                     .accessibilityLabel("用示例歌单")
-                    .disabled(store.isWorking || store.isManagingLocalData)
+                    .disabled(store.isImportInteractionDisabled)
 
                     PhotosPicker(selection: $selectedPhoto, matching: .images) {
                         ImportActionTile(title: "识别截图", subtitle: "从截图里找歌名", systemImage: "text.viewfinder", tint: DesignSystem.primary)
@@ -215,7 +215,7 @@ struct ImportHubView: View {
                     .buttonStyle(PressedScaleButtonStyle(scale: 0.97))
                     .foregroundStyle(DesignSystem.ink)
                     .accessibilityLabel("选择截图识别歌单")
-                    .disabled(store.isWorking || store.isManagingLocalData)
+                    .disabled(store.isImportInteractionDisabled)
                 }
             }
         }
@@ -255,7 +255,7 @@ struct ImportHubView: View {
                     await store.importText(text)
                 }
             }
-            .disabled(!hasPastedText || store.isWorking || store.isManagingLocalData)
+            .disabled(!hasPastedText || store.isImportInteractionDisabled)
         }
     }
 
@@ -299,7 +299,7 @@ struct ImportHubView: View {
                         .accessibilityIdentifier("reopen-recent-\(playlist.id.uuidString)")
                         .accessibilityLabel("重新打开\(playlist.title)")
                         .accessibilityValue("\(playlist.source.displayName)，\(playlist.songs.count) 首")
-                        .disabled(store.isWorking || store.isManagingLocalData)
+                        .disabled(store.isImportInteractionDisabled)
 
                         Button(role: .destructive) {
                             recentDeleteID = playlist.id
@@ -310,7 +310,7 @@ struct ImportHubView: View {
                         .accessibilityIdentifier("delete-recent-\(playlist.id.uuidString)")
                         .accessibilityLabel("删除最近导入\(playlist.title)")
                         .accessibilityValue("\(playlist.source.displayName)，\(playlist.songs.count) 首")
-                        .disabled(store.isWorking || store.isManagingLocalData)
+                        .disabled(store.isImportInteractionDisabled)
                     }
                     .padding(.vertical, SpacingTokens.xs)
                 }
@@ -336,7 +336,7 @@ struct ImportHubView: View {
             }
             .buttonStyle(.bordered)
             .accessibilityLabel("清除本机记录")
-            .disabled(store.isManagingLocalData)
+            .disabled(store.isManagingLocalData || store.isCommittingImportedWorkflow)
         }
     }
 
@@ -446,11 +446,20 @@ struct ImportReviewView: View {
                         store.undoReviewSongDeletion()
                     }
                 }
-                ForEach($store.reviewSongs) { $draft in
+                ForEach(store.reviewSongs) { draft in
                     if !draft.isDeleted {
-                        SongDraftEditor(draft: $draft) {
-                            store.deleteReviewSong(id: draft.id)
-                        }
+                        SongDraftEditor(
+                            draft: draft,
+                            onTitleChange: {
+                                store.commitReviewMutation(.updateTitle(id: draft.id, value: $0))
+                            },
+                            onArtistChange: {
+                                store.commitReviewMutation(.updateArtist(id: draft.id, value: $0))
+                            },
+                            onDelete: {
+                                store.commitReviewMutation(.delete(id: draft.id))
+                            }
+                        )
                         .disabled(store.isWorking)
                     }
                 }

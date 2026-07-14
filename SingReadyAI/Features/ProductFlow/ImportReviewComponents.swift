@@ -25,7 +25,9 @@ enum ReviewMatchingLauncher {
 
 struct SongDraftEditor: View {
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
-    @Binding var draft: EditableImportedSongDraft
+    let draft: EditableImportedSongDraft
+    let onTitleChange: (String) -> Void
+    let onArtistChange: (String) -> Void
     let onDelete: () -> Void
 
     var body: some View {
@@ -44,10 +46,16 @@ struct SongDraftEditor: View {
             }
 
             LazyVGrid(columns: fieldColumns, spacing: SpacingTokens.xs) {
-                TextField("歌名", text: $draft.title)
+                TextField(
+                    "歌名",
+                    text: Binding(get: { draft.title }, set: onTitleChange)
+                )
                     .stageInputField()
                     .accessibilityLabel("编辑歌名")
-                TextField("歌手", text: $draft.artist)
+                TextField(
+                    "歌手",
+                    text: Binding(get: { draft.artist }, set: onArtistChange)
+                )
                     .stageInputField()
                     .accessibilityLabel("编辑歌手")
             }
@@ -56,7 +64,7 @@ struct SongDraftEditor: View {
                 Label("歌名不能为空，补上后才能继续。", systemImage: "exclamationmark.circle")
                     .font(TypographyTokens.caption)
                     .foregroundStyle(DesignSystem.warning)
-            } else if draft.needsReview {
+            } else if draft.needsAttention {
                 Label("少歌手也能继续，补一下会更准。", systemImage: "info.circle")
                     .font(TypographyTokens.caption)
                     .foregroundStyle(DesignSystem.muted)
@@ -64,7 +72,7 @@ struct SongDraftEditor: View {
             if !draft.versionTags.isEmpty {
                 TagCloud(values: draft.versionTags, tint: DesignSystem.amber)
             }
-            if draft.needsReview, !draft.rawText.isEmpty {
+            if draft.needsAttention, !draft.rawText.isEmpty {
                 Text(draft.rawText)
                     .font(TypographyTokens.caption)
                     .foregroundStyle(DesignSystem.muted)
@@ -79,7 +87,7 @@ struct SongDraftEditor: View {
         )
         .overlay(
             RoundedRectangle(cornerRadius: DesignSystem.radiusSmall, style: .continuous)
-                .stroke(statusTint.opacity(draft.needsReview ? 0.42 : 0.24), lineWidth: 1)
+                .stroke(statusTint.opacity(draft.needsAttention ? 0.42 : 0.24), lineWidth: 1)
         )
         .clipShape(RoundedRectangle(cornerRadius: DesignSystem.radiusSmall, style: .continuous))
     }
@@ -90,10 +98,10 @@ struct SongDraftEditor: View {
 
     private var statusTitle: String {
         if !draft.hasValidTitle { return "补歌名" }
-        return draft.needsReview ? "看一下" : "已整理"
+        return draft.needsAttention ? "看一下" : "已整理"
     }
 
     private var statusTint: Color {
-        draft.needsReview ? DesignSystem.warning : DesignSystem.success
+        draft.needsAttention ? DesignSystem.warning : DesignSystem.success
     }
 }

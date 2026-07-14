@@ -263,7 +263,7 @@ extension DemoWorkflowStore {
         )
         importedPlaylist = playlist
         recommendationInputSource = .popularFallback
-        reviewSongs = playlist.songs.map(EditableImportedSongDraft.init)
+        replaceReviewSongs(playlist.songs.map(EditableImportedSongDraft.init))
         matches = zip(playlist.songs, seedTracks).map { song, track in
             MatchResult(
                 importedSong: song,

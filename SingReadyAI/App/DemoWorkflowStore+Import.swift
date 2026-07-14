@@ -105,6 +105,7 @@ extension DemoWorkflowStore {
         workflowSnapshotPersistenceGate.invalidate()
         voiceProfilePersistenceGate.invalidate()
         let inFlightVoiceRecording = voiceRecordingTask
+        await cancelCurrentImportAndWait()
         cancelWorkflowOperation()
         cancelVoiceRecording()
         await inFlightVoiceRecording?.value
@@ -115,16 +116,14 @@ extension DemoWorkflowStore {
         feedbackProfile = .empty
         voiceProfile = nil
         scenarioConfig = ScenarioConfig()
-        lockedTrackIDs = []
-        removedTrackIDs = []
-        resetImport(
-            navigateToImport: false,
-            clearPersistedSnapshot: false
-        )
         isApplyingRestoredWorkflowSnapshot = false
         let recentClearRequest = recentPlaylistPersistenceGate.begin()
         let snapshotClearRequest = workflowSnapshotPersistenceGate.begin()
+        await workflowPersistenceExecutor.reserveWorkflowMutation(
+            generation: snapshotClearRequest
+        )
         var didFail = false
+        var didClearWorkflowSnapshot = false
         do {
             try await appGroupStore.clearPendingImports(
                 deadline: pendingStoreDeadline()
@@ -144,9 +143,21 @@ extension DemoWorkflowStore {
             let result = try await workflowPersistenceExecutor.clearWorkflowSnapshot(
                 request: snapshotClearRequest
             )
-            if case .rejectedStaleRequest = result { didFail = true }
+            if case .rejectedStaleRequest = result {
+                didFail = true
+            } else {
+                didClearWorkflowSnapshot = true
+            }
         } catch {
             didFail = true
+        }
+        if didClearWorkflowSnapshot {
+            isApplyingRestoredWorkflowSnapshot = true
+            resetImport(
+                navigateToImport: false,
+                clearPersistedSnapshot: false
+            )
+            isApplyingRestoredWorkflowSnapshot = false
         }
         let artifactCleanupResult = await LocalArtifactCleaner(
             ocrTemporaryFileStore: ocrTemporaryFileStore
@@ -174,7 +185,7 @@ extension DemoWorkflowStore {
     }
 
     func analyzePending(_ payload: PendingImportPayload) async {
-        await run("正在读取分享内容") { [self] request, operationDeadline in
+        await runImport("正在读取分享内容") { [self] request, generation, operationDeadline in
             let playlist: ImportedPlaylist
             if payload.sourceHint == .screenshot, payload.imageFileName != nil {
                 let imageURL = try appGroupStore.sharedImageURL(for: payload)
@@ -186,27 +197,33 @@ extension DemoWorkflowStore {
             } else {
                 playlist = try await importCoordinator.resolve(payload: payload)
             }
-            guard acceptsWorkflowOperation(request), currentStage == .importHub else { return }
-            let persistedPlaylist = prepareForReview(
+            guard acceptsImportOperation(request), currentStage == .importHub else { return }
+            let candidate = makeInitialWorkflowCandidate(
                 playlist: playlist,
-                recordsRecentPlaylist: false
+                inputSource: recommendationInputSource(for: playlist.source)
             )
-            let didSaveRecentPlaylist = await recordRecentImport(
-                persistedPlaylist,
-                request: recentPlaylistPersistenceGate.begin(),
-                failureMessage: nil
-            )
-            let persistenceReceipt = PendingImportPersistenceReceipt(
-                didSaveRecentPlaylist: didSaveRecentPlaylist,
-                didSaveWorkflowSnapshot: await persistWorkflowSnapshot(reportFailure: false)
-            )
-            guard acceptsWorkflowOperation(request),
-                  persistenceReceipt.canConsumePendingImport else {
-                let message = "歌单已整理，但本机暂时保存不了。待整理内容已保留，请稍后重试。"
+            let commitResult: WorkflowCommitResult
+            do {
+                commitResult = try await commitImportedWorkflow(
+                    candidate,
+                    generation: generation,
+                    navigate: false,
+                    recordsRecentPlaylist: false
+                )
+            } catch {
+                let message = "歌单暂时没保存下来，待整理内容已保留，请稍后重试。"
                 errorMessage = message
                 statusMessage = message
                 return
             }
+            guard case .applied = commitResult else { return }
+            setCommittingImportedWorkflow(true)
+            defer { setCommittingImportedWorkflow(false) }
+            _ = await recordRecentImport(
+                candidate.importedPlaylist,
+                request: recentPlaylistPersistenceGate.begin(),
+                failureMessage: "歌单已经打开，但“最近导入”暂时没保存下来。"
+            )
             do {
                 try await appGroupStore.removePendingImport(
                     id: payload.id,
@@ -217,25 +234,34 @@ extension DemoWorkflowStore {
             } catch {
                 errorMessage = "歌单已整理，但这条待处理记录暂时没删掉，可以稍后重试。"
             }
+            setStage(.review)
         }
     }
 
     func useDemoPlaylist() async {
-        await run("正在准备示例歌单") { [self] request, _ in
+        await runImport("正在准备示例歌单") { [self] request, generation, _ in
             let playlist = try importCoordinator.resolveDemoPlaylist()
-            guard acceptsWorkflowOperation(request), currentStage == .importHub else { return }
-            prepareForReview(playlist: playlist, recommendationInputSource: .example)
+            guard acceptsImportOperation(request), currentStage == .importHub else { return }
+            let candidate = makeInitialWorkflowCandidate(playlist: playlist, inputSource: .example)
+            _ = try await commitImportedWorkflow(
+                candidate,
+                generation: generation,
+                navigate: true
+            )
         }
     }
 
     func importText(_ text: String) async {
-        guard text.count <= 50_000,
-              text.split(whereSeparator: \.isNewline).count <= 1_000 else {
-            errorMessage = "这段内容太长了，请分成几份再导入。"
+        guard PlaylistImportTextPreflight.accepts(text) else {
+            errorMessage = PlaylistImportTextPreflight.limitMessage
             statusMessage = errorMessage ?? statusMessage
+            setImportOperationState(.failed(
+                message: PlaylistImportTextPreflight.limitMessage,
+                retryable: true
+            ))
             return
         }
-        await run("正在整理这段歌单") { [self] request, _ in
+        await runImport("正在整理这段歌单") { [self] request, generation, _ in
             #if DEBUG
             if ProcessInfo.processInfo.arguments.contains("-singreadySlowImport") {
                 try await Task.sleep(nanoseconds: 12_000_000_000)
@@ -243,62 +269,143 @@ extension DemoWorkflowStore {
             #endif
             let payload = PendingImportPayload(sourceHint: .plainText, rawText: text, displayTitle: "粘贴导入歌单")
             let playlist = try await importCoordinator.resolve(payload: payload)
-            guard acceptsWorkflowOperation(request), currentStage == .importHub else { return }
-            prepareForReview(playlist: playlist)
+            guard acceptsImportOperation(request), currentStage == .importHub else { return }
+            let candidate = makeInitialWorkflowCandidate(playlist: playlist, inputSource: .userImport)
+            _ = try await commitImportedWorkflow(
+                candidate,
+                generation: generation,
+                navigate: true
+            )
         }
     }
 
     func importScreenshotFile(at temporaryURL: URL) async {
-        await run("正在看截图里的歌名") { [self] request, _ in
+        await runImport("正在看截图里的歌名") { [self] request, generation, _ in
             let recognizedText = try await ocrService.recognizeText(fromImageAt: temporaryURL)
             let playlist = try OCRPlaylistParser().parseValidated(recognizedText: recognizedText)
-            guard acceptsWorkflowOperation(request), currentStage == .importHub else { return }
-            prepareForReview(playlist: playlist)
+            guard acceptsImportOperation(request), currentStage == .importHub else { return }
+            let candidate = makeInitialWorkflowCandidate(playlist: playlist, inputSource: .userImport)
+            _ = try await commitImportedWorkflow(
+                candidate,
+                generation: generation,
+                navigate: true
+            )
         }
         try? await ocrTemporaryFileStore.removePreparedImage(at: temporaryURL)
     }
 
-    @discardableResult
-    func prepareForReview(
+    func importResolvedPlaylist(
         playlist: ImportedPlaylist,
         navigate: Bool = true,
-        recommendationInputSource: RecommendationInputSource = .userImport,
+        recommendationInputSource: RecommendationInputSource = .userImport
+    ) async {
+        await runImport("正在打开这份歌单") { [self] request, generation, _ in
+            guard acceptsImportOperation(request) else { return }
+            let candidate = makeInitialWorkflowCandidate(
+                playlist: playlist,
+                inputSource: recommendationInputSource
+            )
+            _ = try await commitImportedWorkflow(
+                candidate,
+                generation: generation,
+                navigate: navigate
+            )
+        }
+    }
+
+    func makeInitialWorkflowCandidate(
+        playlist: ImportedPlaylist,
+        inputSource: RecommendationInputSource
+    ) -> WorkflowSnapshot {
+        let playlist = playlistForPersistence(playlist, inputSource: inputSource)
+        let preservedVoiceProfile = voiceProfile?.hasValidMeasuredRange == true
+            ? voiceProfile
+            : nil
+        return WorkflowSnapshot(
+            importedPlaylist: playlist,
+            reviewSongs: playlist.songs.map { WorkflowReviewSong(song: $0) },
+            revisions: WorkflowRevisionLedger(),
+            completedAnalysis: nil,
+            persistedPlanRecord: nil,
+            externalCandidateCollection: nil,
+            voiceProfile: preservedVoiceProfile,
+            recommendationInputSource: inputSource,
+            scenarioConfig: scenarioConfig,
+            lockedTrackIDs: [],
+            removedTrackIDs: [],
+            feedbackProfile: feedbackProfile,
+            hasAdvancedToScenario: false
+        )
+    }
+
+    @discardableResult
+    func commitImportedWorkflow(
+        _ candidate: WorkflowSnapshot,
+        generation: UInt64,
+        navigate: Bool,
         recordsRecentPlaylist: Bool = true
-    ) -> ImportedPlaylist {
+    ) async throws -> WorkflowCommitResult {
+        guard acceptsImportGeneration(generation) else { return .superseded }
+        setCommittingImportedWorkflow(true)
+        let result: WorkflowCommitResult
+        do {
+            result = try await workflowPersistenceExecutor.commitWorkflowSnapshot(
+                candidate,
+                generation: generation
+            )
+        } catch {
+            setCommittingImportedWorkflow(false)
+            throw error
+        }
+        guard case .applied = result else {
+            setCommittingImportedWorkflow(false)
+            return result
+        }
+
+        defer { setCommittingImportedWorkflow(false) }
+        publishImportedWorkflow(candidate)
+        if recordsRecentPlaylist {
+            _ = await recordRecentImport(
+                candidate.importedPlaylist,
+                request: recentPlaylistPersistenceGate.begin(),
+                failureMessage: "歌单已经打开，但“最近导入”暂时没保存下来。"
+            )
+        }
+        statusMessage = "找到了 \(candidate.importedPlaylist.songs.count) 首歌，先把不确定的地方看一眼"
+        if navigate {
+            setStage(.review)
+        }
+        return result
+    }
+
+    private func publishImportedWorkflow(_ snapshot: WorkflowSnapshot) {
         cancelExternalCandidateRequest()
-        let playlist = playlistForPersistence(playlist, inputSource: recommendationInputSource)
-        importedPlaylist = playlist
-        self.recommendationInputSource = recommendationInputSource
-        reviewSongs = playlist.songs.map(EditableImportedSongDraft.init)
+        let wasApplyingSnapshot = isApplyingRestoredWorkflowSnapshot
+        isApplyingRestoredWorkflowSnapshot = true
+        importedPlaylist = snapshot.importedPlaylist
+        replaceReviewSongs(snapshot.reviewSongs.map { savedSong in
+            var draft = EditableImportedSongDraft(song: savedSong.importedSong)
+            draft.isDeleted = savedSong.isDeleted
+            return draft
+        })
+        replaceWorkflowRevisions(snapshot.revisions)
         matches = []
         preferenceProfile = nil
+        voiceProfile = snapshot.voiceProfile
+        recommendationInputSource = snapshot.recommendationInputSource
+        scenarioConfig = snapshot.scenarioConfig
         songPlan = nil
         hasAdvancedToScenario = false
         lockedTrackIDs = []
         removedTrackIDs = []
         externalCandidateTracks = []
         externalCandidateStatus = "还没找同歌手备选"
+        feedbackProfile = snapshot.feedbackProfile
         feedbackStatusMessage = nil
         lastFeedbackUndo = nil
         lastReviewSongUndo = nil
         lastRemovedTrackUndo = nil
-        if recordsRecentPlaylist {
-            let persistenceRequest = recentPlaylistPersistenceGate.begin()
-            Task { @MainActor [weak self, playlist] in
-                _ = await self?.recordRecentImport(
-                    playlist,
-                    request: persistenceRequest,
-                    failureMessage: "歌单已打开，但最近导入暂时没保存下来。"
-                )
-            }
-        }
-        statusMessage = "找到了 \(playlist.songs.count) 首歌，先把不确定的地方看一眼"
-        if navigate {
-            isCompletingWorkflowNavigation = isWorking
-            defer { isCompletingWorkflowNavigation = false }
-            setStage(.review)
-        }
-        return playlist
+        isApplyingRestoredWorkflowSnapshot = wasApplyingSnapshot
     }
 
     @discardableResult
@@ -351,23 +458,54 @@ extension DemoWorkflowStore {
         return examplePlaylist
     }
 
-    func deleteReviewSong(id: UUID) {
-        guard let index = reviewSongs.firstIndex(where: { $0.id == id }),
-              !reviewSongs[index].isDeleted else { return }
-        invalidateExternalCandidateContext()
-        let title = reviewSongs[index].displayTitle
-        reviewSongs[index].isDeleted = true
-        lastReviewSongUndo = ReviewSongUndoAction(songID: id, title: title)
-        statusMessage = "已删《\(title)》"
+    func commitReviewMutation(_ mutation: ReviewMutation) {
+        var updatedSongs = reviewSongs
+        switch mutation {
+        case let .updateTitle(id, value):
+            guard let index = updatedSongs.firstIndex(where: { $0.id == id }),
+                  updatedSongs[index].title != value else { return }
+            updatedSongs[index].title = value
+            statusMessage = "歌名已更新"
+        case let .updateArtist(id, value):
+            guard let index = updatedSongs.firstIndex(where: { $0.id == id }),
+                  updatedSongs[index].artist != value else { return }
+            updatedSongs[index].artist = value
+            statusMessage = "歌手已更新"
+        case let .delete(id):
+            guard let index = updatedSongs.firstIndex(where: { $0.id == id }),
+                  !updatedSongs[index].isDeleted else { return }
+            let title = updatedSongs[index].displayTitle
+            updatedSongs[index].isDeleted = true
+            lastReviewSongUndo = ReviewSongUndoAction(songID: id, title: title)
+            statusMessage = "已删《\(title)》"
+        case let .restore(id):
+            guard let index = updatedSongs.firstIndex(where: { $0.id == id }),
+                  updatedSongs[index].isDeleted else { return }
+            updatedSongs[index].isDeleted = false
+            statusMessage = "《\(updatedSongs[index].displayTitle)》已放回歌单"
+            lastReviewSongUndo = nil
+        }
+
+        replaceReviewSongs(updatedSongs)
+        var nextRevisions = revisions
+        nextRevisions.review &+= 1
+        replaceWorkflowRevisions(nextRevisions)
+        cancelCurrentMatching()
+        cancelExternalCandidateRequest()
+        matches = []
+        preferenceProfile = nil
+        hasAdvancedToScenario = false
+        songPlan = nil
+        externalCandidateTracks = []
+        externalCandidateStatus = "歌单内容已变更，请重新找同歌手备选"
+        lockedTrackIDs = []
+        removedTrackIDs = []
+        lastRemovedTrackUndo = nil
     }
 
     func undoReviewSongDeletion() {
-        guard let action = lastReviewSongUndo,
-              let index = reviewSongs.firstIndex(where: { $0.id == action.songID }) else { return }
-        invalidateExternalCandidateContext()
-        reviewSongs[index].isDeleted = false
-        statusMessage = "《\(action.title)》已放回歌单"
-        lastReviewSongUndo = nil
+        guard let action = lastReviewSongUndo else { return }
+        commitReviewMutation(.restore(id: action.songID))
     }
 
     @discardableResult
