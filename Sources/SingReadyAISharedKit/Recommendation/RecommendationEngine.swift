@@ -41,27 +41,31 @@ public struct RecommendationEngine: Sendable {
         voiceProfile: VoiceProfile,
         scenario: ScenarioConfig,
         catalog: [KTVTrack],
+        generationContext: SongPlanGenerationContext,
         inputSource: RecommendationInputSource = .legacyUnknown,
         lockedTrackIDs: Set<String> = [],
         removedTrackIDs: Set<String> = [],
         feedbackProfile: SongFeedbackProfile = .empty
-    ) -> SongPlan {
+    ) throws -> SongPlan {
         let importedArtistCounts = matches.reduce(into: [String: Int]()) { result, match in
             if let artist = match.importedSong.artist {
                 result[artist, default: 0] += 1
             }
         }
-        let candidates = buildCandidatePool(
+        let candidates = try RecommendationCandidateGate().candidates(
             matches: matches,
             preferenceProfile: preferenceProfile,
             scenario: scenario,
             catalog: catalog,
             lockedTrackIDs: lockedTrackIDs
         )
-            .filter { !removedTrackIDs.contains($0.id) || lockedTrackIDs.contains($0.id) }
-        let scored: [ScoredTrack] = candidates.map { track in
+            .filter {
+                !removedTrackIDs.contains($0.track.id)
+                    || lockedTrackIDs.contains($0.track.id)
+            }
+        let scored: [ScoredTrack] = candidates.map { candidate in
             let breakdown = scoreBreakdown(
-                track: track,
+                track: candidate.track,
                 preferenceProfile: preferenceProfile,
                 voiceProfile: voiceProfile,
                 scenario: scenario,
@@ -69,7 +73,8 @@ public struct RecommendationEngine: Sendable {
                 feedbackProfile: feedbackProfile
             )
             return ScoredTrack(
-                track: track,
+                track: candidate.track,
+                origin: candidate.origin,
                 scoreBreakdown: breakdown
             )
         }
@@ -77,8 +82,8 @@ public struct RecommendationEngine: Sendable {
             if $0.score != $1.score {
                 return $0.score > $1.score
             }
-            let leftKey = candidateSemanticKey($0.track)
-            let rightKey = candidateSemanticKey($1.track)
+            let leftKey = RecommendationCandidateGate.semanticKey(for: $0.track)
+            let rightKey = RecommendationCandidateGate.semanticKey(for: $1.track)
             if leftKey != rightKey {
                 return leftKey < rightKey
             }
@@ -108,9 +113,7 @@ public struct RecommendationEngine: Sendable {
         func append(_ scoredTrack: ScoredTrack, to sectionIndex: Int, isLocked: Bool) {
             selectedIDs.insert(scoredTrack.track.id)
             lastArtist = scoredTrack.track.artist
-            if !scoredTrack.track.isProvisionalExternalCandidate {
-                slowStreak = scoredTrack.track.energy < 0.45 ? slowStreak + 1 : 0
-            }
+            slowStreak = scoredTrack.track.energy < 0.45 ? slowStreak + 1 : 0
             sections[sectionIndex].items.append(planItem(
                 scoredTrack: scoredTrack,
                 preferenceProfile: preferenceProfile,
@@ -187,13 +190,16 @@ public struct RecommendationEngine: Sendable {
             notices.append("受锁定歌曲或可用候选约束，生日氛围规则未能完全满足。")
         }
         if scenario.scenario.isGroupScenario {
-            let verifiedItems = adjustedItems.filter { !$0.track.isProvisionalExternalCandidate }
-            let requiredChorusCount = Int(ceil(Double(verifiedItems.count) * 0.3))
-            let actualChorusCount = verifiedItems.filter { isChorusFriendly($0.track) }.count
+            let requiredChorusCount = Int(ceil(Double(adjustedItems.count) * 0.3))
+            let actualChorusCount = adjustedItems.filter { isChorusFriendly($0.track) }.count
             if actualChorusCount < requiredChorusCount {
                 notices.append("受锁定歌曲或可用候选约束，合唱比例规则未能完全满足。")
             }
         }
+        let generationSummary = try SongPlanGenerationSummary(
+            context: generationContext,
+            items: adjustedItems
+        )
 
         return SongPlan(
             title: "\(scenario.scenario.displayName)歌单",
@@ -202,6 +208,7 @@ public struct RecommendationEngine: Sendable {
             scenarioConfig: scenario,
             voiceProfile: voiceProfile,
             preferenceSummary: planSummary(preferenceProfile: preferenceProfile, scenario: scenario, inputSource: inputSource),
+            generationSummary: generationSummary,
             sections: adjustedSections,
             notices: notices
         )
@@ -265,82 +272,6 @@ public struct RecommendationEngine: Sendable {
         }
     }
 
-    private func buildCandidatePool(
-        matches: [MatchResult],
-        preferenceProfile: PreferenceProfile,
-        scenario: ScenarioConfig,
-        catalog: [KTVTrack],
-        lockedTrackIDs: Set<String>
-    ) -> [KTVTrack] {
-        var tracks: [KTVTrack] = []
-        var seenTrackIDs = Set<String>()
-        var seenSemanticKeys = Set<String>()
-        let pendingCandidateIDs = Set(
-            matches
-                .filter(\.isPending)
-                .flatMap(\.candidateTracks)
-                .map(\.id)
-        )
-
-        let matchTracks = matches.compactMap(\.acceptedTrack)
-        let completeLocalSemanticKeys = Set((catalog + matchTracks)
-            .filter { !$0.isProvisionalExternalCandidate }
-            .map(candidateSemanticKey))
-
-        func add(_ track: KTVTrack) {
-            guard !pendingCandidateIDs.contains(track.id),
-                  seenTrackIDs.insert(track.id).inserted else { return }
-            let semanticKey = candidateSemanticKey(track)
-            guard !track.isProvisionalExternalCandidate
-                    || !completeLocalSemanticKeys.contains(semanticKey) else { return }
-            guard seenSemanticKeys.insert(semanticKey).inserted else { return }
-            tracks.append(track)
-        }
-
-        let allKnownTracks = catalog + matchTracks
-        let lockedTracks = allKnownTracks.filter { lockedTrackIDs.contains($0.id) }
-        let preferredGenres = Set(preferenceProfile.genreDistribution.filter { $0.value >= 0.15 }.map(\.key))
-        let preferredMoods = Set(preferenceProfile.moodTags.filter { $0.value >= 0.12 }.map(\.key))
-        let preferredArtists = Set(preferenceProfile.topArtists.map(\.name))
-        let relevantLocalCatalog = catalog.lazy.filter { track in
-            !track.isProvisionalExternalCandidate
-                && (preferredArtists.contains(track.artist)
-                || preferredGenres.contains(track.genre)
-                || !preferredMoods.isDisjoint(with: track.moodTags)
-                || track.sceneTags.contains(scenario.scenario.rawValue)
-                || track.singAlongScore >= 0.86)
-        }.prefix(90)
-
-        // 所有本地参考先于外部候选进入语义去重，确保同歌同歌手时本地参考胜出。
-        for track in lockedTracks where !track.isProvisionalExternalCandidate {
-            add(track)
-        }
-        for track in matchTracks where !track.isProvisionalExternalCandidate {
-            add(track)
-        }
-        for track in relevantLocalCatalog {
-            add(track)
-        }
-
-        // 外部候选不占用本地 90 首候选上限，避免高相关候选在评分前被截断。
-        for track in lockedTracks where track.isProvisionalExternalCandidate {
-            add(track)
-        }
-        for track in matchTracks where track.isProvisionalExternalCandidate {
-            add(track)
-        }
-        for track in catalog where track.isProvisionalExternalCandidate {
-            add(track)
-        }
-        return tracks
-    }
-
-    private func candidateSemanticKey(_ track: KTVTrack) -> String {
-        let title = SongNormalizer.normalizeTitle(track.title)
-        let artist = SongNormalizer.normalizeArtist(track.artist)
-        return title.isEmpty || artist.isEmpty ? "id:\(track.id)" : "\(title)|\(artist)"
-    }
-
     private func scoreBreakdown(
         track: KTVTrack,
         preferenceProfile: PreferenceProfile,
@@ -349,9 +280,6 @@ public struct RecommendationEngine: Sendable {
         importedArtistCounts: [String: Int],
         feedbackProfile: SongFeedbackProfile
     ) -> RecommendationScoreBreakdown {
-        if track.isProvisionalExternalCandidate {
-            return provisionalScoreBreakdown(track: track, feedbackProfile: feedbackProfile)
-        }
         let preferenceAffinity = affinity(track: track, preferenceProfile: preferenceProfile, importedArtistCounts: importedArtistCounts)
         let vocal = vocalFit(track: track, voiceProfile: voiceProfile)
         let scene = sceneFit(track: track, scenario: scenario)
@@ -379,56 +307,6 @@ public struct RecommendationEngine: Sendable {
             riskPenalty: riskPenalty,
             finalScore: finalScore
         )
-    }
-
-    private func provisionalScoreBreakdown(
-        track: KTVTrack,
-        feedbackProfile: SongFeedbackProfile
-    ) -> RecommendationScoreBreakdown {
-        let metadata = track.externalCandidateMetadata
-        let relationScore: Double
-        switch metadata?.relation {
-        case .sameArtist:
-            relationScore = 1
-        case .similarTrack:
-            relationScore = 0.82
-        case nil:
-            relationScore = 0.64
-        }
-        let relevance = metadata?.relevance ?? 0.5
-        let publicEvidence = min(1, Double(metadata?.reasons.count ?? 0) / 3)
-        let feedback = provisionalFeedbackAdjustment(
-            trackID: track.id,
-            feedbackProfile: feedbackProfile
-        )
-        let finalScore = max(
-            0,
-            min(1, 0.10 + relevance * 0.75 + relationScore * 0.10 + publicEvidence * 0.05 + feedback)
-        )
-        return RecommendationScoreBreakdown(
-            preferenceAffinity: 0,
-            ktvAvailabilityScore: 0,
-            vocalFitScore: 0,
-            singAlongScore: 0,
-            sceneFitScore: 0,
-            varietyScore: 0,
-            riskPenalty: 0,
-            finalScore: finalScore
-        )
-    }
-
-    private func provisionalFeedbackAdjustment(
-        trackID: String,
-        feedbackProfile: SongFeedbackProfile
-    ) -> Double {
-        let feedback = Set(feedbackProfile.feedback(for: trackID))
-        var adjustment = 0.0
-        if feedback.contains(.liked) { adjustment += 0.10 }
-        if feedback.contains(.sung) { adjustment += 0.04 }
-        if feedback.contains(.chorusFriendly) { adjustment += 0.05 }
-        if feedback.contains(.tooHigh) { adjustment -= 0.10 }
-        if feedback.contains(.unfamiliar) { adjustment -= 0.10 }
-        return adjustment
     }
 
     private func affinity(track: KTVTrack, preferenceProfile: PreferenceProfile, importedArtistCounts: [String: Int]) -> Double {
@@ -535,9 +413,6 @@ public struct RecommendationEngine: Sendable {
         role: SongPlanSectionRole,
         scenario: ScenarioConfig
     ) -> Bool {
-        if track.isProvisionalExternalCandidate {
-            return role == .externalVerification
-        }
         if scenario.scenario == .carKTV,
            track.difficulty > 4 || track.rapDensity >= 0.75 {
             return false
@@ -579,9 +454,6 @@ public struct RecommendationEngine: Sendable {
         slowStreak: Int
     ) -> Bool {
         if track.artist == lastArtist { return false }
-        if track.isProvisionalExternalCandidate {
-            return true
-        }
         if selectedIDsAreEmpty,
            track.difficulty >= 5 || track.highNoteRisk >= 0.72 {
             return false
@@ -591,15 +463,12 @@ public struct RecommendationEngine: Sendable {
     }
 
     private func isBirthdayFriendly(_ track: KTVTrack) -> Bool {
-        !track.isProvisionalExternalCandidate
-            && (track.sceneTags.contains("birthday")
+        track.sceneTags.contains("birthday")
             || track.moodTags.contains(where: { ["温暖", "甜蜜", "喜庆", "合唱"].contains($0) })
-            )
     }
 
     private func isBirthdayHardRuleEligible(_ track: KTVTrack) -> Bool {
-        !track.isProvisionalExternalCandidate
-            && (isBirthdayFriendly(track) || track.singAlongScore >= 0.86)
+        isBirthdayFriendly(track) || track.singAlongScore >= 0.86
     }
 
     private func planItem(
@@ -616,6 +485,7 @@ public struct RecommendationEngine: Sendable {
         let feedbackTags = feedbackProfile.feedback(for: scoredTrack.track.id)
         return SongPlanItem(
             track: scoredTrack.track,
+            origin: scoredTrack.origin,
             score: scoredTrack.score,
             scoreBreakdown: scoredTrack.scoreBreakdown,
             reasons: reasonBuilder.reasons(
@@ -661,7 +531,6 @@ public struct RecommendationEngine: Sendable {
                 sections[sectionIndex].items.indices.compactMap { itemIndex -> (Int, Int)? in
                     guard preferredRoles.contains(sections[sectionIndex].role),
                           !sections[sectionIndex].items[itemIndex].isLocked,
-                          !sections[sectionIndex].items[itemIndex].track.isProvisionalExternalCandidate,
                           canReplace(sections[sectionIndex].items[itemIndex]) else { return nil }
                     return (sectionIndex, itemIndex)
                 }
@@ -671,7 +540,6 @@ public struct RecommendationEngine: Sendable {
             let fallback = sections.indices.flatMap { sectionIndex in
                 sections[sectionIndex].items.indices.compactMap { itemIndex -> (Int, Int)? in
                     guard !sections[sectionIndex].items[itemIndex].isLocked,
-                          !sections[sectionIndex].items[itemIndex].track.isProvisionalExternalCandidate,
                           canReplace(sections[sectionIndex].items[itemIndex]) else { return nil }
                     return (sectionIndex, itemIndex)
                 }
@@ -712,11 +580,8 @@ public struct RecommendationEngine: Sendable {
         }
 
         if scenario.scenario.isGroupScenario {
-            let verifiedItemCount = sections
-                .flatMap(\.items)
-                .filter { !$0.track.isProvisionalExternalCandidate }
-                .count
-            let needed = Int(ceil(Double(verifiedItemCount) * 0.3))
+            let itemCount = sections.flatMap(\.items).count
+            let needed = Int(ceil(Double(itemCount) * 0.3))
             while sections.flatMap(\.items).filter({ isChorusFriendly($0.track) }).count < needed {
                 guard let candidate = scored.first(where: {
                     !selectedIDs.contains($0.track.id) && isChorusFriendly($0.track)
@@ -736,17 +601,18 @@ public struct RecommendationEngine: Sendable {
     }
 
     private func isChorusFriendly(_ track: KTVTrack) -> Bool {
-        !track.isProvisionalExternalCandidate
-            && (track.singAlongScore >= 0.78 || track.duetFriendly)
+        track.singAlongScore >= 0.78 || track.duetFriendly
     }
 
     private func alternatives(for track: KTVTrack, in catalog: [KTVTrack]) -> [KTVTrack] {
-        guard !track.isProvisionalExternalCandidate else { return [] }
-        let similar = catalog.filter { track.similarSongIds.contains($0.id) }
+        let similar = catalog.filter {
+            $0.catalogSource == .ktvCatalog
+                && track.similarSongIds.contains($0.id)
+        }
         if !similar.isEmpty { return Array(similar.prefix(2)) }
         return Array(catalog
             .filter {
-                !$0.isProvisionalExternalCandidate
+                $0.catalogSource == .ktvCatalog
                     && $0.id != track.id
                     && ($0.artist == track.artist || $0.genre == track.genre)
             }
@@ -756,6 +622,7 @@ public struct RecommendationEngine: Sendable {
 
     private struct ScoredTrack {
         let track: KTVTrack
+        let origin: SongRecommendationOrigin
         let scoreBreakdown: RecommendationScoreBreakdown
 
         var score: Double {

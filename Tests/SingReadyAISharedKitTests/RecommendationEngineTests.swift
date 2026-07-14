@@ -13,12 +13,19 @@ final class RecommendationEngineTests: XCTestCase {
             difficultyPreference: .balanced
         )
 
-        let plan = fixture.engine.generatePlan(
+        let voice = VoiceProfile.simulatedMiddle
+        let plan = try fixture.engine.generatePlan(
             matches: fixture.matches,
             preferenceProfile: fixture.profile,
-            voiceProfile: .simulatedMiddle,
+            voiceProfile: voice,
             scenario: scenario,
-            catalog: fixture.catalog
+            catalog: fixture.catalog,
+            generationContext: makeRecommendationGenerationContext(
+                matches: fixture.matches,
+                scenario: scenario,
+                voiceProfile: voice,
+                playlistTitle: fixture.playlist.title
+            )
         )
 
         XCTAssertEqual(plan.sections.count, KTVScenario.friends.sectionTemplates.count)
@@ -35,12 +42,19 @@ final class RecommendationEngineTests: XCTestCase {
         let fixture = try makeFixture(useQQPlaylist: true)
         let scenario = ScenarioConfig(scenario: .carKTV, durationMinutes: 45, difficultyPreference: .easy)
 
-        let plan = fixture.engine.generatePlan(
+        let voice = VoiceProfile.simulatedMiddle
+        let plan = try fixture.engine.generatePlan(
             matches: fixture.matches,
             preferenceProfile: fixture.profile,
-            voiceProfile: .simulatedMiddle,
+            voiceProfile: voice,
             scenario: scenario,
-            catalog: fixture.catalog
+            catalog: fixture.catalog,
+            generationContext: makeRecommendationGenerationContext(
+                matches: fixture.matches,
+                scenario: scenario,
+                voiceProfile: voice,
+                playlistTitle: fixture.playlist.title
+            )
         )
 
         let difficultCount = plan.sections.flatMap(\.items).filter { $0.track.difficulty >= 5 }.count
@@ -53,12 +67,19 @@ final class RecommendationEngineTests: XCTestCase {
 
         for scenario in KTVScenario.allCases {
             let config = ScenarioConfig(scenario: scenario, durationMinutes: 75)
-            let plan = fixture.engine.generatePlan(
+            let voice = VoiceProfile.simulatedMiddle
+            let plan = try fixture.engine.generatePlan(
                 matches: fixture.matches,
                 preferenceProfile: fixture.profile,
-                voiceProfile: .simulatedMiddle,
+                voiceProfile: voice,
                 scenario: config,
-                catalog: fixture.catalog
+                catalog: fixture.catalog,
+                generationContext: makeRecommendationGenerationContext(
+                    matches: fixture.matches,
+                    scenario: config,
+                    voiceProfile: voice,
+                    playlistTitle: fixture.playlist.title
+                )
             )
 
             XCTAssertEqual(plan.sections.map(\.title), scenario.sectionTemplates.map(\.title), scenario.rawValue)
@@ -68,12 +89,20 @@ final class RecommendationEngineTests: XCTestCase {
 
     func testBirthdayPlanContainsBlessingOrChorusSong() throws {
         let fixture = try makeFixture()
-        let plan = fixture.engine.generatePlan(
+        let scenario = ScenarioConfig(scenario: .birthday, durationMinutes: 90, vibe: .chorus)
+        let voice = VoiceProfile.simulatedMiddle
+        let plan = try fixture.engine.generatePlan(
             matches: fixture.matches,
             preferenceProfile: fixture.profile,
-            voiceProfile: .simulatedMiddle,
-            scenario: ScenarioConfig(scenario: .birthday, durationMinutes: 90, vibe: .chorus),
-            catalog: fixture.catalog
+            voiceProfile: voice,
+            scenario: scenario,
+            catalog: fixture.catalog,
+            generationContext: makeRecommendationGenerationContext(
+                matches: fixture.matches,
+                scenario: scenario,
+                voiceProfile: voice,
+                playlistTitle: fixture.playlist.title
+            )
         )
 
         XCTAssertTrue(plan.sections.flatMap(\.items).contains { item in
@@ -86,12 +115,20 @@ final class RecommendationEngineTests: XCTestCase {
 
     func testGroupScenarioKeepsEnoughChorusFriendlySongs() throws {
         let fixture = try makeFixture()
-        let plan = fixture.engine.generatePlan(
+        let scenario = ScenarioConfig(scenario: .teamBuilding, durationMinutes: 90, chorusPreference: .moreChorus)
+        let voice = VoiceProfile.simulatedMiddle
+        let plan = try fixture.engine.generatePlan(
             matches: fixture.matches,
             preferenceProfile: fixture.profile,
-            voiceProfile: .simulatedMiddle,
-            scenario: ScenarioConfig(scenario: .teamBuilding, durationMinutes: 90, chorusPreference: .moreChorus),
-            catalog: fixture.catalog
+            voiceProfile: voice,
+            scenario: scenario,
+            catalog: fixture.catalog,
+            generationContext: makeRecommendationGenerationContext(
+                matches: fixture.matches,
+                scenario: scenario,
+                voiceProfile: voice,
+                playlistTitle: fixture.playlist.title
+            )
         )
 
         let items = plan.sections.flatMap(\.items)
@@ -103,13 +140,21 @@ final class RecommendationEngineTests: XCTestCase {
         let fixture = try makeFixture()
         let lockedID = "t001"
         let removedID = "t002"
+        let scenario = ScenarioConfig(scenario: .friends, durationMinutes: 90)
+        let voice = VoiceProfile.simulatedMiddle
 
-        let plan = fixture.engine.generatePlan(
+        let plan = try fixture.engine.generatePlan(
             matches: fixture.matches,
             preferenceProfile: fixture.profile,
-            voiceProfile: .simulatedMiddle,
-            scenario: ScenarioConfig(scenario: .friends, durationMinutes: 90),
+            voiceProfile: voice,
+            scenario: scenario,
             catalog: fixture.catalog,
+            generationContext: makeRecommendationGenerationContext(
+                matches: fixture.matches,
+                scenario: scenario,
+                voiceProfile: voice,
+                playlistTitle: fixture.playlist.title
+            ),
             lockedTrackIDs: [lockedID],
             removedTrackIDs: [removedID]
         )
@@ -121,12 +166,20 @@ final class RecommendationEngineTests: XCTestCase {
 
     func testRecommendationAvoidsSameArtistBackToBackWhenPossible() throws {
         let fixture = try makeFixture()
-        let plan = fixture.engine.generatePlan(
+        let scenario = ScenarioConfig(scenario: .friends, durationMinutes: 120)
+        let voice = VoiceProfile.simulatedMiddle
+        let plan = try fixture.engine.generatePlan(
             matches: fixture.matches,
             preferenceProfile: fixture.profile,
-            voiceProfile: .simulatedMiddle,
-            scenario: ScenarioConfig(scenario: .friends, durationMinutes: 120),
-            catalog: fixture.catalog
+            voiceProfile: voice,
+            scenario: scenario,
+            catalog: fixture.catalog,
+            generationContext: makeRecommendationGenerationContext(
+                matches: fixture.matches,
+                scenario: scenario,
+                voiceProfile: voice,
+                playlistTitle: fixture.playlist.title
+            )
         )
 
         let artists = plan.sections.flatMap(\.items).map(\.track.artist)
@@ -137,12 +190,20 @@ final class RecommendationEngineTests: XCTestCase {
 
     func testScoreBreakdownFieldsAreExplainable() throws {
         let fixture = try makeFixture()
-        let plan = fixture.engine.generatePlan(
+        let scenario = ScenarioConfig(scenario: .couples, durationMinutes: 60, vibe: .spotlight, difficultyPreference: .showcase)
+        let voice = VoiceProfile.simulatedMiddle
+        let plan = try fixture.engine.generatePlan(
             matches: fixture.matches,
             preferenceProfile: fixture.profile,
-            voiceProfile: .simulatedMiddle,
-            scenario: ScenarioConfig(scenario: .couples, durationMinutes: 60, vibe: .spotlight, difficultyPreference: .showcase),
-            catalog: fixture.catalog
+            voiceProfile: voice,
+            scenario: scenario,
+            catalog: fixture.catalog,
+            generationContext: makeRecommendationGenerationContext(
+                matches: fixture.matches,
+                scenario: scenario,
+                voiceProfile: voice,
+                playlistTitle: fixture.playlist.title
+            )
         )
 
         let item = try XCTUnwrap(plan.sections.flatMap(\.items).first)
@@ -155,21 +216,21 @@ final class RecommendationEngineTests: XCTestCase {
 
     func testLockedTrackWinsEvenWhenAlsoRemoved() throws {
         let fixture = try makeFixture()
-        let plan = makePlan(fixture: fixture, scenario: .friends, locked: ["t001"], removed: ["t001"])
+        let plan = try makePlan(fixture: fixture, scenario: .friends, locked: ["t001"], removed: ["t001"])
 
         XCTAssertTrue(plan.sections.flatMap(\.items).contains { $0.track.id == "t001" && $0.isLocked })
     }
 
     func testRemovedTrackDoesNotAppear() throws {
         let fixture = try makeFixture()
-        let plan = makePlan(fixture: fixture, scenario: .friends, removed: ["t002"])
+        let plan = try makePlan(fixture: fixture, scenario: .friends, removed: ["t002"])
 
         XCTAssertFalse(plan.sections.flatMap(\.items).contains { $0.track.id == "t002" })
     }
 
     func testPlanCarriesScenarioSummaryAndVoiceProfile() throws {
         let fixture = try makeFixture()
-        let plan = makePlan(fixture: fixture, scenario: .birthday)
+        let plan = try makePlan(fixture: fixture, scenario: .birthday)
 
         XCTAssertEqual(plan.scenario, .birthday)
         XCTAssertEqual(plan.voiceProfile?.type, .unknown)
@@ -179,8 +240,8 @@ final class RecommendationEngineTests: XCTestCase {
 
     func testPlanSummaryUsesSelectedScenarioInsteadOfProfileBestScenario() throws {
         let fixture = try makeFixture()
-        let friendsPlan = makePlan(fixture: fixture, scenario: .friends)
-        let carPlan = makePlan(fixture: fixture, scenario: .carKTV)
+        let friendsPlan = try makePlan(fixture: fixture, scenario: .friends)
+        let carPlan = try makePlan(fixture: fixture, scenario: .carKTV)
 
         XCTAssertTrue(friendsPlan.preferenceSummary?.contains("朋友局") == true)
         XCTAssertFalse(friendsPlan.preferenceSummary?.contains("车载 K 歌") == true)
@@ -189,7 +250,7 @@ final class RecommendationEngineTests: XCTestCase {
 
     func testEverySectionHasGoalAndItems() throws {
         let fixture = try makeFixture()
-        let plan = makePlan(fixture: fixture, scenario: .friends)
+        let plan = try makePlan(fixture: fixture, scenario: .friends)
 
         XCTAssertTrue(plan.sections.allSatisfy { !$0.goal.isEmpty })
         XCTAssertTrue(plan.sections.allSatisfy { !$0.items.isEmpty })
@@ -197,7 +258,7 @@ final class RecommendationEngineTests: XCTestCase {
 
     func testNoDuplicateTracksInPlan() throws {
         let fixture = try makeFixture()
-        let plan = makePlan(fixture: fixture, scenario: .friends, duration: 120)
+        let plan = try makePlan(fixture: fixture, scenario: .friends, duration: 120)
         let ids = plan.sections.flatMap(\.items).map(\.track.id)
 
         XCTAssertEqual(ids.count, Set(ids).count)
@@ -231,12 +292,20 @@ final class RecommendationEngineTests: XCTestCase {
             matches: [result]
         )
 
-        let plan = RecommendationEngine().generatePlan(
+        let scenario = ScenarioConfig(scenario: .friends, durationMinutes: 30)
+        let voice = VoiceProfile.simulatedMiddle
+        let plan = try RecommendationEngine().generatePlan(
             matches: [result],
             preferenceProfile: profile,
-            voiceProfile: .simulatedMiddle,
-            scenario: ScenarioConfig(scenario: .friends, durationMinutes: 30),
-            catalog: []
+            voiceProfile: voice,
+            scenario: scenario,
+            catalog: [],
+            generationContext: makeRecommendationGenerationContext(
+                matches: [result],
+                scenario: scenario,
+                voiceProfile: voice,
+                playlistTitle: playlist.title
+            )
         )
         let recommendedIDs = plan.sections.flatMap(\.items).map(\.track.id)
 
@@ -280,12 +349,20 @@ final class RecommendationEngineTests: XCTestCase {
                 importedPlaylist: playlist,
                 matches: [result]
             )
-            let plan = RecommendationEngine().generatePlan(
+            let scenario = ScenarioConfig(scenario: .friends, durationMinutes: 30)
+            let voice = VoiceProfile.simulatedMiddle
+            let plan = try RecommendationEngine().generatePlan(
                 matches: [result],
                 preferenceProfile: profile,
-                voiceProfile: .simulatedMiddle,
-                scenario: ScenarioConfig(scenario: .friends, durationMinutes: 30),
-                catalog: [candidate]
+                voiceProfile: voice,
+                scenario: scenario,
+                catalog: [candidate],
+                generationContext: makeRecommendationGenerationContext(
+                    matches: [result],
+                    scenario: scenario,
+                    voiceProfile: voice,
+                    playlistTitle: playlist.title
+                )
             )
 
             XCTAssertTrue(result.isPending, testCase.name)
@@ -298,7 +375,7 @@ final class RecommendationEngineTests: XCTestCase {
 
     func testAlternativesExcludeCurrentTrack() throws {
         let fixture = try makeFixture()
-        let plan = makePlan(fixture: fixture, scenario: .friends)
+        let plan = try makePlan(fixture: fixture, scenario: .friends)
 
         for item in plan.sections.flatMap(\.items) {
             XCTAssertFalse(item.alternatives.contains { $0.id == item.track.id })
@@ -307,7 +384,7 @@ final class RecommendationEngineTests: XCTestCase {
 
     func testFinalScoresAreBounded() throws {
         let fixture = try makeFixture()
-        let plan = makePlan(fixture: fixture, scenario: .teamBuilding)
+        let plan = try makePlan(fixture: fixture, scenario: .teamBuilding)
 
         XCTAssertTrue(plan.sections.flatMap(\.items).allSatisfy { (0...1).contains($0.score) })
         XCTAssertTrue(plan.sections.flatMap(\.items).allSatisfy { (0...1).contains($0.scoreBreakdown.finalScore) })
@@ -315,22 +392,22 @@ final class RecommendationEngineTests: XCTestCase {
 
     func testLongerDurationProducesAtLeastAsManyItems() throws {
         let fixture = try makeFixture()
-        let shortPlan = makePlan(fixture: fixture, scenario: .friends, duration: 45)
-        let longPlan = makePlan(fixture: fixture, scenario: .friends, duration: 120)
+        let shortPlan = try makePlan(fixture: fixture, scenario: .friends, duration: 45)
+        let longPlan = try makePlan(fixture: fixture, scenario: .friends, duration: 120)
 
         XCTAssertGreaterThanOrEqual(longPlan.sections.flatMap(\.items).count, shortPlan.sections.flatMap(\.items).count)
     }
 
     func testCouplesPlanContainsSweetOrDuetFriendlySong() throws {
         let fixture = try makeFixture()
-        let plan = makePlan(fixture: fixture, scenario: .couples, vibe: .emotional)
+        let plan = try makePlan(fixture: fixture, scenario: .couples, vibe: .emotional)
 
         XCTAssertTrue(plan.sections.flatMap(\.items).contains { $0.track.duetFriendly || $0.track.genre == "甜歌" || $0.track.moodTags.contains("甜蜜") })
     }
 
     func testSoloPracticeUsesPracticeSections() throws {
         let fixture = try makeFixture()
-        let plan = makePlan(fixture: fixture, scenario: .soloPractice)
+        let plan = try makePlan(fixture: fixture, scenario: .soloPractice)
 
         XCTAssertEqual(plan.sections.map(\.title), KTVScenario.soloPractice.sectionTemplates.map(\.title))
         XCTAssertTrue(plan.sections.flatMap(\.items).allSatisfy { $0.track.highNoteRisk <= 0.9 })
@@ -338,7 +415,7 @@ final class RecommendationEngineTests: XCTestCase {
 
     func testTeamBuildingKeepsAverageDifficultyModerate() throws {
         let fixture = try makeFixture()
-        let plan = makePlan(fixture: fixture, scenario: .teamBuilding, difficulty: .easy)
+        let plan = try makePlan(fixture: fixture, scenario: .teamBuilding, difficulty: .easy)
         let difficulties = plan.sections.flatMap(\.items).map { Double($0.track.difficulty) }
 
         XCTAssertLessThanOrEqual(average(difficulties), 4.0)
@@ -346,7 +423,7 @@ final class RecommendationEngineTests: XCTestCase {
 
     func testCarKTVKeepsAverageRapDensityLow() throws {
         let fixture = try makeFixture(useQQPlaylist: true)
-        let plan = makePlan(fixture: fixture, scenario: .carKTV, difficulty: .easy)
+        let plan = try makePlan(fixture: fixture, scenario: .carKTV, difficulty: .easy)
         let rapDensity = plan.sections.flatMap(\.items).map(\.track.rapDensity)
 
         XCTAssertLessThan(average(rapDensity), 0.45)
@@ -354,7 +431,7 @@ final class RecommendationEngineTests: XCTestCase {
 
     func testEasyPreferenceAvoidsHighRiskOpeners() throws {
         let fixture = try makeFixture()
-        let plan = makePlan(fixture: fixture, scenario: .friends, difficulty: .easy)
+        let plan = try makePlan(fixture: fixture, scenario: .friends, difficulty: .easy)
         let first = try XCTUnwrap(plan.sections.first?.items.first)
 
         XCTAssertLessThan(first.track.highNoteRisk, 0.72)
@@ -363,7 +440,7 @@ final class RecommendationEngineTests: XCTestCase {
 
     func testShowcasePreferenceCanStillProduceHighScoringItems() throws {
         let fixture = try makeFixture()
-        let plan = makePlan(fixture: fixture, scenario: .friends, vibe: .spotlight, difficulty: .showcase)
+        let plan = try makePlan(fixture: fixture, scenario: .friends, vibe: .spotlight, difficulty: .showcase)
 
         XCTAssertTrue(plan.sections.flatMap(\.items).contains { $0.score >= 0.55 })
     }
@@ -380,12 +457,19 @@ final class RecommendationEngineTests: XCTestCase {
             confidence: 0.8,
             note: "测试声线"
         )
-        let plan = fixture.engine.generatePlan(
+        let scenario = ScenarioConfig(scenario: .friends, durationMinutes: 90)
+        let plan = try fixture.engine.generatePlan(
             matches: fixture.matches,
             preferenceProfile: fixture.profile,
             voiceProfile: lowVoice,
-            scenario: ScenarioConfig(scenario: .friends, durationMinutes: 90),
-            catalog: fixture.catalog
+            scenario: scenario,
+            catalog: fixture.catalog,
+            generationContext: makeRecommendationGenerationContext(
+                matches: fixture.matches,
+                scenario: scenario,
+                voiceProfile: lowVoice,
+                playlistTitle: fixture.playlist.title
+            )
         )
 
         XCTAssertTrue(plan.sections.flatMap(\.items).contains { !$0.riskWarnings.isEmpty })
@@ -393,14 +477,14 @@ final class RecommendationEngineTests: XCTestCase {
 
     func testMoreChorusPreferenceHasChorusFriendlyItems() throws {
         let fixture = try makeFixture()
-        let plan = makePlan(fixture: fixture, scenario: .friends, chorus: .moreChorus)
+        let plan = try makePlan(fixture: fixture, scenario: .friends, chorus: .moreChorus)
 
         XCTAssertTrue(plan.sections.flatMap(\.items).contains { $0.track.singAlongScore >= 0.84 || $0.track.duetFriendly })
     }
 
     func testQQPlaylistStillGeneratesExplainablePlan() throws {
         let fixture = try makeFixture(useQQPlaylist: true)
-        let plan = makePlan(fixture: fixture, scenario: .carKTV)
+        let plan = try makePlan(fixture: fixture, scenario: .carKTV)
 
         XCTAssertGreaterThan(plan.sections.flatMap(\.items).count, 0)
         XCTAssertTrue(plan.sections.flatMap(\.items).allSatisfy { !$0.reasons.isEmpty })
@@ -408,14 +492,14 @@ final class RecommendationEngineTests: XCTestCase {
 
     func testBirthdayPlanTitleIsLocalized() throws {
         let fixture = try makeFixture()
-        let plan = makePlan(fixture: fixture, scenario: .birthday)
+        let plan = try makePlan(fixture: fixture, scenario: .birthday)
 
         XCTAssertEqual(plan.title, "生日局歌单")
     }
 
     func testScoreBreakdownIncludesRiskPenaltyForEveryItem() throws {
         let fixture = try makeFixture()
-        let plan = makePlan(fixture: fixture, scenario: .friends)
+        let plan = try makePlan(fixture: fixture, scenario: .friends)
 
         XCTAssertTrue(plan.sections.flatMap(\.items).allSatisfy { $0.scoreBreakdown.riskPenalty >= 0 })
     }
@@ -430,14 +514,14 @@ final class RecommendationEngineTests: XCTestCase {
         XCTAssertEqual(fixture.matches.count, 90, "性能门槛应覆盖 90 条匹配输入")
         XCTAssertEqual(fixture.externalCandidateCount, 16, "性能门槛应覆盖外部候选上限")
         for _ in 0..<3 {
-            _ = generatePerformancePlan(fixture)
+            _ = try generatePerformancePlan(fixture)
         }
 
         var elapsedSeconds: [Double] = []
         var outputCounts: [Int] = []
         for _ in 0..<7 {
             let start = DispatchTime.now().uptimeNanoseconds
-            let plan = generatePerformancePlan(fixture)
+            let plan = try generatePerformancePlan(fixture)
             let end = DispatchTime.now().uptimeNanoseconds
             elapsedSeconds.append(Double(end - start) / 1_000_000_000)
             outputCounts.append(plan.sections.flatMap(\.items).count)
@@ -486,19 +570,27 @@ final class RecommendationEngineTests: XCTestCase {
         difficulty: DifficultyPreference = .balanced,
         locked: Set<String> = [],
         removed: Set<String> = []
-    ) -> SongPlan {
-        fixture.engine.generatePlan(
+    ) throws -> SongPlan {
+        let config = ScenarioConfig(
+            scenario: scenario,
+            durationMinutes: duration,
+            vibe: vibe,
+            chorusPreference: chorus,
+            difficultyPreference: difficulty
+        )
+        let voice = VoiceProfile.simulatedMiddle
+        return try fixture.engine.generatePlan(
             matches: fixture.matches,
             preferenceProfile: fixture.profile,
-            voiceProfile: .simulatedMiddle,
-            scenario: ScenarioConfig(
-                scenario: scenario,
-                durationMinutes: duration,
-                vibe: vibe,
-                chorusPreference: chorus,
-                difficultyPreference: difficulty
-            ),
+            voiceProfile: voice,
+            scenario: config,
             catalog: fixture.catalog,
+            generationContext: makeRecommendationGenerationContext(
+                matches: fixture.matches,
+                scenario: config,
+                voiceProfile: voice,
+                playlistTitle: fixture.playlist.title
+            ),
             lockedTrackIDs: locked,
             removedTrackIDs: removed
         )
@@ -566,13 +658,20 @@ final class RecommendationEngineTests: XCTestCase {
 
     private func generatePerformancePlan(
         _ fixture: RecommendationPerformanceFixture
-    ) -> SongPlan {
-        fixture.engine.generatePlan(
+    ) throws -> SongPlan {
+        let voice = VoiceProfile.simulatedMiddle
+        return try fixture.engine.generatePlan(
             matches: fixture.matches,
             preferenceProfile: fixture.profile,
-            voiceProfile: .simulatedMiddle,
+            voiceProfile: voice,
             scenario: fixture.scenario,
             catalog: fixture.catalog,
+            generationContext: makeRecommendationGenerationContext(
+                matches: fixture.matches,
+                scenario: fixture.scenario,
+                voiceProfile: voice,
+                playlistTitle: "性能预算歌单"
+            ),
             inputSource: .userImport,
             lockedTrackIDs: fixture.lockedTrackIDs
         )
@@ -635,4 +734,29 @@ final class RecommendationEngineTests: XCTestCase {
         let lockedTrackIDs: Set<String>
         let externalCandidateCount: Int
     }
+}
+
+func makeRecommendationGenerationContext(
+    matches: [MatchResult],
+    scenario: ScenarioConfig,
+    voiceProfile: VoiceProfile,
+    feedbackProfile: SongFeedbackProfile = .empty,
+    playlistTitle: String = "推荐合同测试"
+) -> SongPlanGenerationContext {
+    let statistics = MatchStatistics(matches: matches)
+    return SongPlanGenerationContext(
+        playlistID: UUID(),
+        playlistTitle: playlistTitle,
+        importedSongCount: matches.count,
+        verifiedSongCount: statistics.verified,
+        pendingSongCount: statistics.pending,
+        unmatchedSongCount: statistics.unmatched,
+        scenario: scenario.scenario,
+        peopleCount: scenario.peopleCount,
+        durationMinutes: scenario.durationMinutes,
+        voiceSource: voiceProfile.source,
+        feedbackCount: feedbackProfile.feedbackByTrackID.values.reduce(0) { count, feedback in
+            count + feedback.count
+        }
+    )
 }

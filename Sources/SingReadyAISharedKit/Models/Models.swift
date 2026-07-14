@@ -2071,18 +2071,14 @@ private func normalizeSongPlanSectionsForTrustBoundary(
     _ sections: [SongPlanSection]
 ) -> [SongPlanSection] {
     var normalized: [SongPlanSection] = []
-    var provisionalItems: [SongPlanItem] = []
-    var existingVerificationID: UUID?
 
     for original in sections {
         var section = original
         let sanitizedItems = section.items.map { $0.sanitizedForTrustBoundaries() }
         let extractedProvisionalItems = sanitizedItems.filter { $0.track.isProvisionalExternalCandidate }
-        provisionalItems.append(contentsOf: extractedProvisionalItems)
         let verifiedItems = sanitizedItems.filter { !$0.track.isProvisionalExternalCandidate }
 
         if section.role == .externalVerification {
-            existingVerificationID = existingVerificationID ?? section.id
             if !verifiedItems.isEmpty {
                 section.role = .general
                 section.items = verifiedItems
@@ -2094,16 +2090,6 @@ private func normalizeSongPlanSectionsForTrustBoundary(
                 normalized.append(section)
             }
         }
-    }
-
-    if !provisionalItems.isEmpty {
-        normalized.append(SongPlanSection(
-            id: existingVerificationID ?? UUID(),
-            role: .externalVerification,
-            title: "待核对候选",
-            goal: "来自公开搜索；点歌前请核对 KTV 收录，不代表已经核对过难度、音区或现场表现。",
-            items: provisionalItems
-        ))
     }
     return normalized
 }

@@ -204,13 +204,73 @@ final class ExternalCandidateContractTests: XCTestCase {
 
         XCTAssertNil(legacy.externalCandidateMetadata)
         XCTAssertTrue(legacy.isProvisionalExternalCandidate)
-        let legacyItem = try XCTUnwrap(planItem(for: legacy))
-        XCTAssertEqual(legacyItem.scoreBreakdown.ktvAvailabilityScore, 0)
-        XCTAssertEqual(legacyItem.scoreBreakdown.vocalFitScore, 0)
-        XCTAssertEqual(legacyItem.scoreBreakdown.singAlongScore, 0)
-        XCTAssertEqual(legacyItem.scoreBreakdown.sceneFitScore, 0)
-        XCTAssertEqual(legacyItem.riskWarnings, [])
-        XCTAssertNil(legacyItem.singingAdvice)
+        XCTAssertNil(try planItem(for: legacy))
+    }
+
+    func testExternalCandidateIsRejectedFromMatchCatalogAndLockedPaths() throws {
+        let external = makeTrack(
+            id: "external-all-paths",
+            title: "三路外部候选",
+            artist: "外部歌手",
+            source: .externalSimilar,
+            metadata: ExternalCandidateMetadata(
+                relation: .similarTrack,
+                relevance: 1,
+                reasons: ["公开结果相关"],
+                provider: .lastFM
+            )
+        )
+        let scenario = ScenarioConfig(scenario: .friends, durationMinutes: 30)
+        let voice = VoiceProfile.simulatedMiddle
+        let matchPath = [match(external)]
+        let fromMatch = try RecommendationEngine().generatePlan(
+            matches: matchPath,
+            preferenceProfile: profile(),
+            voiceProfile: voice,
+            scenario: scenario,
+            catalog: [],
+            generationContext: makeRecommendationGenerationContext(
+                matches: matchPath,
+                scenario: scenario,
+                voiceProfile: voice
+            )
+        )
+        let fromCatalog = try RecommendationEngine().generatePlan(
+            matches: [],
+            preferenceProfile: profile(),
+            voiceProfile: voice,
+            scenario: scenario,
+            catalog: [external],
+            generationContext: makeRecommendationGenerationContext(
+                matches: [],
+                scenario: scenario,
+                voiceProfile: voice
+            )
+        )
+
+        XCTAssertFalse(fromMatch.sections.flatMap(\.items).contains { $0.track.id == external.id })
+        XCTAssertFalse(fromCatalog.sections.flatMap(\.items).contains { $0.track.id == external.id })
+        XCTAssertThrowsError(
+            try RecommendationEngine().generatePlan(
+                matches: matchPath,
+                preferenceProfile: profile(),
+                voiceProfile: voice,
+                scenario: scenario,
+                catalog: [external],
+                generationContext: makeRecommendationGenerationContext(
+                    matches: matchPath,
+                    scenario: scenario,
+                    voiceProfile: voice
+                ),
+                lockedTrackIDs: [external.id]
+            )
+        ) { error in
+            XCTAssertTrue(error is RecommendationGenerationError)
+            XCTAssertEqual(
+                String(describing: error),
+                "lockedTrackUnavailable(trackIDs: [\"external-all-paths\"])"
+            )
+        }
     }
 
     func testProvisionalRecommendationIgnoresAllPlaceholderMetrics() throws {
@@ -253,24 +313,8 @@ final class ExternalCandidateContractTests: XCTestCase {
             sceneTags: ["birthday", "carKTV"]
         )
 
-        let lowItem = try XCTUnwrap(planItem(for: lowPlaceholders))
-        let highItem = try XCTUnwrap(planItem(for: highPlaceholders))
-
-        XCTAssertEqual(lowItem.score, highItem.score, accuracy: 0.000_001)
-        XCTAssertEqual(lowItem.scoreBreakdown, highItem.scoreBreakdown)
-        XCTAssertEqual(lowItem.scoreBreakdown.ktvAvailabilityScore, 0)
-        XCTAssertEqual(lowItem.scoreBreakdown.vocalFitScore, 0)
-        XCTAssertEqual(lowItem.scoreBreakdown.singAlongScore, 0)
-        XCTAssertEqual(lowItem.scoreBreakdown.sceneFitScore, 0)
-        XCTAssertEqual(lowItem.scoreBreakdown.riskPenalty, 0)
-        XCTAssertEqual(lowItem.reasons, highItem.reasons)
-        XCTAssertTrue(lowItem.reasons.allSatisfy { reason in
-            !reason.contains("适唱") || reason.contains("待核对")
-        })
-        XCTAssertEqual(lowItem.riskWarnings, [])
-        XCTAssertEqual(highItem.riskWarnings, [])
-        XCTAssertNil(lowItem.singingAdvice)
-        XCTAssertNil(highItem.singingAdvice)
+        XCTAssertNil(try planItem(for: lowPlaceholders))
+        XCTAssertNil(try planItem(for: highPlaceholders))
     }
 
     func testReasonBuilderDoesNotExposeUntrustedExternalMetadataClaims() {
@@ -298,7 +342,7 @@ final class ExternalCandidateContractTests: XCTestCase {
         XCTAssertFalse(reasons.contains { $0.contains("完全适合") || $0.contains("一定会唱") })
     }
 
-    func testProvisionalRankingOrderDoesNotChangeWhenPlaceholderMetricsChange() {
+    func testProvisionalRankingOrderDoesNotChangeWhenPlaceholderMetricsChange() throws {
         let firstMetadata = ExternalCandidateMetadata(
             relation: .sameArtist,
             relevance: 0.9,
@@ -360,10 +404,10 @@ final class ExternalCandidateContractTests: XCTestCase {
             highRisk: 0
         )
 
-        let originalOrder = planTrackIDs(catalog: [firstLow, secondHigh])
-        let mutatedOrder = planTrackIDs(catalog: [firstHigh, secondLow])
+        let originalOrder = try planTrackIDs(catalog: [firstLow, secondHigh])
+        let mutatedOrder = try planTrackIDs(catalog: [firstHigh, secondLow])
 
-        XCTAssertEqual(originalOrder, ["first", "second"])
+        XCTAssertEqual(originalOrder, [])
         XCTAssertEqual(mutatedOrder, originalOrder)
     }
 
@@ -387,18 +431,12 @@ final class ExternalCandidateContractTests: XCTestCase {
             moodTags: ["合唱", "高光"],
             sceneTags: ["birthday"]
         )
-        let friends = try XCTUnwrap(planItem(for: track, scenario: .friends))
-        let birthday = try XCTUnwrap(planItem(for: track, scenario: .birthday))
-        let car = try XCTUnwrap(planItem(for: track, scenario: .carKTV))
-
-        XCTAssertEqual(friends.scoreBreakdown, birthday.scoreBreakdown)
-        XCTAssertEqual(birthday.scoreBreakdown, car.scoreBreakdown)
-        XCTAssertEqual(friends.reasons, birthday.reasons)
-        XCTAssertEqual(birthday.reasons, car.reasons)
-        XCTAssertTrue([friends, birthday, car].allSatisfy { $0.riskWarnings.isEmpty })
+        XCTAssertNil(try planItem(for: track, scenario: .friends))
+        XCTAssertNil(try planItem(for: track, scenario: .birthday))
+        XCTAssertNil(try planItem(for: track, scenario: .carKTV))
     }
 
-    func testProvisionalCandidateCannotSatisfyBirthdayOrChorusHardRules() {
+    func testProvisionalCandidateCannotSatisfyBirthdayOrChorusHardRules() throws {
         let external = makeTrack(
             id: "external-party",
             source: .externalSimilar,
@@ -414,12 +452,20 @@ final class ExternalCandidateContractTests: XCTestCase {
             sceneTags: ["birthday"]
         )
         let ordinary = makeTrack(id: "local", title: "普通歌曲")
-        let plan = RecommendationEngine().generatePlan(
-            matches: [match(external), match(ordinary)],
+        let matches = [match(external), match(ordinary)]
+        let scenario = ScenarioConfig(scenario: .birthday, peopleCount: 6, durationMinutes: 30)
+        let voice = measuredVoice()
+        let plan = try RecommendationEngine().generatePlan(
+            matches: matches,
             preferenceProfile: profile(),
-            voiceProfile: measuredVoice(),
-            scenario: ScenarioConfig(scenario: .birthday, peopleCount: 6, durationMinutes: 30),
+            voiceProfile: voice,
+            scenario: scenario,
             catalog: [external, ordinary],
+            generationContext: makeRecommendationGenerationContext(
+                matches: matches,
+                scenario: scenario,
+                voiceProfile: voice
+            ),
             inputSource: .userImport
         )
 
@@ -427,7 +473,7 @@ final class ExternalCandidateContractTests: XCTestCase {
         XCTAssertTrue(plan.notices.contains { $0.contains("合唱比例规则未能完全满足") })
     }
 
-    func testAddingExternalCandidateDoesNotChangeVerifiedChorusHardRuleDecision() {
+    func testAddingExternalCandidateDoesNotChangeVerifiedChorusHardRuleDecision() throws {
         let chorus = makeTrack(id: "verified-chorus", title: "本地合唱", singAlong: 0.9)
         let ordinaryA = makeTrack(id: "verified-a", title: "本地普通一", singAlong: 0.2)
         let ordinaryB = makeTrack(id: "verified-b", title: "本地普通二", singAlong: 0.2)
@@ -445,19 +491,32 @@ final class ExternalCandidateContractTests: XCTestCase {
             singAlong: 1
         )
         let scenario = ScenarioConfig(scenario: .friends, peopleCount: 4, durationMinutes: 30)
-        let baseline = RecommendationEngine().generatePlan(
-            matches: verified.map(match),
+        let voice = measuredVoice()
+        let baselineMatches = verified.map(match)
+        let augmentedMatches = (verified + [external]).map(match)
+        let baseline = try RecommendationEngine().generatePlan(
+            matches: baselineMatches,
             preferenceProfile: profile(),
-            voiceProfile: measuredVoice(),
+            voiceProfile: voice,
             scenario: scenario,
-            catalog: verified
+            catalog: verified,
+            generationContext: makeRecommendationGenerationContext(
+                matches: baselineMatches,
+                scenario: scenario,
+                voiceProfile: voice
+            )
         )
-        let withExternal = RecommendationEngine().generatePlan(
-            matches: (verified + [external]).map(match),
+        let withExternal = try RecommendationEngine().generatePlan(
+            matches: augmentedMatches,
             preferenceProfile: profile(),
-            voiceProfile: measuredVoice(),
+            voiceProfile: voice,
             scenario: scenario,
-            catalog: verified + [external]
+            catalog: verified + [external],
+            generationContext: makeRecommendationGenerationContext(
+                matches: augmentedMatches,
+                scenario: scenario,
+                voiceProfile: voice
+            )
         )
         let baselineVerifiedIDs = Set(baseline.sections.flatMap(\.items).map(\.track).filter { !$0.isProvisionalExternalCandidate }.map(\.id))
         let augmentedVerifiedIDs = Set(withExternal.sections.flatMap(\.items).map(\.track).filter { !$0.isProvisionalExternalCandidate }.map(\.id))
@@ -465,11 +524,11 @@ final class ExternalCandidateContractTests: XCTestCase {
         let augmentedChorusNotices = withExternal.notices.filter { $0.contains("合唱比例规则") }
 
         XCTAssertEqual(augmentedVerifiedIDs, baselineVerifiedIDs)
-        XCTAssertTrue(withExternal.sections.flatMap(\.items).contains { $0.track.id == external.id })
+        XCTAssertFalse(withExternal.sections.flatMap(\.items).contains { $0.track.id == external.id })
         XCTAssertEqual(augmentedChorusNotices, baselineChorusNotices)
     }
 
-    func testProvisionalCandidatesAreRehomedOnlyIntoNeutralVerificationSection() {
+    func testProvisionalCandidatesAreDroppedInsteadOfEnteringFormalSections() throws {
         let external = makeTrack(
             id: "external-neutral",
             title: "公开候选",
@@ -489,26 +548,23 @@ final class ExternalCandidateContractTests: XCTestCase {
             sceneTags: ["friends"]
         )
         let local = makeTrack(id: "verified-local", title: "本地歌", genre: "测试类型")
-        let plan = RecommendationEngine().generatePlan(
-            matches: [match(external), match(local)],
+        let matches = [match(external), match(local)]
+        let scenario = ScenarioConfig(scenario: .friends, durationMinutes: 30)
+        let voice = measuredVoice()
+        let plan = try RecommendationEngine().generatePlan(
+            matches: matches,
             preferenceProfile: profile(),
-            voiceProfile: measuredVoice(),
-            scenario: ScenarioConfig(scenario: .friends, durationMinutes: 30),
-            catalog: [external, local]
+            voiceProfile: voice,
+            scenario: scenario,
+            catalog: [external, local],
+            generationContext: makeRecommendationGenerationContext(
+                matches: matches,
+                scenario: scenario,
+                voiceProfile: voice
+            )
         )
-        let externalSections = plan.sections.filter { section in
-            section.items.contains { $0.track.id == external.id }
-        }
-
-        XCTAssertEqual(externalSections.map(\.role), [.externalVerification])
-        XCTAssertTrue(externalSections.allSatisfy { $0.title.contains("待核对") })
-        XCTAssertTrue(externalSections.allSatisfy { !$0.goal.contains("适合") })
-        XCTAssertFalse(
-            plan.sections
-                .filter { $0.role != .externalVerification }
-                .flatMap(\.items)
-                .contains { $0.track.isProvisionalExternalCandidate }
-        )
+        XCTAssertFalse(plan.sections.flatMap(\.items).contains { $0.track.id == external.id })
+        XCTAssertFalse(plan.sections.contains { $0.role == .externalVerification })
     }
 
     func testLegacyProvisionalItemAndPlanDecodeRemovePersistedConclusions() throws {
@@ -544,12 +600,9 @@ final class ExternalCandidateContractTests: XCTestCase {
             SongPlan.self,
             from: JSONSerialization.data(withJSONObject: planObject, options: [.sortedKeys])
         )
-        let externalSection = try XCTUnwrap(plan.sections.first(where: { $0.role == .externalVerification }))
-
-        XCTAssertEqual(externalSection.items.count, 1)
-        XCTAssertTrue(externalSection.title.contains("待核对"))
-        XCTAssertFalse(plan.sections.filter { $0.role != .externalVerification }.flatMap(\.items).contains { $0.track.isProvisionalExternalCandidate })
-        XCTAssertFalse(plan.sections.contains { $0.role == .familiar }, "迁出唯一候选后不应保留空的误导分区")
+        XCTAssertTrue(plan.sections.flatMap(\.items).isEmpty)
+        XCTAssertFalse(plan.sections.contains { $0.role == .externalVerification })
+        XCTAssertFalse(plan.sections.contains { $0.role == .familiar }, "丢弃唯一候选后不应保留空分区")
 
         let text = PlaylistTextExporter().export(plan: plan)
         let json = try PlaylistJSONExporter().export(plan: plan)
@@ -596,7 +649,7 @@ final class ExternalCandidateContractTests: XCTestCase {
         XCTAssertEqual(selection.closing?.track.id, local.id)
     }
 
-    func testCompleteLocalCatalogSemanticKeysSuppressIrrelevantExternalDuplicate() {
+    func testCompleteLocalCatalogSemanticKeysSuppressIrrelevantExternalDuplicate() throws {
         let localDuplicate = makeTrack(
             id: "local-duplicate-hidden",
             title: "同名歌曲",
@@ -619,29 +672,36 @@ final class ExternalCandidateContractTests: XCTestCase {
         let relevant = (0..<8).map { index in
             makeTrack(id: "relevant-\(index)", title: "相关歌曲 \(index)", genre: "测试类型")
         }
-        let plan = RecommendationEngine().generatePlan(
+        let scenario = ScenarioConfig(scenario: .friends, durationMinutes: 30)
+        let voice = VoiceProfile.simulatedMiddle
+        let plan = try RecommendationEngine().generatePlan(
             matches: [],
             preferenceProfile: profile(genre: "测试类型"),
-            voiceProfile: .simulatedMiddle,
-            scenario: ScenarioConfig(scenario: .friends, durationMinutes: 30),
-            catalog: [externalDuplicate] + relevant + [localDuplicate]
+            voiceProfile: voice,
+            scenario: scenario,
+            catalog: [externalDuplicate] + relevant + [localDuplicate],
+            generationContext: makeRecommendationGenerationContext(
+                matches: [],
+                scenario: scenario,
+                voiceProfile: voice
+            )
         )
 
         XCTAssertFalse(plan.sections.flatMap(\.items).contains { $0.track.id == externalDuplicate.id })
     }
 
-    func testEqualScoreOrderingUsesStableSemanticKeyInsteadOfCatalogOrder() {
+    func testEqualScoreOrderingUsesStableSemanticKeyInsteadOfCatalogOrder() throws {
         let alpha = makeTrack(id: "alpha", title: "A 歌", artist: "歌手A")
         let beta = makeTrack(id: "beta", title: "B 歌", artist: "歌手B")
 
-        let firstOrder = planTrackIDs(catalog: [beta, alpha])
-        let secondOrder = planTrackIDs(catalog: [alpha, beta])
+        let firstOrder = try planTrackIDs(catalog: [beta, alpha])
+        let secondOrder = try planTrackIDs(catalog: [alpha, beta])
 
         XCTAssertEqual(firstOrder, secondOrder)
         XCTAssertEqual(firstOrder, ["alpha", "beta"])
     }
 
-    func testSemanticDeduplicationAlwaysKeepsLocalReference() {
+    func testSemanticDeduplicationAlwaysKeepsLocalReference() throws {
         let metadata = ExternalCandidateMetadata(
             relation: .sameArtist,
             relevance: 1,
@@ -662,12 +722,19 @@ final class ExternalCandidateContractTests: XCTestCase {
             source: .ktvCatalog
         )
 
-        let plan = RecommendationEngine().generatePlan(
+        let scenario = ScenarioConfig(scenario: .friends, durationMinutes: 30)
+        let voice = VoiceProfile.simulatedMiddle
+        let plan = try RecommendationEngine().generatePlan(
             matches: [],
             preferenceProfile: profile(genre: local.genre),
-            voiceProfile: .simulatedMiddle,
-            scenario: ScenarioConfig(scenario: .friends, durationMinutes: 30),
-            catalog: [external, local]
+            voiceProfile: voice,
+            scenario: scenario,
+            catalog: [external, local],
+            generationContext: makeRecommendationGenerationContext(
+                matches: [],
+                scenario: scenario,
+                voiceProfile: voice
+            )
         )
         let ids = Set(plan.sections.flatMap(\.items).map(\.track.id))
 
@@ -675,7 +742,7 @@ final class ExternalCandidateContractTests: XCTestCase {
         XCTAssertFalse(ids.contains(external.id))
     }
 
-    func testHighRelevanceExternalCandidateIsConsideredAfterFullLocalCap() {
+    func testHighRelevanceExternalCandidateDoesNotEnterPlanAfterFullLocalCap() throws {
         let localTracks = (0..<90).map { index in
             makeTrack(
                 id: "local-\(index)",
@@ -700,15 +767,22 @@ final class ExternalCandidateContractTests: XCTestCase {
                 provider: .lastFM
             )
         )
-        let plan = RecommendationEngine().generatePlan(
+        let scenario = ScenarioConfig(scenario: .friends, durationMinutes: 30)
+        let voice = VoiceProfile.simulatedMiddle
+        let plan = try RecommendationEngine().generatePlan(
             matches: [],
             preferenceProfile: profile(genre: "测试类型"),
-            voiceProfile: .simulatedMiddle,
-            scenario: ScenarioConfig(scenario: .friends, durationMinutes: 30),
-            catalog: localTracks + [external]
+            voiceProfile: voice,
+            scenario: scenario,
+            catalog: localTracks + [external],
+            generationContext: makeRecommendationGenerationContext(
+                matches: [],
+                scenario: scenario,
+                voiceProfile: voice
+            )
         )
 
-        XCTAssertTrue(plan.sections.flatMap(\.items).contains { $0.track.id == external.id })
+        XCTAssertFalse(plan.sections.flatMap(\.items).contains { $0.track.id == external.id })
     }
 
     func testAccumulatorDeduplicatesBySemanticKeyAndLocalCatalogWins() {
@@ -886,24 +960,40 @@ final class ExternalCandidateContractTests: XCTestCase {
     private func planItem(
         for track: KTVTrack,
         scenario: KTVScenario = .carKTV
-    ) -> SongPlanItem? {
-        RecommendationEngine().generatePlan(
-            matches: [match(track)],
+    ) throws -> SongPlanItem? {
+        let matches = [match(track)]
+        let config = ScenarioConfig(scenario: scenario, peopleCount: 4, durationMinutes: 30)
+        let voice = measuredVoice()
+        return try RecommendationEngine().generatePlan(
+            matches: matches,
             preferenceProfile: profile(),
-            voiceProfile: measuredVoice(),
-            scenario: ScenarioConfig(scenario: scenario, peopleCount: 4, durationMinutes: 30),
+            voiceProfile: voice,
+            scenario: config,
             catalog: [track],
+            generationContext: makeRecommendationGenerationContext(
+                matches: matches,
+                scenario: config,
+                voiceProfile: voice
+            ),
             inputSource: .userImport
         ).sections.flatMap(\.items).first
     }
 
-    private func planTrackIDs(catalog: [KTVTrack]) -> [String] {
-        RecommendationEngine().generatePlan(
-            matches: catalog.map(match),
+    private func planTrackIDs(catalog: [KTVTrack]) throws -> [String] {
+        let matches = catalog.map(match)
+        let scenario = ScenarioConfig(scenario: .friends, peopleCount: 4, durationMinutes: 30)
+        let voice = measuredVoice()
+        return try RecommendationEngine().generatePlan(
+            matches: matches,
             preferenceProfile: profile(),
-            voiceProfile: measuredVoice(),
-            scenario: ScenarioConfig(scenario: .friends, peopleCount: 4, durationMinutes: 30),
+            voiceProfile: voice,
+            scenario: scenario,
             catalog: catalog,
+            generationContext: makeRecommendationGenerationContext(
+                matches: matches,
+                scenario: scenario,
+                voiceProfile: voice
+            ),
             inputSource: .userImport
         ).sections.flatMap(\.items).map(\.track.id)
     }

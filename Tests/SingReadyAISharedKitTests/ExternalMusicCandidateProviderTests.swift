@@ -462,7 +462,7 @@ final class ExternalMusicCandidateProviderTests: XCTestCase {
         XCTAssertTrue(track.confidenceNote?.contains("待核对") == true)
     }
 
-    func testRecommendationEngineCanUseMappedExternalCandidates() throws {
+    func testRecommendationEngineRejectsMappedExternalCandidates() throws {
         let externalCandidates = [
             ExternalSongCandidate(title: "七里香", artist: "周杰伦", source: .lastFM, confidence: 0.9, primaryGenreName: "Mandopop", releaseYear: 2004),
             ExternalSongCandidate(title: "十年", artist: "陈奕迅", source: .lastFM, confidence: 0.8, primaryGenreName: "Mandopop", releaseYear: 2003),
@@ -492,16 +492,23 @@ final class ExternalMusicCandidateProviderTests: XCTestCase {
             highNoteRisk: 0.5,
             summary: "外部相似歌曲候选"
         )
+        let scenario = ScenarioConfig(scenario: .friends, durationMinutes: 45)
+        let voice = VoiceProfile.simulatedMiddle
 
-        let plan = RecommendationEngine().generatePlan(
+        let plan = try RecommendationEngine().generatePlan(
             matches: matches,
             preferenceProfile: profile,
-            voiceProfile: .simulatedMiddle,
-            scenario: ScenarioConfig(scenario: .friends, durationMinutes: 45),
-            catalog: catalog
+            voiceProfile: voice,
+            scenario: scenario,
+            catalog: catalog,
+            generationContext: makeRecommendationGenerationContext(
+                matches: matches,
+                scenario: scenario,
+                voiceProfile: voice
+            )
         )
 
-        XCTAssertTrue(plan.sections.flatMap(\.items).contains { $0.track.id.hasPrefix("external:lastFM:") })
+        XCTAssertFalse(plan.sections.flatMap(\.items).contains { $0.track.id.hasPrefix("external:lastFM:") })
     }
 }
 

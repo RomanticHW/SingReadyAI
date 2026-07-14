@@ -385,23 +385,37 @@ final class ProductClosureTests: XCTestCase {
         )
         let pending = try XCTUnwrap(SongMatcher().match(playlist: playlist, catalog: [track]).first)
         let pendingProfile = PreferenceProfiler().buildProfile(importedPlaylist: playlist, matches: [pending])
+        let scenario = ScenarioConfig(scenario: .friends, peopleCount: 4, durationMinutes: 45)
+        let voice = VoiceProfile.simulatedMiddle
 
-        let pendingPlan = RecommendationEngine().generatePlan(
+        let pendingPlan = try RecommendationEngine().generatePlan(
             matches: [pending],
             preferenceProfile: pendingProfile,
-            voiceProfile: .simulatedMiddle,
-            scenario: ScenarioConfig(scenario: .friends, peopleCount: 4, durationMinutes: 45),
+            voiceProfile: voice,
+            scenario: scenario,
             catalog: [track],
+            generationContext: makeRecommendationGenerationContext(
+                matches: [pending],
+                scenario: scenario,
+                voiceProfile: voice,
+                playlistTitle: playlist.title
+            ),
             inputSource: .userImport
         )
         let confirmed = try XCTUnwrap(pending.confirming(track: track))
         let confirmedProfile = PreferenceProfiler().buildProfile(importedPlaylist: playlist, matches: [confirmed])
-        let confirmedPlan = RecommendationEngine().generatePlan(
+        let confirmedPlan = try RecommendationEngine().generatePlan(
             matches: [confirmed],
             preferenceProfile: confirmedProfile,
-            voiceProfile: .simulatedMiddle,
-            scenario: ScenarioConfig(scenario: .friends, peopleCount: 4, durationMinutes: 45),
+            voiceProfile: voice,
+            scenario: scenario,
             catalog: [track],
+            generationContext: makeRecommendationGenerationContext(
+                matches: [confirmed],
+                scenario: scenario,
+                voiceProfile: voice,
+                playlistTitle: playlist.title
+            ),
             inputSource: .userImport
         )
 
@@ -409,7 +423,377 @@ final class ProductClosureTests: XCTestCase {
         XCTAssertTrue(confirmedPlan.sections.flatMap(\.items).contains { $0.track.id == track.id })
     }
 
-    func testPendingAndUnmatchedUserImportsUseNeutralScenarioPlanSummary() {
+    func testPendingPathDoesNotSuppressSameTrackAcceptedByAnotherImport() throws {
+        let track = makeTrack(
+            id: "shared-track",
+            title: "合法重合歌曲",
+            artist: "歌手A"
+        )
+        let pending = MatchResult(
+            importedSong: ImportedSong(
+                title: track.title,
+                source: .plainText,
+                confidence: 1
+            ),
+            disposition: .identityConfirmationRequired(candidates: [track]),
+            score: 0.8,
+            reason: "待确认歌手"
+        )
+        let accepted = MatchResult(
+            importedSong: ImportedSong(
+                title: track.title,
+                artist: track.artist,
+                source: .plainText,
+                confidence: 1
+            ),
+            disposition: .acceptedOriginalExact(track: track),
+            score: 1,
+            reason: "明确接受"
+        )
+
+        let matches = [pending, accepted]
+        let scenario = ScenarioConfig(scenario: .friends, peopleCount: 4, durationMinutes: 30)
+        let voice = VoiceProfile.simulatedMiddle
+        let plan = try RecommendationEngine().generatePlan(
+            matches: matches,
+            preferenceProfile: makeProfile(),
+            voiceProfile: voice,
+            scenario: scenario,
+            catalog: [track],
+            generationContext: makeRecommendationGenerationContext(
+                matches: matches,
+                scenario: scenario,
+                voiceProfile: voice
+            ),
+            inputSource: .userImport
+        )
+        let matchingItems = plan.sections
+            .flatMap(\.items)
+            .filter { $0.track.id == track.id }
+
+        XCTAssertEqual(matchingItems.count, 1)
+        XCTAssertEqual(matchingItems.first?.origin, .importedMatch)
+    }
+
+    func testCandidateOriginsPreferAdoptedAlternativeOverImportedMatchForSameSongIdentity() throws {
+        let imported = makeTrack(
+            id: "same-song-imported",
+            title: "同一首歌",
+            artist: "同一歌手"
+        )
+        let adopted = makeTrack(
+            id: "same-song-adopted",
+            title: imported.title,
+            artist: imported.artist
+        )
+        let importedMatch = MatchResult(
+            importedSong: ImportedSong(
+                title: imported.title,
+                artist: imported.artist,
+                source: .plainText,
+                confidence: 1
+            ),
+            disposition: .acceptedOriginalExact(track: imported),
+            score: 1,
+            reason: "原曲命中"
+        )
+        let adoptedMatch = MatchResult(
+            importedSong: ImportedSong(
+                title: "原歌",
+                artist: "原歌手",
+                source: .plainText,
+                confidence: 1
+            ),
+            disposition: .adoptedAlternative(track: adopted),
+            score: 0.8,
+            reason: "已采用替代"
+        )
+
+        let matches = [importedMatch, adoptedMatch]
+        let scenario = ScenarioConfig(scenario: .friends, durationMinutes: 30)
+        let voice = VoiceProfile.simulatedMiddle
+        let plan = try RecommendationEngine().generatePlan(
+            matches: matches,
+            preferenceProfile: makeProfile(),
+            voiceProfile: voice,
+            scenario: scenario,
+            catalog: [],
+            generationContext: makeRecommendationGenerationContext(
+                matches: matches,
+                scenario: scenario,
+                voiceProfile: voice
+            )
+        )
+        let items = plan.sections.flatMap(\.items)
+
+        XCTAssertEqual(items.map(\.track.id), [adopted.id])
+        XCTAssertEqual(items.first?.origin, .adoptedAlternative)
+    }
+
+    func testCandidateSemanticDeduplicationKeepsStudioLiveAndRemixVersionsSeparate() throws {
+        let tracks = [
+            makeTrack(
+                id: "version-studio",
+                title: "版本歌曲",
+                artist: "版本歌手"
+            ),
+            makeTrack(
+                id: "version-live",
+                title: "版本歌曲 Live",
+                artist: "版本歌手",
+                versionTags: ["Live"]
+            ),
+            makeTrack(
+                id: "version-remix",
+                title: "版本歌曲 Remix",
+                artist: "版本歌手",
+                versionTags: ["Remix"]
+            )
+        ]
+
+        let matches = tracks.map(match)
+        let scenario = ScenarioConfig(scenario: .friends, durationMinutes: 30)
+        let voice = VoiceProfile.simulatedMiddle
+        let plan = try RecommendationEngine().generatePlan(
+            matches: matches,
+            preferenceProfile: makeProfile(),
+            voiceProfile: voice,
+            scenario: scenario,
+            catalog: [],
+            generationContext: makeRecommendationGenerationContext(
+                matches: matches,
+                scenario: scenario,
+                voiceProfile: voice
+            )
+        )
+        let IDs = Set(plan.sections.flatMap(\.items).map(\.track.id))
+
+        XCTAssertEqual(IDs, Set(tracks.map(\.id)))
+        XCTAssertTrue(plan.sections.flatMap(\.items).allSatisfy { $0.origin == .importedMatch })
+    }
+
+    func testLockedLegalCandidatesKeepTheirSpecificOrigins() throws {
+        let confirmed = makeTrack(
+            id: "origin-confirmed",
+            title: "已确认原曲",
+            artist: "确认歌手"
+        )
+        let adopted = makeTrack(
+            id: "origin-adopted",
+            title: "采用替代",
+            artist: "替代歌手"
+        )
+        let sameArtist = makeTrack(
+            id: "origin-same-artist",
+            title: "同歌手补充",
+            artist: "歌手A"
+        )
+        let style = makeTrack(
+            id: "origin-style",
+            title: "风格补充",
+            artist: "风格歌手"
+        )
+        let scene = makeTrack(
+            id: "origin-scene",
+            title: "场景补充",
+            artist: "场景歌手",
+            genre: "独立类型",
+            moodTags: [],
+            singAlong: 0.2,
+            sceneTags: ["friends"]
+        )
+        let popular = makeTrack(
+            id: "origin-popular",
+            title: "热门补充",
+            artist: "热门歌手",
+            genre: "独立类型",
+            moodTags: [],
+            singAlong: 0.9,
+            sceneTags: []
+        )
+        let matches = [
+            MatchResult(
+                importedSong: ImportedSong(
+                    title: confirmed.title,
+                    source: .plainText,
+                    confidence: 1
+                ),
+                disposition: .acceptedOriginalConfirmed(track: confirmed),
+                score: 1,
+                reason: "已确认"
+            ),
+            MatchResult(
+                importedSong: ImportedSong(
+                    title: "被替代原歌",
+                    artist: "原歌手",
+                    source: .plainText,
+                    confidence: 1
+                ),
+                disposition: .adoptedAlternative(track: adopted),
+                score: 0.8,
+                reason: "已采用"
+            )
+        ]
+        let catalog = [confirmed, adopted, sameArtist, style, scene, popular]
+
+        let scenario = ScenarioConfig(scenario: .friends, durationMinutes: 30)
+        let voice = VoiceProfile.simulatedMiddle
+        let plan = try RecommendationEngine().generatePlan(
+            matches: matches,
+            preferenceProfile: makeProfile(),
+            voiceProfile: voice,
+            scenario: scenario,
+            catalog: catalog,
+            generationContext: makeRecommendationGenerationContext(
+                matches: matches,
+                scenario: scenario,
+                voiceProfile: voice
+            ),
+            lockedTrackIDs: Set(catalog.map(\.id))
+        )
+        let originByID = Dictionary(
+            uniqueKeysWithValues: plan.sections.flatMap(\.items).map { ($0.track.id, $0.origin) }
+        )
+
+        XCTAssertEqual(originByID[confirmed.id], .importedMatch)
+        XCTAssertEqual(originByID[adopted.id], .adoptedAlternative)
+        XCTAssertEqual(originByID[sameArtist.id], .sameArtistSupplement)
+        XCTAssertEqual(originByID[style.id], .styleSupplement)
+        XCTAssertEqual(originByID[scene.id], .sceneSupplement)
+        XCTAssertEqual(originByID[popular.id], .popularSupplement)
+    }
+
+    func testLockedLegalSupplementSurvivesSemanticDeduplication() throws {
+        let imported = makeTrack(
+            id: "semantic-imported",
+            title: "同一语义歌曲",
+            artist: "同一语义歌手"
+        )
+        let lockedSupplement = makeTrack(
+            id: "semantic-locked-supplement",
+            title: imported.title,
+            artist: imported.artist
+        )
+        let matches = [match(imported)]
+        let scenario = ScenarioConfig(scenario: .friends, durationMinutes: 30)
+        let voice = VoiceProfile.simulatedMiddle
+
+        let plan = try RecommendationEngine().generatePlan(
+            matches: matches,
+            preferenceProfile: makeProfile(),
+            voiceProfile: voice,
+            scenario: scenario,
+            catalog: [lockedSupplement],
+            generationContext: makeRecommendationGenerationContext(
+                matches: matches,
+                scenario: scenario,
+                voiceProfile: voice
+            ),
+            lockedTrackIDs: [lockedSupplement.id]
+        )
+        let items = plan.sections.flatMap(\.items)
+
+        XCTAssertEqual(items.map(\.track.id), [lockedSupplement.id])
+        XCTAssertEqual(items.first?.origin, .styleSupplement)
+        XCTAssertTrue(items.first?.isLocked == true)
+    }
+
+    func testLockedTracksWithoutLegalLocalSourcesFailTogetherInStableOrder() {
+        let pendingTrack = makeTrack(
+            id: "z-pending",
+            title: "待确认来源",
+            artist: "待确认歌手",
+            genre: "独立类型",
+            moodTags: [],
+            singAlong: 0.2,
+            sceneTags: []
+        )
+        let alternativeTrack = makeTrack(
+            id: "a-alternative",
+            title: "未采用来源",
+            artist: "替代歌手",
+            genre: "独立类型",
+            moodTags: [],
+            singAlong: 0.2,
+            sceneTags: []
+        )
+        let externalTrack = makeTrack(
+            id: "m-external",
+            title: "外部来源",
+            artist: "外部歌手",
+            genre: "独立类型",
+            moodTags: [],
+            singAlong: 0.2,
+            sceneTags: [],
+            catalogSource: .externalSimilar
+        )
+        let unsupportedLocalTrack = makeTrack(
+            id: "b-unsupported-local",
+            title: "无分类本地歌",
+            artist: "无分类歌手",
+            genre: "独立类型",
+            moodTags: [],
+            singAlong: 0.2,
+            sceneTags: []
+        )
+        let matches = [
+            MatchResult(
+                importedSong: ImportedSong(title: pendingTrack.title, source: .plainText, confidence: 1),
+                disposition: .identityConfirmationRequired(candidates: [pendingTrack]),
+                score: 0.8,
+                reason: "待确认"
+            ),
+            MatchResult(
+                importedSong: ImportedSong(title: "未命中原歌", source: .plainText, confidence: 1),
+                disposition: .alternativeSuggested(candidates: [alternativeTrack]),
+                score: 0.6,
+                reason: "未采用"
+            ),
+            MatchResult(
+                importedSong: ImportedSong(
+                    title: externalTrack.title,
+                    artist: externalTrack.artist,
+                    source: .plainText,
+                    confidence: 1
+                ),
+                disposition: .acceptedOriginalExact(track: externalTrack),
+                score: 1,
+                reason: "旧外部命中"
+            )
+        ]
+        let lockedIDs: Set<String> = [
+            pendingTrack.id,
+            alternativeTrack.id,
+            externalTrack.id,
+            unsupportedLocalTrack.id
+        ]
+        let scenario = ScenarioConfig(scenario: .friends, durationMinutes: 30)
+        let voice = VoiceProfile.simulatedMiddle
+
+        XCTAssertThrowsError(
+            try RecommendationEngine().generatePlan(
+                matches: matches,
+                preferenceProfile: makeProfile(),
+                voiceProfile: voice,
+                scenario: scenario,
+                catalog: [externalTrack, unsupportedLocalTrack],
+                generationContext: makeRecommendationGenerationContext(
+                    matches: matches,
+                    scenario: scenario,
+                    voiceProfile: voice
+                ),
+                lockedTrackIDs: lockedIDs
+            )
+        ) { error in
+            XCTAssertTrue(error is RecommendationGenerationError)
+            XCTAssertEqual(
+                String(describing: error),
+                "lockedTrackUnavailable(trackIDs: [\"a-alternative\", \"b-unsupported-local\", \"m-external\", \"z-pending\"])"
+            )
+        }
+    }
+
+    func testPendingAndUnmatchedUserImportsUseNeutralScenarioPlanSummary() throws {
         let referenceTrack = makeTrack(
             id: "reference",
             title: "同名待确认歌",
@@ -453,18 +837,25 @@ final class ProductClosureTests: XCTestCase {
             (name: "unmatched", playlist: unmatchedPlaylist, matches: [unmatchedMatch])
         ]
         let scenario = ScenarioConfig(scenario: .friends)
+        let voice = VoiceProfile.simulatedMiddle
 
         for testCase in cases {
             let profile = PreferenceProfiler().buildProfile(
                 importedPlaylist: testCase.playlist,
                 matches: testCase.matches
             )
-            let plan = RecommendationEngine().generatePlan(
+            let plan = try RecommendationEngine().generatePlan(
                 matches: testCase.matches,
                 preferenceProfile: profile,
-                voiceProfile: .simulatedMiddle,
+                voiceProfile: voice,
                 scenario: scenario,
                 catalog: [referenceTrack],
+                generationContext: makeRecommendationGenerationContext(
+                    matches: testCase.matches,
+                    scenario: scenario,
+                    voiceProfile: voice,
+                    playlistTitle: testCase.playlist.title
+                ),
                 inputSource: .userImport
             )
 
@@ -481,7 +872,7 @@ final class ProductClosureTests: XCTestCase {
         )
     }
 
-    func testPeopleCountChangesGroupRecommendationStrategy() {
+    func testPeopleCountChangesGroupRecommendationStrategy() throws {
         let catalog = [
             makeTrack(id: "solo", title: "想唱的歌", artist: "歌手A", difficulty: 5, singAlong: 0.45, highRisk: 0.62, sceneTags: ["friends"], energy: 0.82),
             makeTrack(id: "chorus1", title: "全员合唱一", artist: "歌手B", difficulty: 2, singAlong: 0.92, highRisk: 0.2, sceneTags: ["friends", "teamBuilding"], energy: 0.72),
@@ -490,20 +881,33 @@ final class ProductClosureTests: XCTestCase {
         ]
         let matches = catalog.map(match)
         let profile = makeProfile()
+        let voice = VoiceProfile.simulatedMiddle
+        let smallScenario = ScenarioConfig(scenario: .friends, peopleCount: 2, durationMinutes: 45, difficultyPreference: .showcase)
+        let largeScenario = ScenarioConfig(scenario: .friends, peopleCount: 10, durationMinutes: 45, difficultyPreference: .showcase)
 
-        let smallPlan = RecommendationEngine().generatePlan(
+        let smallPlan = try RecommendationEngine().generatePlan(
             matches: matches,
             preferenceProfile: profile,
-            voiceProfile: .simulatedMiddle,
-            scenario: ScenarioConfig(scenario: .friends, peopleCount: 2, durationMinutes: 45, difficultyPreference: .showcase),
-            catalog: catalog
+            voiceProfile: voice,
+            scenario: smallScenario,
+            catalog: catalog,
+            generationContext: makeRecommendationGenerationContext(
+                matches: matches,
+                scenario: smallScenario,
+                voiceProfile: voice
+            )
         )
-        let largePlan = RecommendationEngine().generatePlan(
+        let largePlan = try RecommendationEngine().generatePlan(
             matches: matches,
             preferenceProfile: profile,
-            voiceProfile: .simulatedMiddle,
-            scenario: ScenarioConfig(scenario: .friends, peopleCount: 10, durationMinutes: 45, difficultyPreference: .showcase),
-            catalog: catalog
+            voiceProfile: voice,
+            scenario: largeScenario,
+            catalog: catalog,
+            generationContext: makeRecommendationGenerationContext(
+                matches: matches,
+                scenario: largeScenario,
+                voiceProfile: voice
+            )
         )
 
         let smallItems = smallPlan.sections.flatMap(\.items)
@@ -515,7 +919,7 @@ final class ProductClosureTests: XCTestCase {
         XCTAssertFalse(largeItems.first?.track.id == "solo")
     }
 
-    func testFeedbackChangesRegeneratedRecommendation() {
+    func testFeedbackChangesRegeneratedRecommendation() throws {
         let catalog = [
             makeTrack(id: "safe", title: "稳妥歌", artist: "歌手A", difficulty: 2, singAlong: 0.86, highRisk: 0.2, sceneTags: ["friends"], energy: 0.7),
             makeTrack(id: "high", title: "高音歌", artist: "歌手B", difficulty: 4, singAlong: 0.8, highRisk: 0.75, sceneTags: ["friends"], energy: 0.82)
@@ -525,13 +929,21 @@ final class ProductClosureTests: XCTestCase {
             "safe": [.liked],
             "high": [.tooHigh, .unfamiliar]
         ])
+        let scenario = ScenarioConfig(scenario: .friends, peopleCount: 4, durationMinutes: 45)
+        let voice = VoiceProfile.simulatedMiddle
 
-        let plan = RecommendationEngine().generatePlan(
+        let plan = try RecommendationEngine().generatePlan(
             matches: matches,
             preferenceProfile: makeProfile(),
-            voiceProfile: .simulatedMiddle,
-            scenario: ScenarioConfig(scenario: .friends, peopleCount: 4, durationMinutes: 45),
+            voiceProfile: voice,
+            scenario: scenario,
             catalog: catalog,
+            generationContext: makeRecommendationGenerationContext(
+                matches: matches,
+                scenario: scenario,
+                voiceProfile: voice,
+                feedbackProfile: feedback
+            ),
             feedbackProfile: feedback
         )
 
@@ -565,17 +977,24 @@ final class ProductClosureTests: XCTestCase {
         XCTAssertFalse(advice.detail.contains("舒服范围"))
     }
 
-    func testExampleAndPopularFallbackPlansDoNotClaimPlaylistOrVoicePersonalization() {
+    func testExampleAndPopularFallbackPlansDoNotClaimPlaylistOrVoicePersonalization() throws {
         let track = makeTrack(id: "safe", title: "稳妥歌", artist: "歌手A", difficulty: 2, singAlong: 0.86, highRisk: 0.2, highMidi: 65)
         let match = match(track)
+        let scenario = ScenarioConfig(scenario: .friends, peopleCount: 4, durationMinutes: 45)
+        let voice = VoiceProfile.simulatedMiddle
 
         for inputSource in [RecommendationInputSource.example, .popularFallback] {
-            let plan = RecommendationEngine().generatePlan(
+            let plan = try RecommendationEngine().generatePlan(
                 matches: [match],
                 preferenceProfile: makeProfile(),
-                voiceProfile: .simulatedMiddle,
-                scenario: ScenarioConfig(scenario: .friends, peopleCount: 4, durationMinutes: 45),
+                voiceProfile: voice,
+                scenario: scenario,
                 catalog: [track],
+                generationContext: makeRecommendationGenerationContext(
+                    matches: [match],
+                    scenario: scenario,
+                    voiceProfile: voice
+                ),
                 inputSource: inputSource
             )
 
@@ -590,15 +1009,23 @@ final class ProductClosureTests: XCTestCase {
         }
     }
 
-    func testUserImportAndMeasuredVoiceCanProduceSourceGroundedReasons() {
+    func testUserImportAndMeasuredVoiceCanProduceSourceGroundedReasons() throws {
         let track = makeTrack(id: "safe", title: "稳妥歌", artist: "歌手A", difficulty: 2, singAlong: 0.7, highRisk: 0.2, highMidi: 65)
+        let matches = [match(track)]
+        let voice = makeMeasuredVoice()
+        let scenario = ScenarioConfig(scenario: .friends, peopleCount: 4, durationMinutes: 45)
 
-        let plan = RecommendationEngine().generatePlan(
-            matches: [match(track)],
+        let plan = try RecommendationEngine().generatePlan(
+            matches: matches,
             preferenceProfile: makeProfile(),
-            voiceProfile: makeMeasuredVoice(),
-            scenario: ScenarioConfig(scenario: .friends, peopleCount: 4, durationMinutes: 45),
+            voiceProfile: voice,
+            scenario: scenario,
             catalog: [track],
+            generationContext: makeRecommendationGenerationContext(
+                matches: matches,
+                scenario: scenario,
+                voiceProfile: voice
+            ),
             inputSource: .userImport
         )
 
@@ -607,17 +1034,23 @@ final class ProductClosureTests: XCTestCase {
         XCTAssertTrue(reasons.contains("本次唱到的音区与歌曲接近"))
     }
 
-    func testPublicRecommendationAPIsDefaultOmittedSourcesToLegacyUnknown() {
+    func testPublicRecommendationAPIsDefaultOmittedSourcesToLegacyUnknown() throws {
         let track = makeTrack(id: "safe", title: "稳妥歌", artist: "歌手A", difficulty: 2, singAlong: 0.7, highRisk: 0.2, highMidi: 65)
         let profile = makeProfile()
         let voice = makeMeasuredVoice()
         let scenario = ScenarioConfig(scenario: .friends, peopleCount: 4, durationMinutes: 45)
-        let enginePlan = RecommendationEngine().generatePlan(
-            matches: [match(track)],
+        let matches = [match(track)]
+        let enginePlan = try RecommendationEngine().generatePlan(
+            matches: matches,
             preferenceProfile: profile,
             voiceProfile: voice,
             scenario: scenario,
-            catalog: [track]
+            catalog: [track],
+            generationContext: makeRecommendationGenerationContext(
+                matches: matches,
+                scenario: scenario,
+                voiceProfile: voice
+            )
         )
         let builderReasons = RecommendationReasonBuilder().reasons(
             for: track,
@@ -1259,12 +1692,15 @@ final class ProductClosureTests: XCTestCase {
         id: String,
         title: String,
         artist: String,
+        genre: String = "华语流行",
+        moodTags: [String] = ["相似推荐"],
         difficulty: Int = 3,
         singAlong: Double = 0.8,
         highRisk: Double = 0.4,
         sceneTags: [String] = ["friends"],
         energy: Double = 0.7,
         highMidi: Int = 69,
+        versionTags: [String] = [],
         externalURL: URL? = nil,
         catalogSource: TrackCatalogSource = .ktvCatalog
     ) -> KTVTrack {
@@ -1274,8 +1710,8 @@ final class ProductClosureTests: XCTestCase {
             artist: artist,
             language: "Mandarin",
             era: "2000s",
-            genre: "华语流行",
-            moodTags: ["相似推荐"],
+            genre: genre,
+            moodTags: moodTags,
             sceneTags: sceneTags,
             difficulty: difficulty,
             vocalRangeLowMidi: 48,
@@ -1287,6 +1723,7 @@ final class ProductClosureTests: XCTestCase {
             rapDensity: 0.1,
             highNoteRisk: highRisk,
             aliases: [],
+            versionTags: versionTags,
             similarSongIds: [],
             externalURL: externalURL,
             catalogSource: catalogSource,

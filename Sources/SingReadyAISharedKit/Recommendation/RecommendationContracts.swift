@@ -24,6 +24,7 @@ public enum SongRecommendationOrigin: String, Codable, CaseIterable, Sendable {
 
 public enum RecommendationGenerationError: Error, Equatable, Sendable {
     case countMismatch
+    case lockedTrackUnavailable(trackIDs: [String])
 }
 
 public struct SongPlanGenerationContext: Codable, Equatable, Sendable {

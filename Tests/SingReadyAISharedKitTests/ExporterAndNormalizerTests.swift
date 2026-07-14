@@ -73,7 +73,7 @@ final class ExporterAndNormalizerTests: XCTestCase {
         XCTAssertLessThanOrEqual(poster.highlights.count, 10)
     }
 
-    func testPosterKeepsProvisionalCandidatesVisiblyPendingVerification() throws {
+    func testPosterOmitsProvisionalCandidatesFromLegacyPlans() throws {
         let sourcePlan = try makePlan()
         let verifiedItems = Array(sourcePlan.sections.flatMap(\.items).prefix(2))
         let referenceTrack = try XCTUnwrap(verifiedItems.first?.track)
@@ -120,26 +120,11 @@ final class ExporterAndNormalizerTests: XCTestCase {
         )
 
         let poster = PosterRenderer().summary(for: plan)
-        let provisionalHighlight = try XCTUnwrap(
-            poster.highlights.first { $0.contains("公开候选曲") }
-        )
-        let provisionalSection = try XCTUnwrap(
-            poster.sections.first { $0.title == "待核对候选" }
-        )
 
-        XCTAssertEqual(poster.highlights.count, 3)
-        XCTAssertEqual(poster.sections.map(\.title), ["已核对参考", "待核对候选"])
-        XCTAssertEqual(
-            provisionalSection.disclosure,
-            "公开搜索候选，KTV 收录与现场数据待核对"
-        )
-        XCTAssertTrue(provisionalSection.highlights.allSatisfy(\.isPendingVerification))
-        XCTAssertTrue(provisionalHighlight.contains("待核对"))
-        XCTAssertTrue(
-            poster.highlights
-                .filter { !$0.contains("公开候选曲") }
-                .allSatisfy { !$0.contains("待核对") }
-        )
+        XCTAssertEqual(poster.highlights.count, verifiedItems.count)
+        XCTAssertEqual(poster.sections.map(\.title), ["已核对参考"])
+        XCTAssertFalse(poster.highlights.contains { $0.contains("公开候选曲") })
+        XCTAssertFalse(poster.sections.contains { $0.title == "待核对候选" })
     }
 
     func testFallbackTextExporterDefensivelyOmitsPersonalizedClaimsAndKeyAdvice() throws {
@@ -355,12 +340,20 @@ final class ExporterAndNormalizerTests: XCTestCase {
         let playlist = try ImportCoordinator().resolveDemoPlaylist()
         let matches = SongMatcher().match(playlist: playlist, catalog: catalog)
         let profile = PreferenceProfiler().buildProfile(importedPlaylist: playlist, matches: matches)
-        return RecommendationEngine().generatePlan(
+        let scenario = ScenarioConfig(scenario: .friends, durationMinutes: 120)
+        let voice = VoiceProfile.simulatedMiddle
+        return try RecommendationEngine().generatePlan(
             matches: matches,
             preferenceProfile: profile,
-            voiceProfile: .simulatedMiddle,
-            scenario: ScenarioConfig(scenario: .friends, durationMinutes: 120),
+            voiceProfile: voice,
+            scenario: scenario,
             catalog: catalog,
+            generationContext: makeRecommendationGenerationContext(
+                matches: matches,
+                scenario: scenario,
+                voiceProfile: voice,
+                playlistTitle: playlist.title
+            ),
             inputSource: .example
         )
     }

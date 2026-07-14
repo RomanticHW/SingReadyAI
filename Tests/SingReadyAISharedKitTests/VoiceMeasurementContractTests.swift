@@ -152,13 +152,19 @@ final class VoiceMeasurementContractTests: XCTestCase {
             score: 1,
             reason: "测试匹配"
         )
+        let scenario = ScenarioConfig(scenario: .friends, peopleCount: 4, durationMinutes: 45)
 
-        let plan = RecommendationEngine().generatePlan(
+        let plan = try RecommendationEngine().generatePlan(
             matches: [match],
             preferenceProfile: preferenceProfile(),
             voiceProfile: invalidMeasured,
-            scenario: ScenarioConfig(scenario: .friends, peopleCount: 4, durationMinutes: 45),
+            scenario: scenario,
             catalog: [candidate],
+            generationContext: makeRecommendationGenerationContext(
+                matches: [match],
+                scenario: scenario,
+                voiceProfile: invalidMeasured
+            ),
             inputSource: .userImport
         )
         let item = try XCTUnwrap(plan.sections.flatMap(\.items).first)
@@ -185,12 +191,19 @@ final class VoiceMeasurementContractTests: XCTestCase {
             score: 1,
             reason: "测试匹配"
         )
-        var plan = RecommendationEngine().generatePlan(
+        let voice = measuredVoice(low: 50, high: 70)
+        let scenario = ScenarioConfig(scenario: .friends, peopleCount: 4, durationMinutes: 45)
+        var plan = try RecommendationEngine().generatePlan(
             matches: [match],
             preferenceProfile: preferenceProfile(),
-            voiceProfile: measuredVoice(low: 50, high: 70),
-            scenario: ScenarioConfig(scenario: .friends, peopleCount: 4, durationMinutes: 45),
+            voiceProfile: voice,
+            scenario: scenario,
             catalog: [candidate],
+            generationContext: makeRecommendationGenerationContext(
+                matches: [match],
+                scenario: scenario,
+                voiceProfile: voice
+            ),
             inputSource: .userImport
         )
         XCTAssertNotNil(plan.sections.flatMap(\.items).first?.singingAdvice)

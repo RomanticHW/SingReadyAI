@@ -105,12 +105,21 @@ final class RecommendationInteractionContractTests: XCTestCase {
             from: JSONEncoder().encode(feedback)
         )
         let track = makeTrack()
-        let plan = RecommendationEngine().generatePlan(
-            matches: [makeMatch(track)],
+        let matches = [makeMatch(track)]
+        let scenario = ScenarioConfig(scenario: .friends, peopleCount: 4, durationMinutes: 30)
+        let voice = VoiceProfile.simulatedMiddle
+        let plan = try RecommendationEngine().generatePlan(
+            matches: matches,
             preferenceProfile: makeProfile(),
-            voiceProfile: .simulatedMiddle,
-            scenario: ScenarioConfig(scenario: .friends, peopleCount: 4, durationMinutes: 30),
+            voiceProfile: voice,
+            scenario: scenario,
             catalog: [track],
+            generationContext: makeRecommendationGenerationContext(
+                matches: matches,
+                scenario: scenario,
+                voiceProfile: voice,
+                feedbackProfile: restored
+            ),
             inputSource: .userImport,
             feedbackProfile: restored
         )
@@ -258,33 +267,48 @@ final class RecommendationInteractionContractTests: XCTestCase {
     func testMoreSoloPreferenceRaisesSoloFriendlySceneFitInGroupScenarios() throws {
         let soloFriendly = makeTrack(
             id: "solo-friendly",
+            title: "独唱测试歌",
             singAlongScore: 0.55,
             duetFriendly: false
         )
         let chorusFriendly = makeTrack(
             id: "chorus-friendly",
+            title: "合唱测试歌",
             singAlongScore: 0.92,
             duetFriendly: true
         )
         let matches = [makeMatch(soloFriendly), makeMatch(chorusFriendly)]
         let engine = RecommendationEngine()
-        let balanced = engine.generatePlan(
-            matches: matches,
-            preferenceProfile: makeProfile(),
-            voiceProfile: .simulatedMiddle,
-            scenario: ScenarioConfig(scenario: .friends, durationMinutes: 30),
-            catalog: [soloFriendly, chorusFriendly]
+        let voice = VoiceProfile.simulatedMiddle
+        let balancedScenario = ScenarioConfig(scenario: .friends, durationMinutes: 30)
+        let moreSoloScenario = ScenarioConfig(
+            scenario: .friends,
+            durationMinutes: 30,
+            chorusPreference: .moreSolo
         )
-        let moreSolo = engine.generatePlan(
+        let balanced = try engine.generatePlan(
             matches: matches,
             preferenceProfile: makeProfile(),
-            voiceProfile: .simulatedMiddle,
-            scenario: ScenarioConfig(
-                scenario: .friends,
-                durationMinutes: 30,
-                chorusPreference: .moreSolo
-            ),
-            catalog: [soloFriendly, chorusFriendly]
+            voiceProfile: voice,
+            scenario: balancedScenario,
+            catalog: [soloFriendly, chorusFriendly],
+            generationContext: makeRecommendationGenerationContext(
+                matches: matches,
+                scenario: balancedScenario,
+                voiceProfile: voice
+            )
+        )
+        let moreSolo = try engine.generatePlan(
+            matches: matches,
+            preferenceProfile: makeProfile(),
+            voiceProfile: voice,
+            scenario: moreSoloScenario,
+            catalog: [soloFriendly, chorusFriendly],
+            generationContext: makeRecommendationGenerationContext(
+                matches: matches,
+                scenario: moreSoloScenario,
+                voiceProfile: voice
+            )
         )
 
         let balancedItem = try XCTUnwrap(
@@ -334,6 +358,7 @@ final class RecommendationInteractionContractTests: XCTestCase {
 
     private func makeTrack(
         id: String = "track",
+        title: String = "测试歌",
         singAlongScore: Double = 0.82,
         duetFriendly: Bool = false,
         energy: Double = 0.7,
@@ -341,7 +366,7 @@ final class RecommendationInteractionContractTests: XCTestCase {
     ) -> KTVTrack {
         KTVTrack(
             id: id,
-            title: "测试歌",
+            title: title,
             artist: "测试歌手",
             language: "Mandarin",
             era: "2000s",

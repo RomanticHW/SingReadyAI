@@ -52,28 +52,56 @@ extension DemoWorkflowStore {
             errorMessage = "暂时排不了歌单，请先导入一份歌单。"
             return
         }
-        let voice = voiceProfile ?? voiceAnalyzer.simulatedProfile()
-        voiceProfile = voice
-        let generatedPlan = recommendationEngine.generatePlan(
-            matches: matches,
-            preferenceProfile: profile,
-            voiceProfile: voice,
-            scenario: scenarioConfig,
-            catalog: catalog + externalCandidateTracks,
-            inputSource: recommendationInputSource,
-            lockedTrackIDs: lockedTrackIDs,
-            removedTrackIDs: removedTrackIDs,
-            feedbackProfile: feedbackProfile
-        )
-        songPlan = preservingIdentity(in: generatedPlan)
-        statusMessage = "已排好\(scenarioConfig.scenario.displayName)歌单"
-        if schedulesPersistence {
-            Task { @MainActor [weak self] in
-                _ = await self?.persistWorkflowSnapshot()
-            }
+        guard let playlist = importedPlaylist else {
+            errorMessage = "暂时排不了歌单，请重新导入后再试。"
+            return
         }
-        if navigate {
-            setStage(.result)
+        let voice = voiceProfile ?? voiceAnalyzer.simulatedProfile()
+        let statistics = MatchStatistics(matches: matches)
+        let generationContext = SongPlanGenerationContext(
+            playlistID: playlist.id,
+            playlistTitle: playlist.title,
+            importedSongCount: playlist.songs.count,
+            verifiedSongCount: statistics.verified,
+            pendingSongCount: statistics.pending,
+            unmatchedSongCount: statistics.unmatched,
+            scenario: scenarioConfig.scenario,
+            peopleCount: scenarioConfig.peopleCount,
+            durationMinutes: scenarioConfig.durationMinutes,
+            voiceSource: voice.source,
+            feedbackCount: feedbackProfile.feedbackByTrackID.values.reduce(0) { count, feedback in
+                count + feedback.count
+            }
+        )
+        do {
+            let generatedPlan = try recommendationEngine.generatePlan(
+                matches: matches,
+                preferenceProfile: profile,
+                voiceProfile: voice,
+                scenario: scenarioConfig,
+                catalog: catalog + externalCandidateTracks,
+                generationContext: generationContext,
+                inputSource: recommendationInputSource,
+                lockedTrackIDs: lockedTrackIDs,
+                removedTrackIDs: removedTrackIDs,
+                feedbackProfile: feedbackProfile
+            )
+            voiceProfile = voice
+            songPlan = preservingIdentity(in: generatedPlan)
+            errorMessage = nil
+            statusMessage = "已排好\(scenarioConfig.scenario.displayName)歌单"
+            if schedulesPersistence {
+                Task { @MainActor [weak self] in
+                    _ = await self?.persistWorkflowSnapshot()
+                }
+            }
+            if navigate {
+                setStage(.result)
+            }
+        } catch let RecommendationGenerationError.lockedTrackUnavailable(trackIDs) {
+            errorMessage = "有 \(trackIDs.count) 首已保留歌曲无法按当前条件核对来源，请取消保留或重新确认后再试。"
+        } catch {
+            errorMessage = "暂时无法生成歌单，请检查当前选择后重试。"
         }
     }
 

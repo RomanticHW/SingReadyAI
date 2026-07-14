@@ -2,7 +2,7 @@ import XCTest
 @testable import SingReadyAISharedKit
 
 final class RecommendationCapacityContractTests: XCTestCase {
-    func testDurationProducesExactFiveMinuteCapacityAndExactQuotas() {
+    func testDurationProducesExactFiveMinuteCapacityAndExactQuotas() throws {
         let catalog = makeCatalog(count: 40)
         let expectedCounts = [
             30: 6,
@@ -14,7 +14,7 @@ final class RecommendationCapacityContractTests: XCTestCase {
         ]
 
         for duration in expectedCounts.keys.sorted() {
-            let plan = makePlan(catalog: catalog, duration: duration)
+            let plan = try makePlan(catalog: catalog, duration: duration)
             let expected = try! XCTUnwrap(expectedCounts[duration])
             let actualQuotas = plan.sections.map(\.items.count)
             let sectionCount = plan.sections.count
@@ -27,18 +27,18 @@ final class RecommendationCapacityContractTests: XCTestCase {
         }
     }
 
-    func testEightLocksExpandThirtyMinutePlanWithoutDroppingAnyLock() {
+    func testEightLocksExpandThirtyMinutePlanWithoutDroppingAnyLock() throws {
         let catalog = makeCatalog(count: 20)
         let locks = Set(catalog.prefix(8).map(\.id))
 
-        let plan = makePlan(catalog: catalog, duration: 30, locked: locks)
+        let plan = try makePlan(catalog: catalog, duration: 30, locked: locks)
         let items = plan.sections.flatMap(\.items)
 
         XCTAssertEqual(items.count, 8)
         XCTAssertEqual(Set(items.filter(\.isLocked).map(\.track.id)), locks)
     }
 
-    func testCarScenarioKeepsLockedTrackEvenWhenItViolatesSectionFiltersAndIsRemoved() {
+    func testCarScenarioKeepsLockedTrackEvenWhenItViolatesSectionFiltersAndIsRemoved() throws {
         var catalog = makeCatalog(count: 12)
         let locked = makeTrack(
             id: "locked-hard-car",
@@ -52,7 +52,7 @@ final class RecommendationCapacityContractTests: XCTestCase {
         )
         catalog.insert(locked, at: 0)
 
-        let plan = makePlan(
+        let plan = try makePlan(
             catalog: catalog,
             duration: 30,
             scenario: .carKTV,
@@ -64,7 +64,7 @@ final class RecommendationCapacityContractTests: XCTestCase {
         XCTAssertEqual(plan.sections.flatMap(\.items).count, 6)
     }
 
-    func testHardRulesReplaceInsteadOfAppendingAndNeverReplaceLockedItems() {
+    func testHardRulesReplaceInsteadOfAppendingAndNeverReplaceLockedItems() throws {
         let locked = makeTrack(
             id: "locked-non-chorus",
             title: "锁定独唱",
@@ -74,14 +74,14 @@ final class RecommendationCapacityContractTests: XCTestCase {
         )
         let catalog = [locked] + makeCatalog(count: 15)
 
-        let plan = makePlan(catalog: catalog, duration: 30, locked: [locked.id])
+        let plan = try makePlan(catalog: catalog, duration: 30, locked: [locked.id])
         let items = plan.sections.flatMap(\.items)
 
         XCTAssertEqual(items.count, 6)
         XCTAssertTrue(items.contains { $0.track.id == locked.id && $0.isLocked })
     }
 
-    func testBirthdayHardRuleKeepsLocksReplacesOneItemAndKeepsExactCapacity() {
+    func testBirthdayHardRuleKeepsLocksReplacesOneItemAndKeepsExactCapacity() throws {
         let locks = (0..<3).map { index in
             makeTrack(
                 id: "birthday-lock-\(index)",
@@ -116,7 +116,7 @@ final class RecommendationCapacityContractTests: XCTestCase {
         let catalog = locks + fillers + [birthday]
         let lockedIDs = Set(locks.map(\.id))
 
-        let plan = makePlan(
+        let plan = try makePlan(
             catalog: catalog,
             duration: 30,
             scenario: .birthday,
@@ -129,7 +129,7 @@ final class RecommendationCapacityContractTests: XCTestCase {
         XCTAssertEqual(Set(items.filter(\.isLocked).map(\.track.id)), lockedIDs)
     }
 
-    func testGroupHardRuleKeepsThirtyPercentChorusWithoutAppendingOrReplacingLock() {
+    func testGroupHardRuleKeepsThirtyPercentChorusWithoutAppendingOrReplacingLock() throws {
         let locks = (0..<3).map { index in
             makeTrack(
                 id: "chorus-lock-\(index)",
@@ -162,7 +162,7 @@ final class RecommendationCapacityContractTests: XCTestCase {
         }
         let lockedIDs = Set(locks.map(\.id))
 
-        let plan = makePlan(
+        let plan = try makePlan(
             catalog: locks + fillers + chorus,
             duration: 30,
             scenario: .friends,
@@ -176,7 +176,7 @@ final class RecommendationCapacityContractTests: XCTestCase {
         XCTAssertEqual(Set(items.filter(\.isLocked).map(\.track.id)), lockedIDs)
     }
 
-    func testAllLockedBirthdayPlanReportsUnsatisfiedHardRuleInsteadOfAppending() {
+    func testAllLockedBirthdayPlanReportsUnsatisfiedHardRuleInsteadOfAppending() throws {
         let locks = (0..<6).map { index in
             makeTrack(
                 id: "all-lock-\(index)",
@@ -197,7 +197,7 @@ final class RecommendationCapacityContractTests: XCTestCase {
             moodTags: ["喜庆"]
         )
 
-        let plan = makePlan(
+        let plan = try makePlan(
             catalog: locks + [birthday],
             duration: 30,
             scenario: .birthday,
@@ -233,7 +233,7 @@ final class RecommendationCapacityContractTests: XCTestCase {
             )
         }
 
-        let plan = makePlan(
+        let plan = try makePlan(
             catalog: stable + challenges,
             duration: 30,
             scenario: .soloPractice
@@ -245,25 +245,26 @@ final class RecommendationCapacityContractTests: XCTestCase {
         XCTAssertTrue(challengeSection.items.allSatisfy { $0.track.difficulty >= 3 || $0.track.moodTags.contains("高光") })
     }
 
-    func testSemanticDuplicatesProduceOneStableWinner() {
+    func testVersionedSemanticIdentitiesRemainSeparateWithStableOrdering() throws {
         let first = makeTrack(id: "first", title: "同一首歌（Live版）", artist: "歌手 A", singAlong: 0.8)
         let duplicate = makeTrack(id: "second", title: "同一首歌", artist: "歌手A", singAlong: 0.8)
         let catalog = [first, duplicate]
 
-        let firstPlan = makePlan(catalog: catalog, duration: 30)
-        let secondPlan = makePlan(catalog: catalog, duration: 30)
+        let firstPlan = try makePlan(catalog: catalog, duration: 30)
+        let secondPlan = try makePlan(catalog: catalog, duration: 30)
         let firstIDs = firstPlan.sections.flatMap(\.items).map(\.track.id)
         let secondIDs = secondPlan.sections.flatMap(\.items).map(\.track.id)
 
         XCTAssertEqual(firstIDs, secondIDs)
-        XCTAssertEqual(firstIDs.filter { $0 == first.id || $0 == duplicate.id }.count, 1)
+        XCTAssertEqual(firstIDs.filter { $0 == first.id || $0 == duplicate.id }.count, 2)
         XCTAssertTrue(firstIDs.contains(first.id))
+        XCTAssertTrue(firstIDs.contains(duplicate.id))
     }
 
     func testCandidateShortageEncodesAVisiblePlanNotice() throws {
         let catalog = makeCatalog(count: 4)
 
-        let plan = makePlan(catalog: catalog, duration: 60)
+        let plan = try makePlan(catalog: catalog, duration: 60)
         let object = try XCTUnwrap(
             JSONSerialization.jsonObject(with: JSONEncoder().encode(plan)) as? [String: Any]
         )
@@ -278,7 +279,7 @@ final class RecommendationCapacityContractTests: XCTestCase {
         let catalog = makeCatalog(count: 10)
         let locks = Set(catalog.prefix(8).map(\.id))
 
-        let plan = makePlan(catalog: catalog, duration: 30, locked: locks)
+        let plan = try makePlan(catalog: catalog, duration: 30, locked: locks)
         let object = try XCTUnwrap(
             JSONSerialization.jsonObject(with: JSONEncoder().encode(plan)) as? [String: Any]
         )
@@ -288,7 +289,7 @@ final class RecommendationCapacityContractTests: XCTestCase {
     }
 
     func testScenarioSectionsEncodeTypedRolesIncludingSoloPracticeRoles() throws {
-        let plan = makePlan(catalog: makeCatalog(count: 20), duration: 60, scenario: .soloPractice)
+        let plan = try makePlan(catalog: makeCatalog(count: 20), duration: 60, scenario: .soloPractice)
         let object = try XCTUnwrap(
             JSONSerialization.jsonObject(with: JSONEncoder().encode(plan)) as? [String: Any]
         )
@@ -334,7 +335,7 @@ final class RecommendationCapacityContractTests: XCTestCase {
     }
 
     func testGenerationSummaryCountsEveryCapacityItemExactlyOnce() throws {
-        let plan = makePlan(catalog: makeCatalog(count: 20), duration: 60)
+        let plan = try makePlan(catalog: makeCatalog(count: 20), duration: 60)
         var items = plan.sections.flatMap(\.items)
         let origins: [SongRecommendationOrigin] = [
             .importedMatch,
@@ -416,13 +417,21 @@ final class RecommendationCapacityContractTests: XCTestCase {
         scenario: KTVScenario = .friends,
         locked: Set<String> = [],
         removed: Set<String> = []
-    ) -> SongPlan {
-        RecommendationEngine().generatePlan(
-            matches: catalog.map(match),
+    ) throws -> SongPlan {
+        let matches = catalog.map(match)
+        let config = ScenarioConfig(scenario: scenario, peopleCount: 4, durationMinutes: duration)
+        let voice = VoiceProfile.simulatedMiddle
+        return try RecommendationEngine().generatePlan(
+            matches: matches,
             preferenceProfile: makeProfile(),
-            voiceProfile: .simulatedMiddle,
-            scenario: ScenarioConfig(scenario: scenario, peopleCount: 4, durationMinutes: duration),
+            voiceProfile: voice,
+            scenario: config,
             catalog: catalog,
+            generationContext: makeRecommendationGenerationContext(
+                matches: matches,
+                scenario: config,
+                voiceProfile: voice
+            ),
             inputSource: .userImport,
             lockedTrackIDs: locked,
             removedTrackIDs: removed
