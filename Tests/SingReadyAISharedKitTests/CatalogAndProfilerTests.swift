@@ -113,7 +113,7 @@ final class CatalogAndProfilerTests: XCTestCase {
             XCTAssertEqual(profile.chorusFriendliness, 0, testCase.name)
             XCTAssertEqual(
                 profile.summary,
-                "还没有可用的本地参考匹配，先逐首核对待确认和未命中歌曲。",
+                "还没有可用的本地参考匹配；可以先处理待确认歌曲，也可以直接按场景排歌。",
                 testCase.name
             )
         }

@@ -480,6 +480,26 @@ struct ImportReviewView: View {
     @ViewBuilder
     private var reviewSongList: some View {
         VStack(alignment: .leading, spacing: SpacingTokens.sm) {
+            switch displayMode {
+            case .exceptions:
+                SecondaryGlassButton(title: "查看全部歌曲", systemImage: "list.bullet") {
+                    withAnimation(flags.reduceMotion ? nil : MotionTokens.micro) {
+                        displayMode = .allSongs
+                        visibleSongCount = Self.reviewPageSize
+                    }
+                }
+                .accessibilityIdentifier("review-show-all")
+            case .allSongs:
+                if !exceptionSongs.isEmpty {
+                    SecondaryGlassButton(title: "只看建议处理", systemImage: "line.3.horizontal.decrease.circle") {
+                        withAnimation(flags.reduceMotion ? nil : MotionTokens.micro) {
+                            displayMode = .exceptions
+                            visibleSongCount = Self.reviewPageSize
+                        }
+                    }
+                }
+            }
+
             if !displayedSongs.isEmpty {
                 HStack(alignment: .firstTextBaseline, spacing: SpacingTokens.sm) {
                     Text(displayMode == .exceptions ? "建议处理" : "全部歌曲")
@@ -518,25 +538,7 @@ struct ImportReviewView: View {
                         displayedSongs.count
                     )
                 }
-            }
-
-            switch displayMode {
-            case .exceptions:
-                SecondaryGlassButton(title: "查看全部歌曲", systemImage: "list.bullet") {
-                    withAnimation(flags.reduceMotion ? nil : MotionTokens.micro) {
-                        displayMode = .allSongs
-                        visibleSongCount = Self.reviewPageSize
-                    }
-                }
-            case .allSongs:
-                if !exceptionSongs.isEmpty {
-                    SecondaryGlassButton(title: "只看建议处理", systemImage: "line.3.horizontal.decrease.circle") {
-                        withAnimation(flags.reduceMotion ? nil : MotionTokens.micro) {
-                            displayMode = .exceptions
-                            visibleSongCount = Self.reviewPageSize
-                        }
-                    }
-                }
+                .accessibilityIdentifier("review-show-more")
             }
         }
     }

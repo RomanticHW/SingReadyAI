@@ -1,5 +1,6 @@
 import Foundation
 import SwiftUI
+import SingReadyAISharedKit
 
 struct HomeDashboardView: View {
     @EnvironmentObject private var store: DemoWorkflowStore
@@ -30,7 +31,7 @@ struct HomeDashboardView: View {
                     }
                     HomeFeatureCard(
                         title: "核对参考匹配",
-                        subtitle: "逐首看参考命中和待确认候选",
+                        subtitle: "优先看待确认和暂未找到的歌曲",
                         systemImage: "checkmark.seal",
                         tint: DesignSystem.cyan
                     ) {
@@ -319,27 +320,8 @@ private struct TonightSnapshotCard: View {
     @ViewBuilder
     private var planStateActions: some View {
         switch store.planGenerationState {
-        case .ready:
-            if store.canUseReadyPlan {
-                PrimaryGradientButton(
-                    title: isSoloPractice ? "继续调整练唱单" : "继续调整今晚歌单",
-                    systemImage: "slider.horizontal.3"
-                ) {
-                    store.setStage(.result)
-                }
-                ResponsiveActionRow {
-                    SecondaryGlassButton(title: exportActionTitle, systemImage: "square.and.arrow.up") {
-                        store.setStage(.export)
-                    }
-                    SecondaryGlassButton(title: tipsActionTitle, systemImage: "quote.bubble") {
-                        store.setStage(.startTips)
-                    }
-                }
-            } else {
-                replanAndViewPreviousActions
-            }
-        case .stale:
-            replanAndViewPreviousActions
+        case .ready, .stale, .absent:
+            stableNextAction
         case let .generating(_, previous):
             LoadingStateView(text: "正在按最新选择排歌")
                 .accessibilityIdentifier("home-plan-generation-progress")
@@ -366,24 +348,62 @@ private struct TonightSnapshotCard: View {
                     store.setStage(.result)
                 }
             }
-        case .absent:
-            if store.importedPlaylist != nil {
-                SecondaryGlassButton(title: resumeActionTitle, systemImage: resumeActionIcon) {
-                    store.setStage(store.resumeStage)
+        }
+    }
+
+    @ViewBuilder
+    private var stableNextAction: some View {
+        PrimaryGradientButton(
+            title: nextAction.title,
+            systemImage: nextActionIcon
+        ) {
+            performNextAction()
+        }
+        if store.canUseReadyPlan {
+            ResponsiveActionRow {
+                SecondaryGlassButton(title: exportActionTitle, systemImage: "square.and.arrow.up") {
+                    store.setStage(.export)
+                }
+                SecondaryGlassButton(title: tipsActionTitle, systemImage: "quote.bubble") {
+                    store.setStage(.startTips)
                 }
             }
         }
     }
 
-    @ViewBuilder
-    private var replanAndViewPreviousActions: some View {
-        PrimaryGradientButton(
-            title: "按最新选择重排",
-            systemImage: "arrow.triangle.2.circlepath"
-        ) {
-            store.generatePlan()
+    private var nextAction: HomeNextAction {
+        HomeNextAction(
+            hasImportedPlaylist: store.importedPlaylist != nil,
+            hasCompletedAnalysis: store.currentPlanBasis != nil,
+            hasVisiblePlan: store.visibleSongPlan != nil,
+            canUseReadyPlan: store.canUseReadyPlan
+        )
+    }
+
+    private var nextActionIcon: String {
+        switch nextAction {
+        case .importPlaylist: return "tray.and.arrow.down"
+        case .reviewAndMatch: return "checklist"
+        case .buildPlan: return "sparkles"
+        case .rebuildPlan: return "arrow.triangle.2.circlepath"
+        case .viewPlan: return "music.note.list"
         }
-        SecondaryGlassButton(title: "查看上一版", systemImage: "clock.arrow.circlepath") {
+    }
+
+    private func performNextAction() {
+        switch nextAction {
+        case .importPlaylist:
+            store.setStage(.importHub)
+        case .reviewAndMatch:
+            let stage: WorkflowStage = store.hasUncommittedReviewChanges || store.matches.isEmpty
+                ? .review
+                : .matchReport
+            store.setStage(stage)
+        case .buildPlan:
+            store.setStage(.scenario)
+        case .rebuildPlan:
+            store.generatePlan()
+        case .viewPlan:
             store.setStage(.result)
         }
     }
@@ -414,16 +434,20 @@ private struct TonightSnapshotCard: View {
             guard store.canUseReadyPlan else {
                 return "上一版歌单还在；按最新选择重排后，才能分享或查看开唱小抄。"
             }
-            return isSoloPractice
-                ? "练唱单已经排好，可以继续调整，也可以保存下来随时看。"
-                : "歌单已经排好，可以继续调整，也可以直接发给朋友。"
+            if let summary = store.readySongPlan?.generationSummary {
+                return summary.userFacingSourceSummary
+            }
+            return "这是一份历史排歌结果，可以查看详情后再决定是否重排。"
         case .absent:
             break
         }
-        if store.importedPlaylist != nil {
-            return "可以看看哪些歌在本地参考里有匹配，或者直接按场景排一版。"
+        if store.currentPlanBasis != nil {
+            return "已确认 \(store.matchStats.verified) 首可以参与排歌；待确认和暂未找到的歌曲先保留，不会卡住你。"
         }
-        return "有歌单就导入；想排歌、测音域、看小抄也可以直接用。"
+        if let playlist = store.importedPlaylist {
+            return "已导入 \(playlist.songs.count) 首。先集中处理少量异常，剩下的会批量匹配。"
+        }
+        return "先放入常听歌单，后面会帮你批量识别、筛选并排好顺序。"
     }
 
     private var isSoloPractice: Bool {
@@ -438,27 +462,6 @@ private struct TonightSnapshotCard: View {
         isSoloPractice ? "查看练唱小抄" : "查看开唱小抄"
     }
 
-    private var resumeActionTitle: String {
-        switch store.resumeStage {
-        case .review:
-            return "继续整理这份歌单"
-        case .matchReport:
-            return "继续核对参考匹配"
-        case .scenario:
-            return isSoloPractice ? "继续排练唱单" : "继续排今晚歌单"
-        default:
-            return "继续这份歌单"
-        }
-    }
-
-    private var resumeActionIcon: String {
-        switch store.resumeStage {
-        case .review: return "checklist"
-        case .matchReport: return "checkmark.seal"
-        case .scenario: return "sparkles"
-        default: return "arrow.right.circle"
-        }
-    }
 }
 
 private struct HomeFeatureCard: View {

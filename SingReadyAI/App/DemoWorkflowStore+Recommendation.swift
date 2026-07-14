@@ -79,12 +79,16 @@ extension DemoWorkflowStore {
         let frozenRemovedTrackIDs = removedTrackIDs
         let frozenFeedback = feedbackProfile
         let previousPlan = visibleSongPlan
+        let reportsFeedbackChange = feedbackStatusMessage == Self.feedbackReplanInProgressMessage
+        let reportsFeedbackUndo = feedbackStatusMessage == Self.feedbackUndoReplanInProgressMessage
         let startingStage = currentStage
         let request = planGenerationGate.begin()
         planStateTransitionGate.invalidate()
         let shouldDelayFixture = ProcessInfo.processInfo.arguments.contains(
             "-singreadyDelayPlanGeneration"
         )
+        let shouldFailFeedbackReplanFixture = reportsFeedbackChange
+            && ProcessInfo.processInfo.arguments.contains("-singreadyFailFeedbackReplan")
         let generatingState = planGenerationState.preparingGeneration(for: basis)
         // 先在内存中关闭上一版的 ready 安全门，但不对外声称已开始重排。
         // 只有 actor 把 generating(previous) 映射的 stale 快照写盘后，
@@ -129,7 +133,13 @@ extension DemoWorkflowStore {
                 return
             }
             setPlanGenerationState(generatingState)
-            statusMessage = "正在按最新选择排歌"
+            if reportsFeedbackUndo {
+                statusMessage = Self.feedbackUndoReplanInProgressMessage
+            } else if reportsFeedbackChange {
+                statusMessage = Self.feedbackReplanInProgressMessage
+            } else {
+                statusMessage = "正在按最新选择排歌"
+            }
 
             do {
                 let engine = recommendationEngine
@@ -137,6 +147,9 @@ extension DemoWorkflowStore {
                     #if DEBUG
                     if shouldDelayFixture {
                         try await Task.sleep(nanoseconds: 2_000_000_000)
+                    }
+                    if shouldFailFeedbackReplanFixture {
+                        throw RecommendationGenerationError.countMismatch
                     }
                     #endif
                     return try engine.generatePlan(
@@ -206,7 +219,21 @@ extension DemoWorkflowStore {
                 planGenerationTask = nil
                 errorMessage = nil
                 _ = planGenerationGate.finish(request)
-                statusMessage = "已排好\(stablePlan.scenario.displayName)歌单"
+                if reportsFeedbackUndo {
+                    let message = Self.feedbackUndoReplanCompletedMessage
+                    feedbackStatusMessage = message
+                    statusMessage = message
+                } else if reportsFeedbackChange, let previousPlan {
+                    let change = SongPlanChangeSummary(
+                        previous: previousPlan,
+                        current: stablePlan
+                    )
+                    let message = "已按你的选择重新排好：保留 \(change.retainedCount) 首，调整 \(change.changedCount) 首"
+                    feedbackStatusMessage = message
+                    statusMessage = message
+                } else {
+                    statusMessage = "已排好\(stablePlan.scenario.displayName)歌单"
+                }
                 if shouldNavigate {
                     setStage(.result)
                 }
@@ -434,6 +461,7 @@ extension DemoWorkflowStore {
         }
         let transition = planStateTransitionGate.begin()
         guard let reservation = reservePlanStateSnapshotCommit(invalidatedState) else {
+            setPlanGenerationState(invalidatedState)
             errorMessage = "当前状态暂时没保存下来，请稍后重试。"
             return
         }
@@ -461,7 +489,9 @@ extension DemoWorkflowStore {
             reason: "这次重排已取消"
         )
         guard let reservation = reservePlanStateSnapshotCommit(cancelledState) else {
-            errorMessage = "取消状态暂时没保存下来，请再试一次。"
+            setPlanGenerationState(cancelledState)
+            errorMessage = "重排已停止，但当前状态还没保存，请稍后再试。"
+            statusMessage = "重排已停止，但当前状态还没保存"
             return
         }
         statusMessage = "正在取消重排"
@@ -472,8 +502,8 @@ extension DemoWorkflowStore {
                 initialReservation: reservation,
                 transition: transition,
                 successStatus: "已取消重排，上一版歌单还在。",
-                failureMessage: "取消状态暂时没保存下来，请再试一次。",
-                failureStatus: "重排已停止，当前状态还在保存"
+                failureMessage: "重排已停止，但当前状态还没保存，请稍后再试。",
+                failureStatus: "重排已停止，但当前状态还没保存"
             )
         }
     }
@@ -530,8 +560,17 @@ extension DemoWorkflowStore {
         failureStatus: String?
     ) async {
         var reservation = initialReservation
+        #if DEBUG
+        let shouldFailCancellationSnapshotFixture = failureStatus != nil
+            && ProcessInfo.processInfo.arguments.contains(
+                "-singreadyFailCancelledPlanStatePersistence"
+            )
+        #else
+        let shouldFailCancellationSnapshotFixture = false
+        #endif
         for _ in 0..<4 {
             guard planStateTransitionGate.accepts(transition) else { return }
+            if shouldFailCancellationSnapshotFixture { break }
             guard let result = await commitReservedWorkflowSnapshot(
                 reservation,
                 reportFailure: false
@@ -547,16 +586,20 @@ extension DemoWorkflowStore {
                 }
                 return
             }
-            guard let nextReservation = reservePlanStateSnapshotCommit(
-                state,
-                advancesRevision: false
-            ) else {
+            guard planStateTransitionGate.accepts(transition),
+                  let nextReservation = reservePlanStateSnapshotCommit(
+                      state,
+                      advancesRevision: false
+                  ) else {
                 break
             }
             reservation = nextReservation
             await Task.yield()
         }
         guard planStateTransitionGate.accepts(transition) else { return }
+        // 写盘失败不能把界面永远留在“重排中”；先发布安全的失效态，
+        // 保留上一版只读歌单和撤销入口，再明确提示用户稍后重试保存。
+        setPlanGenerationState(state)
         errorMessage = failureMessage
         if let failureStatus {
             statusMessage = failureStatus

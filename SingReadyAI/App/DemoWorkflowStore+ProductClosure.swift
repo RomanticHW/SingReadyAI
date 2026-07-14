@@ -228,24 +228,24 @@ extension DemoWorkflowStore {
         replaceWorkflowRevisions(nextRevisions)
         standaloneFeedbackRevision = nextRevisions.feedback
         hasStandaloneFeedbackRecord = true
-        invalidatePlan(reason: "歌曲反馈已更新")
-        generatePlan()
         lastFeedbackUndo = SongFeedbackUndoAction(
             trackID: trackID,
             trackTitle: trackTitle,
             kind: kind,
-            previousTags: previousTags
+            previousTags: previousTags,
+            appliedFeedbackRevision: nextRevisions.feedback
         )
-        let isSelected = nextProfile.contains(trackID: trackID, kind: kind)
-        feedbackStatusMessage = isSelected
-            ? "已记录\(trackTitle)：\(kind.displayName)"
-            : "已取消\(trackTitle)的\(kind.displayName)"
-        statusMessage = feedbackStatusMessage ?? statusMessage
+        feedbackStatusMessage = Self.feedbackReplanInProgressMessage
+        statusMessage = Self.feedbackReplanInProgressMessage
+        invalidatePlan(reason: "歌曲反馈已更新")
+        generatePlan()
     }
 
     func undoLastFeedback() {
-        guard canUseReadyPlan else {
-            errorMessage = readyPlanUnavailableMessage
+        guard canUndoLastFeedback else {
+            if lastFeedbackUndo != nil {
+                errorMessage = "请等当前操作结束后再撤销。"
+            }
             return
         }
         guard let action = lastFeedbackUndo else { return }
@@ -268,11 +268,11 @@ extension DemoWorkflowStore {
         replaceWorkflowRevisions(nextRevisions)
         standaloneFeedbackRevision = nextRevisions.feedback
         hasStandaloneFeedbackRecord = true
+        lastFeedbackUndo = nil
+        feedbackStatusMessage = Self.feedbackUndoReplanInProgressMessage
+        statusMessage = Self.feedbackUndoReplanInProgressMessage
         invalidatePlan(reason: "歌曲反馈已更新")
         generatePlan()
-        feedbackStatusMessage = "已撤销\(action.trackTitle)：\(action.kind.displayName)"
-        statusMessage = feedbackStatusMessage ?? statusMessage
-        lastFeedbackUndo = nil
     }
 
     private func trackDisplayTitle(for trackID: String) -> String {

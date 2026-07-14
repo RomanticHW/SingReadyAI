@@ -2,88 +2,81 @@ import SwiftUI
 import SingReadyAISharedKit
 
 struct MatchReportView: View {
+    @Environment(\.appAccessibilityFlags) private var flags
     @EnvironmentObject private var store: DemoWorkflowStore
-    @State private var visibleResultCount = MatchResultDisplayPolicy.batchSize
+    @State private var visiblePendingCount = 20
+    @State private var visibleUnmatchedCount = 20
+    @State private var visibleConfirmedCount = 20
+    @State private var showsConfirmedSongs = false
+
+    private let resultBatchSize = 20
 
     var body: some View {
         FlowPage {
-            if let profile = store.preferenceProfile {
+            if let profile = store.preferenceProfile,
+               let preparation = store.playlistPreparationSummary {
                 HeroHeader(
-                    eyebrow: "核对参考匹配",
-                    title: matchHeadline(for: profile.ktvMatchRate),
-                    subtitle: store.recommendationInputSource.matchReportSummary(for: profile),
-                    systemImage: "chart.bar.xaxis"
+                    eyebrow: "歌单已整理",
+                    title: "已匹配 \(preparation.verifiedCount) 首，可以直接排歌",
+                    subtitle: "已确认的歌会直接参与排歌。待确认和暂时没找到的歌先放在这里，不影响继续。",
+                    systemImage: "checkmark.seal"
                 )
                 GlassCard {
-                    Text("歌曲参考核对完成")
+                    Text("这份歌单的处理结果")
                         .font(TypographyTokens.section)
                         .stageText()
-                    Text(
-                        "已核对 \(store.matchStats.verified) 首 · "
-                            + "待确认 \(store.matchStats.pending) 首 · "
-                            + "暂未找到 \(store.matchStats.unmatched) 首"
-                    )
+                    Text(matchOutcomeSummary(for: preparation))
                     .font(TypographyTokens.callout.weight(.semibold))
                     .foregroundStyle(DesignSystem.cyan)
+                    .accessibilityLabel(matchOutcomeSummary(for: preparation))
                     .accessibilityIdentifier("match-outcome-summary")
+                    Text("共导入 \(preparation.importedCount) 首，其中 \(preparation.validReviewedCount) 首已进入本次匹配。")
+                        .font(TypographyTokens.caption)
+                        .foregroundStyle(DesignSystem.muted)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
-                GlassCard {
-                    HStack(alignment: .center) {
-                        VStack(alignment: .leading, spacing: SpacingTokens.sm) {
-                            Text("本地参考曲库")
-                                .font(TypographyTokens.section)
-                                .stageText()
-                            Text("参考命中 \(store.matches.filter(\.hasOriginalReferenceMatch).count)/\(store.matches.count)")
-                                .font(TypographyTokens.callout.weight(.semibold))
-                                .foregroundStyle(DesignSystem.cyan)
-                            TagCloud(values: profile.profileTags)
-                        }
-                        Spacer()
-                        MatchRateRing(value: profile.ktvMatchRate)
-                    }
+                PrimaryGradientButton(
+                    title: "按这份歌单排一版",
+                    systemImage: "sparkles"
+                ) {
+                    store.continueToScenarioWithoutMeasuring()
                 }
-                matchMetricsView
+                .disabled(
+                    !preparation.canContinue
+                        || store.isApplyingMatchReviewAction
+                        || store.isWorking
+                )
+                .accessibilityIdentifier("match-build-plan-action")
+                SecondaryGlassButton(title: "先测一下音区（可选）", systemImage: "waveform") {
+                    store.setStage(.voice)
+                }
+                .disabled(store.isApplyingMatchReviewAction || store.isWorking)
+                .accessibilityIdentifier("match-measure-optional")
                 if store.isApplyingMatchReviewAction {
                     GlassCard {
                         LoadingStateView(text: "正在保存你的选择")
                     }
                     .accessibilityIdentifier("match-review-saving")
                 }
-                VStack(alignment: .leading, spacing: SpacingTokens.sm) {
-                    Text("逐首核对")
-                        .font(TypographyTokens.section)
-                        .stageText()
-                    Text("原歌名、参考命中和待确认候选都列在这里。")
-                        .font(TypographyTokens.caption)
-                        .foregroundStyle(DesignSystem.muted)
-                    LazyVStack(alignment: .leading, spacing: SpacingTokens.sm) {
-                        ForEach(store.matches.prefix(visibleResultCount)) { result in
-                            MatchResultCard(
-                                result: result,
-                                onConfirmIdentity: { trackID in
-                                    store.confirmMatch(resultID: result.id, trackID: trackID)
-                                },
-                                onAdoptAlternative: { trackID in
-                                    store.adoptAlternative(resultID: result.id, trackID: trackID)
-                                }
-                            )
-                            .disabled(store.isApplyingMatchReviewAction || store.isWorking)
-                        }
-                    }
-                    if visibleResultCount < store.matches.count {
-                        let nextCount = min(
-                            MatchResultDisplayPolicy.batchSize,
-                            store.matches.count - visibleResultCount
-                        )
-                        SecondaryGlassButton(title: "再看 \(nextCount) 首", systemImage: "chevron.down") {
-                            visibleResultCount = MatchResultDisplayPolicy.nextVisibleCount(
-                                currentCount: visibleResultCount,
-                                totalCount: store.matches.count
-                            )
-                        }
-                        .accessibilityIdentifier("match-results-show-more")
-                    }
+                if !pendingMatches.isEmpty {
+                    matchSection(
+                        title: "待确认 \(pendingMatches.count) 首",
+                        subtitle: "不处理也能继续；如果你认得候选，可以顺手确认或采用替代。",
+                        matches: pendingMatches,
+                        visibleCount: $visiblePendingCount,
+                        accessibilityIdentifier: "match-pending-section"
+                    )
                 }
+                if !unmatchedMatches.isEmpty {
+                    matchSection(
+                        title: "暂时没找到 \(unmatchedMatches.count) 首",
+                        subtitle: "这些歌先保留在原歌单里，不会进入这次排歌，也不影响继续。",
+                        matches: unmatchedMatches,
+                        visibleCount: $visibleUnmatchedCount,
+                        accessibilityIdentifier: "match-unmatched-section"
+                    )
+                }
+                confirmedSongsSection
                 if shouldShowBackupSuggestion {
                     GlassCard {
                         HStack(alignment: .top, spacing: SpacingTokens.sm) {
@@ -113,7 +106,7 @@ struct MatchReportView: View {
                                                 )
                                                 .font(TypographyTokens.caption)
                                                 .foregroundStyle(DesignSystem.muted)
-                                                if let externalURL = candidate.externalURL {
+                                                if let externalURL = validatedPublicURL(candidate.externalURL) {
                                                     Link("查看公开来源", destination: externalURL)
                                                         .font(TypographyTokens.caption.weight(.semibold))
                                                         .foregroundStyle(DesignSystem.cyan)
@@ -165,39 +158,13 @@ struct MatchReportView: View {
                         MetricBar(title: "好不好唱", value: min(1, profile.averageDifficulty / 5), tint: DesignSystem.amber, valueLabel: difficultyLabel)
                         MetricBar(title: "高音多不多", value: profile.highNoteRisk, tint: DesignSystem.warning, valueLabel: pressureLabel)
                         MetricBar(title: "合唱好接", value: profile.chorusFriendliness, tint: DesignSystem.success, valueLabel: fitLabel)
-                        PrimaryGradientButton(title: "测一下音域", systemImage: "waveform") {
-                            store.setStage(.voice)
-                        }
-                        .accessibilityIdentifier("match-insights-measure")
-                        SecondaryGlassButton(title: "先不测，去选场景", systemImage: "person.3.sequence") {
-                            store.continueToScenarioWithoutMeasuring()
-                        }
-                        .accessibilityIdentifier("match-insights-skip")
-                    }
-                } else {
-                    GlassCard {
-                        Text("还没有足够的参考信息")
-                            .font(TypographyTokens.section)
-                            .stageText()
-                        Text("可以先测一下这次唱到的音区；不想测，也能直接按今晚的场景排歌。")
-                            .font(TypographyTokens.callout)
-                            .foregroundStyle(DesignSystem.muted)
-                            .fixedSize(horizontal: false, vertical: true)
-                        PrimaryGradientButton(title: "测一下音区", systemImage: "waveform") {
-                            store.setStage(.voice)
-                        }
-                        .accessibilityIdentifier("match-no-insights-measure")
-                        SecondaryGlassButton(title: "先不测，去选场景", systemImage: "person.3.sequence") {
-                            store.continueToScenarioWithoutMeasuring()
-                        }
-                        .accessibilityIdentifier("match-no-insights-skip")
                     }
                 }
             } else if store.importedPlaylist != nil {
                 GlassCard {
                     EmptyStateView(
                         systemImage: "checklist",
-                        text: "这份歌单还没完成整理和参考匹配。先确认歌名，再逐首核对本地参考。"
+                        text: "这份歌单还没完成整理和批量匹配，先补齐缺少的歌名。"
                     )
                     SecondaryGlassButton(title: "先整理这份歌单", systemImage: "checklist") {
                         store.setStage(.review)
@@ -205,7 +172,7 @@ struct MatchReportView: View {
                 }
             } else {
                 GlassCard {
-                    EmptyStateView(systemImage: "chart.bar", text: "把歌单放进来，就能逐首核对本地参考命中和待确认候选。")
+                    EmptyStateView(systemImage: "chart.bar", text: "把歌单放进来，就能批量匹配并直接排成一份可唱的顺序。")
                     SecondaryGlassButton(title: "导入歌单", systemImage: "tray.and.arrow.down") {
                         store.setStage(.importHub)
                     }
@@ -217,51 +184,139 @@ struct MatchReportView: View {
         }
     }
 
-    private var visibleMatchMetrics: [(title: String, value: String, systemImage: String)] {
-        let stats = store.matchStats
-        var metrics = [(title: "参考命中", value: "\(stats.exact)", systemImage: "checkmark.seal")]
-        if stats.pending > 0 {
-            metrics.append((title: "待确认", value: "\(stats.pending)", systemImage: "person.crop.circle.badge.questionmark"))
+    private var pendingMatches: [MatchResult] {
+        store.matches.filter(\.isPending)
+    }
+
+    private var unmatchedMatches: [MatchResult] {
+        store.matches.filter(\.isUnmatched)
+    }
+
+    private var confirmedMatches: [MatchResult] {
+        store.matches.filter(\.isVerified)
+    }
+
+    private func matchOutcomeSummary(for preparation: PlaylistPreparationSummary) -> String {
+        "已确认 \(preparation.verifiedCount) / "
+            + "待确认 \(preparation.pendingCount) / "
+            + "未找到 \(preparation.unmatchedCount)"
+    }
+
+    private func matchSection(
+        title: String,
+        subtitle: String,
+        matches: [MatchResult],
+        visibleCount: Binding<Int>,
+        accessibilityIdentifier: String
+    ) -> some View {
+        VStack(alignment: .leading, spacing: SpacingTokens.sm) {
+            VStack(alignment: .leading, spacing: SpacingTokens.xxs) {
+                Text(title)
+                    .font(TypographyTokens.section)
+                    .stageText()
+                Text(subtitle)
+                    .font(TypographyTokens.caption)
+                    .foregroundStyle(DesignSystem.muted)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            LazyVStack(alignment: .leading, spacing: SpacingTokens.sm) {
+                ForEach(matches.prefix(visibleCount.wrappedValue)) { result in
+                    resultCard(result)
+                }
+            }
+            if visibleCount.wrappedValue < matches.count {
+                let nextCount = min(resultBatchSize, matches.count - visibleCount.wrappedValue)
+                SecondaryGlassButton(title: "再看 \(nextCount) 首", systemImage: "chevron.down") {
+                    visibleCount.wrappedValue = min(
+                        matches.count,
+                        visibleCount.wrappedValue + resultBatchSize
+                    )
+                }
+                .accessibilityIdentifier("\(accessibilityIdentifier)-show-more")
+            }
         }
-        if stats.fuzzy > 0 {
-            metrics.append((title: "歌名相近", value: "\(stats.fuzzy)", systemImage: "scope"))
-        }
-        if stats.pendingAlternative > 0 {
-            metrics.append((title: "可以替换", value: "\(stats.pendingAlternative)", systemImage: "arrow.triangle.branch"))
-        }
-        if stats.adoptedAlternative > 0 {
-            metrics.append((title: "已采用替代", value: "\(stats.adoptedAlternative)", systemImage: "checkmark.circle"))
-        }
-        if stats.unmatched > 0 {
-            metrics.append((title: "暂时没找到", value: "\(stats.unmatched)", systemImage: "questionmark.circle"))
-        }
-        return metrics
+        .accessibilityIdentifier(accessibilityIdentifier)
     }
 
     @ViewBuilder
-    private var matchMetricsView: some View {
-        let metrics = visibleMatchMetrics
-        if metrics.count == 1, let metric = metrics.first {
-            MetricPill(title: metric.title, value: metric.value, systemImage: metric.systemImage)
-        } else {
-            LazyVGrid(columns: [GridItem(.adaptive(minimum: 140), spacing: SpacingTokens.sm)], spacing: SpacingTokens.sm) {
-                ForEach(metrics, id: \.title) { metric in
-                    MetricPill(title: metric.title, value: metric.value, systemImage: metric.systemImage)
-                        .accessibilityElement(children: .combine)
-                        .accessibilityLabel("\(metric.title) \(metric.value)")
-                        .accessibilityIdentifier(
-                            metric.title == "已采用替代"
-                                ? "match-metric-adopted-alternative"
-                                : "match-metric-\(metric.title)"
+    private var confirmedSongsSection: some View {
+        if !confirmedMatches.isEmpty {
+            VStack(alignment: .leading, spacing: SpacingTokens.sm) {
+                Button {
+                    Haptics.selection()
+                    withAnimation(flags.reduceMotion ? nil : MotionTokens.micro) {
+                        showsConfirmedSongs.toggle()
+                    }
+                } label: {
+                    HStack(spacing: SpacingTokens.sm) {
+                        VStack(alignment: .leading, spacing: SpacingTokens.xxs) {
+                            Text("已确认 \(confirmedMatches.count) 首")
+                                .font(TypographyTokens.section)
+                                .stageText()
+                            Text("默认收起；想换成其他候选时再打开。")
+                                .font(TypographyTokens.caption)
+                                .foregroundStyle(DesignSystem.muted)
+                        }
+                        Spacer(minLength: SpacingTokens.sm)
+                        Image(systemName: showsConfirmedSongs ? "chevron.up" : "chevron.down")
+                            .font(TypographyTokens.callout.weight(.semibold))
+                            .foregroundStyle(DesignSystem.cyan)
+                    }
+                    .frame(minHeight: ComponentTokens.minTouchTarget)
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(showsConfirmedSongs ? "收起已确认歌曲" : "查看已确认歌曲")
+                .accessibilityIdentifier("match-confirmed-toggle")
+
+                if showsConfirmedSongs {
+                    LazyVStack(alignment: .leading, spacing: SpacingTokens.sm) {
+                        ForEach(confirmedMatches.prefix(visibleConfirmedCount)) { result in
+                            resultCard(result)
+                        }
+                    }
+                    .transition(.move(edge: .top).combined(with: .opacity))
+                    if visibleConfirmedCount < confirmedMatches.count {
+                        let nextCount = min(
+                            resultBatchSize,
+                            confirmedMatches.count - visibleConfirmedCount
                         )
+                        SecondaryGlassButton(title: "再看 \(nextCount) 首", systemImage: "chevron.down") {
+                            visibleConfirmedCount = min(
+                                confirmedMatches.count,
+                                visibleConfirmedCount + resultBatchSize
+                            )
+                        }
+                        .accessibilityIdentifier("match-confirmed-show-more")
+                    }
                 }
             }
+            .padding(SpacingTokens.md)
+            .liquidGlassSurface(
+                cornerRadius: DesignSystem.cornerRadius,
+                tint: DesignSystem.cyan.opacity(0.025),
+                fallback: DesignSystem.cardBackgroundLow
+            )
+            .accessibilityIdentifier("match-confirmed-section")
         }
+    }
+
+    private func resultCard(_ result: MatchResult) -> some View {
+        MatchResultCard(
+            result: result,
+            onConfirmIdentity: { trackID in
+                store.confirmMatch(resultID: result.id, trackID: trackID)
+            },
+            onAdoptAlternative: { trackID in
+                store.adoptAlternative(resultID: result.id, trackID: trackID)
+            }
+        )
+        .disabled(store.isApplyingMatchReviewAction || store.isWorking)
     }
 
     private var hasSongsNeedingBackup: Bool {
         let stats = store.matchStats
-        return stats.pending + stats.fuzzy + stats.pendingAlternative + stats.unmatched > 0
+        return stats.pending + stats.unmatched > 0
     }
 
     private var shouldShowBackupSuggestion: Bool {
@@ -276,17 +331,15 @@ struct MatchReportView: View {
         hasSongsNeedingBackup ? "找同歌手备选" : "再找同歌手备选"
     }
 
-    private func matchHeadline(for rate: Double) -> String {
-        switch rate {
-        case 0.95...:
-            return "本地参考基本都命中"
-        case 0.75..<0.95:
-            return "多数有本地参考"
-        case 0.45..<0.75:
-            return "部分有本地参考"
-        default:
-            return "先核对参考候选"
+    private func validatedPublicURL(_ url: URL?) -> URL? {
+        guard let url,
+              url.scheme?.lowercased() == "https",
+              url.host?.isEmpty == false,
+              url.user == nil,
+              url.password == nil else {
+            return nil
         }
+        return url
     }
 
     private func fitLabel(_ value: Double) -> String {
@@ -349,105 +402,156 @@ private struct MatchResultCard: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
 
-            if result.confirmationState == .required {
-                ForEach(result.alternatives) { candidate in
-                    VStack(alignment: .leading, spacing: SpacingTokens.xs) {
-                        Text("同名候选：\(candidate.title) - \(candidate.artist)")
-                            .font(TypographyTokens.callout)
-                            .foregroundStyle(DesignSystem.ink)
-                            .fixedSize(horizontal: false, vertical: true)
-                        Button {
-                            Haptics.selection()
-                            onConfirmIdentity(candidate.id)
-                        } label: {
-                            Label("确认是这首", systemImage: "checkmark")
-                                .font(TypographyTokens.section)
-                                .frame(maxWidth: .infinity)
-                                .frame(minHeight: ComponentTokens.controlHeight)
-                        }
-                        .buttonStyle(.bordered)
-                        .tint(DesignSystem.cyan)
-                        .accessibilityLabel("确认是这首：\(candidate.title) - \(candidate.artist)")
-                        .accessibilityIdentifier("match-confirm-\(result.importedSong.id.uuidString.lowercased())-\(candidate.id)")
-                    }
+            candidateActions
+        }
+    }
+
+    @ViewBuilder
+    private var candidateActions: some View {
+        switch result.disposition {
+        case .identityConfirmationRequired:
+            ForEach(result.candidateTracks) { candidate in
+                if result.canConfirmIdentity(track: candidate) {
+                    identityCandidateChoice(candidate)
+                } else {
+                    candidateChoice(
+                        candidate,
+                        context: "相近候选",
+                        actionTitle: "用这首替代",
+                        systemImage: "arrow.triangle.branch",
+                        accessibilityIdentifier: "match-adopt-\(result.importedSong.id.uuidString.lowercased())-\(candidate.id)",
+                        action: onAdoptAlternative
+                    )
                 }
-            } else if !ordinaryAlternatives.isEmpty {
-                ForEach(ordinaryAlternatives) { candidate in
-                    VStack(alignment: .leading, spacing: SpacingTokens.xs) {
-                        Text("替代歌候选：\(candidate.title) - \(candidate.artist)")
-                            .font(TypographyTokens.callout)
-                            .foregroundStyle(DesignSystem.ink)
-                            .fixedSize(horizontal: false, vertical: true)
-                        Button {
-                            Haptics.selection()
-                            onAdoptAlternative(candidate.id)
-                        } label: {
-                            Label("用这首替换", systemImage: "arrow.triangle.branch")
-                                .font(TypographyTokens.section)
-                                .frame(maxWidth: .infinity)
-                                .frame(minHeight: ComponentTokens.controlHeight)
-                        }
-                        .buttonStyle(.bordered)
-                        .tint(DesignSystem.cyan)
-                        .accessibilityLabel("用这首替换：\(candidate.title) - \(candidate.artist)")
-                        .accessibilityIdentifier("match-adopt-\(result.importedSong.id.uuidString.lowercased())-\(candidate.id)")
-                    }
-                }
-            } else if result.acceptedTrack == nil {
-                Text("本地参考曲库暂时没有合适候选")
-                    .font(TypographyTokens.callout)
-                    .foregroundStyle(DesignSystem.muted)
-                    .fixedSize(horizontal: false, vertical: true)
             }
+            ForEach(result.suggestedAlternatives) { candidate in
+                candidateChoice(
+                    candidate,
+                    context: "替代建议",
+                    actionTitle: "用这首替代",
+                    systemImage: "arrow.triangle.branch",
+                    accessibilityIdentifier: "match-adopt-\(result.importedSong.id.uuidString.lowercased())-\(candidate.id)",
+                    action: onAdoptAlternative
+                )
+            }
+        case .alternativeSuggested:
+            ForEach(result.candidateTracks) { candidate in
+                candidateChoice(
+                    candidate,
+                    context: "替代建议",
+                    actionTitle: "用这首替代",
+                    systemImage: "arrow.triangle.branch",
+                    accessibilityIdentifier: "match-adopt-\(result.importedSong.id.uuidString.lowercased())-\(candidate.id)",
+                    action: onAdoptAlternative
+                )
+            }
+        case .acceptedOriginalExact, .acceptedOriginalConfirmed, .adoptedAlternative:
+            ForEach(result.suggestedAlternatives.prefix(3)) { candidate in
+                candidateChoice(
+                    candidate,
+                    context: "可换候选",
+                    actionTitle: "换成这首",
+                    systemImage: "arrow.triangle.branch",
+                    accessibilityIdentifier: "match-adopt-\(result.importedSong.id.uuidString.lowercased())-\(candidate.id)",
+                    action: onAdoptAlternative
+                )
+            }
+        case .unmatched:
+            Text("暂时没找到合适候选，不影响继续排歌。")
+                .font(TypographyTokens.callout)
+                .foregroundStyle(DesignSystem.muted)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+
+    private func identityCandidateChoice(_ candidate: KTVTrack) -> some View {
+        VStack(alignment: .leading, spacing: SpacingTokens.xs) {
+            Text("同名候选：\(candidate.title) - \(candidate.artist)")
+                .font(TypographyTokens.callout)
+                .foregroundStyle(DesignSystem.ink)
+                .fixedSize(horizontal: false, vertical: true)
+            Button {
+                Haptics.selection()
+                onConfirmIdentity(candidate.id)
+            } label: {
+                Label("就是这首", systemImage: "checkmark")
+                    .font(TypographyTokens.callout.weight(.semibold))
+                    .frame(maxWidth: .infinity)
+                    .frame(minHeight: ComponentTokens.controlHeight)
+            }
+            .buttonStyle(.bordered)
+            .tint(DesignSystem.cyan)
+            .accessibilityLabel("就是这首：\(candidate.title) - \(candidate.artist)")
+            .accessibilityIdentifier(
+                "match-confirm-\(result.importedSong.id.uuidString.lowercased())-\(candidate.id)"
+            )
+        }
+    }
+
+    private func candidateChoice(
+        _ candidate: KTVTrack,
+        context: String,
+        actionTitle: String,
+        systemImage: String,
+        accessibilityIdentifier: String,
+        action: @escaping (String) -> Void
+    ) -> some View {
+        VStack(alignment: .leading, spacing: SpacingTokens.xs) {
+            Text("\(context)：\(candidate.title) - \(candidate.artist)")
+                .font(TypographyTokens.callout)
+                .foregroundStyle(DesignSystem.ink)
+                .fixedSize(horizontal: false, vertical: true)
+            Button {
+                Haptics.selection()
+                action(candidate.id)
+            } label: {
+                Label(actionTitle, systemImage: systemImage)
+                    .font(TypographyTokens.section)
+                    .frame(maxWidth: .infinity)
+                    .frame(minHeight: ComponentTokens.controlHeight)
+            }
+            .buttonStyle(.bordered)
+            .tint(DesignSystem.cyan)
+            .accessibilityLabel("\(actionTitle)：\(candidate.title) - \(candidate.artist)")
+            .accessibilityIdentifier(accessibilityIdentifier)
         }
     }
 
     private var stateTitle: String {
-        switch result.confirmationState {
-        case .required:
+        switch result.disposition {
+        case .identityConfirmationRequired, .alternativeSuggested:
             return "待确认"
-        case .confirmed:
+        case .acceptedOriginalConfirmed:
             return "已确认"
-        case .notRequired:
-            if result.status == .alternative, result.acceptedTrack != nil {
-                return "已采用替代"
-            }
-            return result.status.displayName
+        case .acceptedOriginalExact:
+            return "已确认"
+        case .adoptedAlternative:
+            return "已采用替代"
+        case .unmatched:
+            return "暂时没找到"
         }
     }
 
     private var stateTint: Color {
-        switch result.confirmationState {
-        case .required:
+        switch result.disposition {
+        case .identityConfirmationRequired, .alternativeSuggested:
             return DesignSystem.warning
-        case .confirmed:
+        case .acceptedOriginalExact, .acceptedOriginalConfirmed, .adoptedAlternative:
             return DesignSystem.success
-        case .notRequired:
-            switch result.status {
-            case .exact:
-                return DesignSystem.success
-            case .fuzzy, .alternative:
-                return DesignSystem.cyan
-            case .unmatched:
-                return DesignSystem.muted
-            }
+        case .unmatched:
+            return DesignSystem.muted
         }
     }
 
-    private var ordinaryAlternatives: [KTVTrack] {
-        guard result.status != .exact else { return [] }
-        return result.alternatives.filter { $0.id != result.acceptedTrack?.id }
-    }
-
     private func referenceLabel(for track: KTVTrack) -> String {
-        switch result.status {
-        case .exact:
+        switch result.disposition {
+        case .acceptedOriginalExact:
             return "本地参考命中：\(track.title) - \(track.artist)"
-        case .fuzzy:
-            return "歌名相近参考：\(track.title) - \(track.artist)"
-        case .alternative:
+        case .acceptedOriginalConfirmed:
+            return "已确认原曲：\(track.title) - \(track.artist)"
+        case .adoptedAlternative:
             return "已采用替代歌：\(track.title) - \(track.artist)"
-        case .unmatched:
+        case .identityConfirmationRequired, .alternativeSuggested, .unmatched:
             return "本地参考：\(track.title) - \(track.artist)"
         }
     }

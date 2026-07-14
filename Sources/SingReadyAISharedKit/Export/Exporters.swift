@@ -15,6 +15,11 @@ public struct PlaylistTextExporter: Sendable {
         } else {
             lines.append("今晚建议：\(plan.scenario.planSummary)")
         }
+        if let generationSummary = plan.generationSummary {
+            lines.append(generationSummary.userFacingSourceSummary)
+        } else {
+            lines.append("来源说明：这是一份历史排歌结果")
+        }
         if let voiceProfile = plan.voiceProfile {
             lines.append("\(voiceProfile.source.displayName)：\(midiDisplayRange(voiceProfile))")
         }
@@ -25,7 +30,9 @@ public struct PlaylistTextExporter: Sendable {
             lines.append(section.goal)
             for (index, item) in section.items.enumerated() {
                 lines.append("\(index + 1). \(item.track.title) - \(item.track.artist)")
-                lines.append("   \(item.track.catalogSource.displayName)")
+                lines.append(
+                    "   来源：\(item.origin.displayName) · 参考数据：\(item.track.catalogSource.displayName)"
+                )
                 if let confidenceNote = item.track.confidenceNote {
                     lines.append("   参考说明：\(confidenceNote)")
                 }

@@ -238,7 +238,30 @@ final class ExporterAndNormalizerTests: XCTestCase {
         XCTAssertEqual(String(data: payload.data, encoding: .utf8), payload.contents)
         XCTAssertTrue(payload.contents.contains("为什么放这首"))
         XCTAssertTrue(payload.contents.contains("备选"))
+        let summary = try XCTUnwrap(plan.generationSummary)
+        XCTAssertTrue(
+            payload.contents.contains(
+                "共 \(summary.formalPlanCount) 首：原歌单 \(summary.importedMatchCount) 首 · "
+                    + "采用替代 \(summary.adoptedAlternativeCount) 首 · 补充 \(summary.supplementCount) 首"
+            )
+        )
+        XCTAssertTrue(payload.contents.contains("来源："))
         XCTAssertGreaterThan(payload.contents.count, PlaylistShareTextExporter().export(plan: plan).count)
+    }
+
+    func testDetailedTextMarksLegacyPlanWithoutInventingSourceCounts() {
+        let plan = SongPlan(
+            title: "历史歌单",
+            scenario: .friends,
+            sections: []
+        )
+
+        let text = PlaylistTextExporter().export(plan: plan)
+
+        XCTAssertTrue(text.contains("这是一份历史排歌结果"))
+        XCTAssertFalse(text.contains("原歌单 0 首"))
+        XCTAssertFalse(text.contains("采用替代 0 首"))
+        XCTAssertFalse(text.contains("补充 0 首"))
     }
 
     func testTemporaryExportFileStoreClearRemovesMaterializedFileAndOwnedDirectory() throws {

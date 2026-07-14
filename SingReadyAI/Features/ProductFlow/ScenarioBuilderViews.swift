@@ -65,6 +65,7 @@ struct ScenarioBuilderView: View {
                     }
                 }
             }
+            planInputSummary
         }
         .safeAreaInset(edge: .bottom, spacing: 0) {
             generateButton
@@ -134,6 +135,37 @@ struct ScenarioBuilderView: View {
 
     private var isSoloPractice: Bool {
         store.scenarioConfig.scenario == .soloPractice
+    }
+
+    private var planInputSummary: some View {
+        GlassCard {
+            Text("这次会怎么排")
+                .font(TypographyTokens.section)
+                .stageText()
+            Text(planInputDescription)
+                .font(TypographyTokens.callout)
+                .foregroundStyle(DesignSystem.muted)
+                .fixedSize(horizontal: false, vertical: true)
+            TagCloud(values: [
+                "音区：\(voiceSourceTitle)",
+                "\(store.scenarioConfig.peopleCount) 人",
+                "\(store.scenarioConfig.durationMinutes) 分钟",
+                store.scenarioConfig.vibe.displayName,
+                store.scenarioConfig.difficultyPreference.displayName
+            ])
+        }
+        .accessibilityIdentifier("scenario-input-summary")
+    }
+
+    private var planInputDescription: String {
+        guard store.currentPlanBasis != nil else {
+            return "还没有可用的导入结果，排歌时会先准备一份常见歌曲参考。"
+        }
+        return "将使用已确认 \(store.matchStats.verified) 首；待确认 \(store.matchStats.pending) 首、未找到 \(store.matchStats.unmatched) 首暂不参与。"
+    }
+
+    private var voiceSourceTitle: String {
+        store.voiceProfile?.source.displayName ?? VoiceProfileSource.commonReference.displayName
     }
 
     @ViewBuilder

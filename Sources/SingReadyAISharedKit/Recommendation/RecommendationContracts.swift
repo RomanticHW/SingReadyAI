@@ -22,6 +22,117 @@ public enum SongRecommendationOrigin: String, Codable, CaseIterable, Sendable {
     }
 }
 
+public enum HomeNextAction: Equatable, Sendable {
+    case importPlaylist
+    case reviewAndMatch
+    case buildPlan
+    case rebuildPlan
+    case viewPlan
+
+    public init(
+        hasImportedPlaylist: Bool,
+        hasCompletedAnalysis: Bool,
+        hasVisiblePlan: Bool,
+        canUseReadyPlan: Bool
+    ) {
+        if canUseReadyPlan {
+            self = .viewPlan
+        } else if hasVisiblePlan, hasCompletedAnalysis {
+            self = .rebuildPlan
+        } else if hasCompletedAnalysis {
+            self = .buildPlan
+        } else if hasImportedPlaylist {
+            self = .reviewAndMatch
+        } else {
+            self = .importPlaylist
+        }
+    }
+
+    public var title: String {
+        switch self {
+        case .importPlaylist:
+            return "导入我的歌单"
+        case .reviewAndMatch:
+            return "继续整理并批量匹配"
+        case .buildPlan:
+            return "按这份歌单排一版"
+        case .rebuildPlan:
+            return "按最新选择重新排歌"
+        case .viewPlan:
+            return "查看这份排歌"
+        }
+    }
+}
+
+public struct SongPlanChangeSummary: Equatable, Sendable {
+    public let retainedCount: Int
+    public let changedCount: Int
+
+    public init(previous: SongPlan, current: SongPlan) {
+        let previousSequence = Self.occurrenceSequence(for: previous)
+        let currentSequence = Self.occurrenceSequence(for: current)
+        let previousOccurrences = Set(previousSequence)
+
+        retainedCount = currentSequence.reduce(into: 0) { count, occurrence in
+            if previousOccurrences.contains(occurrence) {
+                count += 1
+            }
+        }
+
+        let sharedPositionCount = min(previousSequence.count, currentSequence.count)
+        let reorderedOrReplacedCount = (0..<sharedPositionCount).reduce(into: 0) { count, index in
+            if previousSequence[index] != currentSequence[index] {
+                count += 1
+            }
+        }
+        changedCount = reorderedOrReplacedCount
+            + abs(previousSequence.count - currentSequence.count)
+    }
+
+    private struct SemanticKey: Hashable {
+        let normalizedBaseTitle: String
+        let normalizedArtist: String
+        let versionKinds: [String]
+        let unknownVersionFingerprint: String
+    }
+
+    private struct OccurrenceKey: Hashable {
+        let semanticKey: SemanticKey
+        let occurrence: Int
+    }
+
+    private static func occurrenceSequence(for plan: SongPlan) -> [OccurrenceKey] {
+        var occurrenceCounts: [SemanticKey: Int] = [:]
+        return plan.sections
+            .flatMap(\.items)
+            .filter { !$0.track.isProvisionalExternalCandidate }
+            .map { item in
+                let semanticKey = semanticKey(for: item.track)
+                let occurrence = (occurrenceCounts[semanticKey] ?? 0) + 1
+                occurrenceCounts[semanticKey] = occurrence
+                return OccurrenceKey(semanticKey: semanticKey, occurrence: occurrence)
+            }
+    }
+
+    private static func semanticKey(for track: KTVTrack) -> SemanticKey {
+        let identity = SongVersionIdentity.parse(
+            title: track.title,
+            versionTags: track.versionTags
+        )
+        return SemanticKey(
+            normalizedBaseTitle: identity.normalizedBaseTitle,
+            normalizedArtist: SongNormalizer.normalizeArtist(track.artist),
+            versionKinds: identity.kinds.map(\.rawValue).sorted(),
+            unknownVersionFingerprint: identity.kinds.contains(.unknown)
+                ? SongVersionIdentity.deduplicationUnknownFingerprint(
+                    title: track.title,
+                    versionTags: track.versionTags
+                )
+                : ""
+        )
+    }
+}
+
 public enum RecommendationGenerationError: Error, Equatable, Sendable {
     case countMismatch
     case lockedTrackUnavailable(trackIDs: [String])
@@ -231,5 +342,12 @@ public struct SongPlanGenerationSummary: Codable, Equatable, Sendable {
             && actualImportedMatchCount == importedMatchCount
             && actualAdoptedAlternativeCount == adoptedAlternativeCount
             && actualSupplementCount == supplementCount
+    }
+}
+
+public extension SongPlanGenerationSummary {
+    var userFacingSourceSummary: String {
+        "共 \(formalPlanCount) 首：原歌单 \(importedMatchCount) 首 · "
+            + "采用替代 \(adoptedAlternativeCount) 首 · 补充 \(supplementCount) 首"
     }
 }

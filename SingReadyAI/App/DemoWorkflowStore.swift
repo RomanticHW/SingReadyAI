@@ -10,6 +10,9 @@ import AVFoundation
 @MainActor
 final class DemoWorkflowStore: ObservableObject {
     static let idleStatusMessage = "先选你现在想做的事"
+    static let feedbackReplanInProgressMessage = "正在按最新选择调整"
+    static let feedbackUndoReplanInProgressMessage = "已撤销上次选择，正在重新排歌"
+    static let feedbackUndoReplanCompletedMessage = "已撤销上次选择，歌单已重新排好"
 
     @Published var navigationPath: [WorkflowStage] = []
     @Published var pendingImports: [PendingImportPayload] = []
@@ -178,6 +181,15 @@ final class DemoWorkflowStore: ObservableObject {
         readySongPlan != nil
     }
 
+    var canUndoLastFeedback: Bool {
+        guard let action = lastFeedbackUndo,
+              visibleSongPlan != nil,
+              currentPlanBasis != nil,
+              !isWorking else { return false }
+        return action.appliedFeedbackRevision == revisions.feedback
+            && action.appliedFeedbackRevision == standaloneFeedbackRevision
+    }
+
     var isGeneratingPlan: Bool {
         if case .generating = planGenerationState { return true }
         return false
@@ -272,6 +284,31 @@ final class DemoWorkflowStore: ObservableObject {
 
     var matchStats: MatchStatistics {
         MatchStatistics(matches: matches)
+    }
+
+    var playlistPreparationSummary: PlaylistPreparationSummary? {
+        guard let importedPlaylist,
+              let currentMatchBasis else {
+            return nil
+        }
+        let snapshotSongs = reviewSongs.map { draft in
+            WorkflowReviewSong(
+                id: draft.id,
+                title: draft.title,
+                artist: draft.artist,
+                source: draft.source,
+                rawText: draft.rawText,
+                confidence: draft.confidence,
+                versionTags: draft.versionTags,
+                isDeleted: draft.isDeleted
+            )
+        }
+        return PlaylistPreparationSummary(
+            playlist: importedPlaylist,
+            reviewSongs: snapshotSongs,
+            analysis: completedAnalysis,
+            currentBasis: currentMatchBasis
+        )
     }
 
     var matchRate: Double {

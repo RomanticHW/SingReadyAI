@@ -186,6 +186,7 @@ final class ProductClosureTests: XCTestCase {
             reason: "可替代"
         )
 
+        XCTAssertTrue(identityPending.canConfirmIdentity(track: first))
         let confirmed = try XCTUnwrap(identityPending.confirming(track: first))
         assertAcceptedOriginalConfirmed(confirmed, trackID: first.id)
         let adoptedFromIdentity = try XCTUnwrap(identityPending.adoptingAlternative(track: first))
@@ -229,6 +230,31 @@ final class ProductClosureTests: XCTestCase {
         XCTAssertNil(switchedFromExact.adoptingAlternative(track: second))
         XCTAssertNil(unmatched.confirming(track: first))
         XCTAssertNil(unmatched.adoptingAlternative(track: first))
+    }
+
+    func testFuzzyTitleCandidateMustBeAdoptedInsteadOfIdentityConfirmed() throws {
+        let candidate = makeTrack(
+            id: "fuzzy",
+            title: "稻香",
+            artist: "周杰伦"
+        )
+        let song = ImportedSong(
+            title: "稻香现场记忆版",
+            artist: "周杰伦",
+            source: .plainText,
+            confidence: 0.9
+        )
+        let pending = MatchResult(
+            importedSong: song,
+            disposition: .identityConfirmationRequired(candidates: [candidate]),
+            score: 0.88,
+            reason: "歌名相近，请核对版本"
+        )
+
+        XCTAssertFalse(pending.canConfirmIdentity(track: candidate))
+        XCTAssertNil(pending.confirming(track: candidate))
+        let adopted = try XCTUnwrap(pending.adoptingAlternative(track: candidate))
+        assertAdoptedAlternative(adopted, trackID: candidate.id)
     }
 
     func testDispositionStatisticsUseCompleteNonOverlappingPartitions() {
@@ -1909,6 +1935,115 @@ final class ProductClosureTests: XCTestCase {
         XCTAssertEqual(SongRecommendationOrigin.allCases, origins)
         XCTAssertEqual(decoded, origins)
         XCTAssertEqual(expectations.map { $0.origin.displayName }, expectations.map(\.displayName))
+    }
+
+    func testHomeNextActionChoosesOneActionFromTheCommittedWorkflowState() {
+        XCTAssertEqual(
+            HomeNextAction(
+                hasImportedPlaylist: false,
+                hasCompletedAnalysis: false,
+                hasVisiblePlan: false,
+                canUseReadyPlan: false
+            ),
+            .importPlaylist
+        )
+        XCTAssertEqual(
+            HomeNextAction(
+                hasImportedPlaylist: true,
+                hasCompletedAnalysis: false,
+                hasVisiblePlan: false,
+                canUseReadyPlan: false
+            ),
+            .reviewAndMatch
+        )
+        XCTAssertEqual(
+            HomeNextAction(
+                hasImportedPlaylist: true,
+                hasCompletedAnalysis: false,
+                hasVisiblePlan: true,
+                canUseReadyPlan: false
+            ),
+            .reviewAndMatch,
+            "上一版计划存在但匹配快照已失效时，必须先重新匹配，不能给出无法执行的重排入口"
+        )
+        XCTAssertEqual(
+            HomeNextAction(
+                hasImportedPlaylist: true,
+                hasCompletedAnalysis: true,
+                hasVisiblePlan: false,
+                canUseReadyPlan: false
+            ),
+            .buildPlan
+        )
+        XCTAssertEqual(
+            HomeNextAction(
+                hasImportedPlaylist: true,
+                hasCompletedAnalysis: true,
+                hasVisiblePlan: true,
+                canUseReadyPlan: false
+            ),
+            .rebuildPlan
+        )
+        XCTAssertEqual(
+            HomeNextAction(
+                hasImportedPlaylist: true,
+                hasCompletedAnalysis: true,
+                hasVisiblePlan: true,
+                canUseReadyPlan: true
+            ),
+            .viewPlan
+        )
+        XCTAssertEqual(HomeNextAction.reviewAndMatch.title, "继续整理并批量匹配")
+        XCTAssertEqual(HomeNextAction.buildPlan.title, "按这份歌单排一版")
+        XCTAssertEqual(HomeNextAction.rebuildPlan.title, "按最新选择重新排歌")
+        XCTAssertEqual(HomeNextAction.viewPlan.title, "查看这份排歌")
+    }
+
+    func testSongPlanChangeSummaryCountsSemanticOccurrencesAndOrderChanges() {
+        let firstA = makeTrack(id: "a-1", title: "晴天", artist: "周杰伦")
+        let secondA = makeTrack(id: "a-2", title: "晴天", artist: "周杰伦")
+        let reorderedA = makeTrack(id: "a-3", title: "晴天", artist: "周杰伦")
+        let reorderedDuplicateA = makeTrack(id: "a-4", title: "晴天", artist: "周杰伦")
+        let trackB = makeTrack(id: "b", title: "后来", artist: "刘若英")
+        let trackC = makeTrack(id: "c", title: "小幸运", artist: "田馥甄")
+
+        func plan(_ tracks: [KTVTrack]) -> SongPlan {
+            SongPlan(
+                title: "测试排歌",
+                scenario: .friends,
+                sections: [
+                    SongPlanSection(
+                        title: "顺序",
+                        goal: "测试",
+                        items: tracks.map {
+                            SongPlanItem(
+                                track: $0,
+                                origin: .importedMatch,
+                                score: 0.8,
+                                reasons: [],
+                                riskWarnings: [],
+                                alternatives: []
+                            )
+                        }
+                    )
+                ]
+            )
+        }
+
+        let previous = plan([firstA, secondA, trackB])
+        let reordered = SongPlanChangeSummary(
+            previous: previous,
+            current: plan([reorderedA, trackB, reorderedDuplicateA])
+        )
+        XCTAssertEqual(reordered.retainedCount, 3)
+        XCTAssertEqual(reordered.changedCount, 2)
+
+        let replaced = SongPlanChangeSummary(
+            previous: previous,
+            current: plan([reorderedA, reorderedDuplicateA, trackC])
+        )
+        XCTAssertEqual(replaced.retainedCount, 2)
+        XCTAssertEqual(replaced.changedCount, 1)
     }
 
     func testSongPlanGenerationSummaryDerivesAllFieldsFromContextAndFinalItems() throws {

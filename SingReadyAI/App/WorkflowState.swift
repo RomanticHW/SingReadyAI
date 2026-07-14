@@ -169,6 +169,7 @@ struct SongFeedbackUndoAction: Equatable {
     var trackTitle: String
     var kind: SongFeedbackKind
     var previousTags: [SongFeedbackKind]
+    var appliedFeedbackRevision: UInt64
 }
 
 struct ReviewSongUndoAction: Equatable {

@@ -24,11 +24,18 @@ struct SongPlanResultView: View {
                     CarSafetyNoticeView()
                 }
                 planFreshnessStatus
-                ResponsiveActionRow {
-                    SecondaryGlassButton(title: "调整场景", systemImage: "slider.horizontal.3") {
-                        store.setStage(.scenario)
+                feedbackReplanOutcome
+                if store.canUseReadyPlan {
+                    PrimaryGradientButton(
+                        title: plan.scenario == .soloPractice ? "开始练唱" : "查看开唱小抄",
+                        systemImage: plan.scenario == .soloPractice ? "music.mic" : "quote.bubble"
+                    ) {
+                        store.setStage(.startTips)
                     }
-                    if store.canUseReadyPlan {
+                    ResponsiveActionRow {
+                        SecondaryGlassButton(title: "调整场景", systemImage: "slider.horizontal.3") {
+                            store.setStage(.scenario)
+                        }
                         SecondaryGlassButton(
                             title: plan.scenario == .soloPractice ? "保存练唱单" : "发给朋友",
                             systemImage: "square.and.arrow.up"
@@ -36,10 +43,18 @@ struct SongPlanResultView: View {
                             store.setStage(.export)
                         }
                     }
+                } else {
+                    SecondaryGlassButton(title: "调整场景", systemImage: "slider.horizontal.3") {
+                        store.setStage(.scenario)
+                    }
                 }
                 SongPlanNotices(notices: plan.notices)
                 if store.canUseReadyPlan, !store.removedTrackIDs.isEmpty {
                     RemovedTracksManagementCard()
+                }
+                if let collection = currentExternalCandidateCollection,
+                   !collection.candidates.isEmpty {
+                    ExternalCandidateCollectionCard(candidates: collection.candidates)
                 }
                 SongPlanTimeline(
                     plan: plan,
@@ -56,20 +71,19 @@ struct SongPlanResultView: View {
         }
         .floatingToast($toastPresentation)
         .safeAreaInset(edge: .bottom) {
-            if store.canUseReadyPlan {
-                if let undo = store.lastRemovedTrackUndo {
-                    UndoBanner(message: "已移除《\(undo.title)》", actionTitle: "撤销移除") {
-                        store.undoLastTrackRemoval()
-                    }
-                    .padding(.horizontal, DesignSystem.pageHorizontalPadding)
-                    .padding(.bottom, SpacingTokens.xs)
-                } else if let message = store.feedbackStatusMessage, store.lastFeedbackUndo != nil {
-                    UndoBanner(message: message, actionTitle: "撤销上次选择") {
-                        store.undoLastFeedback()
-                    }
-                    .padding(.horizontal, DesignSystem.pageHorizontalPadding)
-                    .padding(.bottom, SpacingTokens.xs)
+            if store.canUseReadyPlan, let undo = store.lastRemovedTrackUndo {
+                UndoBanner(message: "已移除《\(undo.title)》", actionTitle: "撤销移除") {
+                    store.undoLastTrackRemoval()
                 }
+                .padding(.horizontal, DesignSystem.pageHorizontalPadding)
+                .padding(.bottom, SpacingTokens.xs)
+            } else if let message = feedbackUndoBannerMessage {
+                UndoBanner(message: message, actionTitle: "撤销这次选择") {
+                    store.undoLastFeedback()
+                }
+                .padding(.horizontal, DesignSystem.pageHorizontalPadding)
+                .padding(.bottom, SpacingTokens.xs)
+                .accessibilityIdentifier("feedback-undo-banner")
             }
         }
     }
@@ -88,6 +102,22 @@ struct SongPlanResultView: View {
             ) {
                 store.setStage(.scenario)
             }
+        }
+    }
+
+    @ViewBuilder
+    private var feedbackReplanOutcome: some View {
+        if store.canUseReadyPlan,
+           store.lastFeedbackUndo == nil,
+           store.feedbackStatusMessage == DemoWorkflowStore.feedbackUndoReplanCompletedMessage,
+           store.statusMessage == DemoWorkflowStore.feedbackUndoReplanCompletedMessage {
+            GlassCard {
+                Label(DemoWorkflowStore.feedbackUndoReplanCompletedMessage, systemImage: "checkmark.circle.fill")
+                    .font(TypographyTokens.callout.weight(.semibold))
+                    .foregroundStyle(DesignSystem.success)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .accessibilityIdentifier("feedback-replan-outcome")
         }
     }
 
@@ -117,7 +147,9 @@ struct SongPlanResultView: View {
             .accessibilityIdentifier("stale-plan-banner")
         case .generating:
             GlassCard {
-                LoadingStateView(text: "正在按最新选择排歌")
+                LoadingStateView(
+                    text: activeFeedbackReplanMessage ?? "正在按最新选择排歌"
+                )
                 SecondaryGlassButton(title: "取消重排", systemImage: "xmark.circle") {
                     store.cancelCurrentPlanGeneration()
                 }
@@ -160,6 +192,32 @@ struct SongPlanResultView: View {
             }
             .accessibilityIdentifier("plan-generation-failure")
         }
+    }
+
+    private var currentExternalCandidateCollection: ExternalCandidateCollection? {
+        guard let collection = store.externalCandidateCollection,
+              let playlist = store.importedPlaylist,
+              collection.basis.playlistID == playlist.id,
+              collection.basis.reviewRevision == store.revisions.review else {
+            return nil
+        }
+        return collection
+    }
+
+    private var activeFeedbackReplanMessage: String? {
+        guard store.feedbackStatusMessage == DemoWorkflowStore.feedbackReplanInProgressMessage
+                || store.feedbackStatusMessage == DemoWorkflowStore.feedbackUndoReplanInProgressMessage else {
+            return nil
+        }
+        return store.feedbackStatusMessage
+    }
+
+    private var feedbackUndoBannerMessage: String? {
+        guard store.canUndoLastFeedback else { return nil }
+        if store.canUseReadyPlan {
+            return store.feedbackStatusMessage ?? "这次选择已保存"
+        }
+        return "上次选择已保存，但歌单还没重新排好"
     }
 }
 
@@ -256,7 +314,7 @@ private struct SongPlanNotices: View {
 }
 
 func userFacingPlanSummary(for plan: SongPlan) -> String {
-    plan.scenario.planSummary
+    plan.generationSummary?.userFacingSourceSummary ?? "这是一份历史排歌结果"
 }
 
 struct SongRecommendationCard: View {
@@ -331,19 +389,8 @@ struct SongRecommendationCard: View {
     }
 
     private var compactTags: [String] {
-        if item.track.isProvisionalExternalCandidate {
-            var tags = [
-                item.track.externalCandidateMetadata?.relation.displayName ?? "外部候选",
-                item.track.externalCandidateMetadata?.provider.displayName ?? "公开信息来源",
-                "待核对"
-            ]
-            if let firstFeedback = visibleFeedbackTags.first {
-                tags.append(firstFeedback.displayName)
-            }
-            return tags
-        }
         var tags = [
-            item.track.catalogSource.displayName,
+            item.origin.displayName,
             item.track.genre,
             difficultyTag
         ]
@@ -585,5 +632,69 @@ struct SongRecommendationCard: View {
         #endif
         Haptics.success()
         onToast("已复制到剪贴板", .success)
+    }
+}
+
+private struct ExternalCandidateCollectionCard: View {
+    let candidates: [ExternalSongCandidate]
+
+    var body: some View {
+        GlassCard {
+            Text("另有 \(candidates.count) 首公开候选待核对")
+                .font(TypographyTokens.section)
+                .stageText()
+            Text("公开候选只供你参考，不会自动加进排歌结果。")
+                .font(TypographyTokens.caption)
+                .foregroundStyle(DesignSystem.muted)
+                .fixedSize(horizontal: false, vertical: true)
+            LazyVStack(alignment: .leading, spacing: SpacingTokens.sm) {
+                ForEach(Array(candidates.enumerated()), id: \.offset) { index, candidate in
+                    VStack(alignment: .leading, spacing: SpacingTokens.xs) {
+                        HStack(alignment: .firstTextBaseline, spacing: SpacingTokens.sm) {
+                            VStack(alignment: .leading, spacing: SpacingTokens.xxs) {
+                                Text(candidate.title)
+                                    .font(TypographyTokens.callout.weight(.semibold))
+                                    .stageText()
+                                Text(candidate.artist ?? "歌手信息待补充")
+                                    .font(TypographyTokens.caption)
+                                    .foregroundStyle(DesignSystem.muted)
+                            }
+                            Spacer(minLength: SpacingTokens.sm)
+                            Text("待核对")
+                                .font(TypographyTokens.caption.weight(.semibold))
+                                .foregroundStyle(DesignSystem.amber)
+                        }
+                        Text(candidate.source.displayName)
+                            .font(TypographyTokens.caption)
+                            .foregroundStyle(DesignSystem.muted)
+                        if let url = validatedPublicURL(candidate.externalURL) {
+                            Link("查看公开来源", destination: url)
+                                .font(TypographyTokens.callout.weight(.semibold))
+                                .foregroundStyle(DesignSystem.cyan)
+                                .frame(minHeight: ComponentTokens.minTouchTarget)
+                                .accessibilityIdentifier("external-candidate-source-link-\(index)")
+                        }
+                    }
+                    .padding(.vertical, SpacingTokens.xs)
+                    .accessibilityElement(children: .contain)
+                    .accessibilityIdentifier("external-candidate-reference")
+                    if index < candidates.count - 1 {
+                        Divider().overlay(DesignSystem.border)
+                    }
+                }
+            }
+        }
+        .accessibilityIdentifier("external-candidate-collection")
+    }
+
+    private func validatedPublicURL(_ url: URL?) -> URL? {
+        guard let url,
+              url.scheme?.lowercased() == "https",
+              url.host?.isEmpty == false,
+              url.user == nil,
+              url.password == nil else {
+            return nil
+        }
+        return url
     }
 }

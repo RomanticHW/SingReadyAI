@@ -244,7 +244,6 @@ extension DemoWorkflowStore {
             }
         }
         if ProcessInfo.processInfo.arguments.contains("-singreadyCandidateChangeAfterPlan"),
-           let candidate = catalog.last,
            let importedPlaylist {
             externalCandidateCollection = ExternalCandidateCollection(
                 basis: ExternalCandidateBasis(
@@ -254,11 +253,11 @@ extension DemoWorkflowStore {
                 ),
                 candidates: [
                     ExternalSongCandidate(
-                        title: candidate.title,
-                        artist: candidate.artist,
+                        title: "仅供公开核对的候选曲",
+                        artist: "公开候选歌手",
                         source: .iTunes,
                         confidence: 0.9,
-                        externalURL: candidate.externalURL
+                        externalURL: URL(string: "https://music.apple.com/cn/song/public-candidate")
                     )
                 ]
             )
@@ -465,7 +464,7 @@ extension DemoWorkflowStore {
         let playlist = ImportedPlaylist(
             id: UUID(uuidString: "00000000-0000-0000-0000-000000000200")!,
             source: .plainText,
-            title: "逐首核对歌单",
+            title: "批量匹配歌单",
             songs: songs,
             parseConfidence: 0.7
         )
@@ -483,42 +482,31 @@ extension DemoWorkflowStore {
         let preparedMatches = [
             MatchResult(
                 importedSong: songs[0],
-                matchedTrack: exact,
-                alternatives: [],
-                status: .exact,
+                disposition: .acceptedOriginalExact(track: exact),
                 score: 1,
                 reason: "歌名和歌手在本地参考曲库中命中"
             ),
             MatchResult(
                 importedSong: songs[1],
-                matchedTrack: nil,
-                alternatives: [identity],
-                status: .fuzzy,
-                confirmationState: .required,
+                disposition: .identityConfirmationRequired(candidates: [identity]),
                 score: 1,
                 reason: "找到同名歌曲，请确认歌手"
             ),
             MatchResult(
                 importedSong: songs[2],
-                matchedTrack: nil,
-                alternatives: [unmatchedBackup],
-                status: .unmatched,
+                disposition: .unmatched,
                 score: 0.2,
                 reason: "本地参考曲库中未找到足够接近的歌曲"
             ),
             MatchResult(
                 importedSong: songs[3],
-                matchedTrack: fuzzy,
-                alternatives: [],
-                status: .fuzzy,
+                disposition: .identityConfirmationRequired(candidates: [fuzzy]),
                 score: 0.88,
                 reason: "歌名相近，请核对版本"
             ),
             MatchResult(
                 importedSong: songs[4],
-                matchedTrack: nil,
-                alternatives: [exact],
-                status: .alternative,
+                disposition: .alternativeSuggested(candidates: [exact]),
                 score: 0.72,
                 reason: "找到一首可明确采用的替代歌"
             )

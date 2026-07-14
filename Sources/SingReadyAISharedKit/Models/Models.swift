@@ -717,9 +717,18 @@ public struct MatchResult: Codable, Identifiable, Sendable {
         try container.encode(reason, forKey: .reason)
     }
 
+    public func canConfirmIdentity(track: KTVTrack) -> Bool {
+        guard case let .identityConfirmationRequired(candidates) = disposition,
+              let candidate = candidates.first(where: { $0.id == track.id }) else {
+            return false
+        }
+        return candidate.matchesTitleIdentity(importedSong.title)
+    }
+
     public func confirming(track: KTVTrack) -> MatchResult? {
         guard case let .identityConfirmationRequired(candidates) = disposition,
-              let confirmedTrack = candidates.first(where: { $0.id == track.id }) else {
+              let confirmedTrack = candidates.first(where: { $0.id == track.id }),
+              canConfirmIdentity(track: confirmedTrack) else {
             return nil
         }
 
