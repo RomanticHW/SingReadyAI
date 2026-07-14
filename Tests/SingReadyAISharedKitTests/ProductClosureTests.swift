@@ -827,6 +827,161 @@ final class ProductClosureTests: XCTestCase {
         XCTAssertTrue(localURL?.absoluteString.contains("term=") == true)
     }
 
+    func testSongRecommendationOriginsRoundTripWithStableDisplayNames() throws {
+        let expectations: [(origin: SongRecommendationOrigin, displayName: String)] = [
+            (.importedMatch, "来自导入歌单"),
+            (.adoptedAlternative, "你采用的替代"),
+            (.sameArtistSupplement, "同歌手补充"),
+            (.styleSupplement, "风格补充"),
+            (.sceneSupplement, "场景补充"),
+            (.popularSupplement, "热门补充"),
+            (.legacyUnknown, "历史排歌")
+        ]
+        let origins = expectations.map(\.origin)
+
+        let decoded = try JSONDecoder().decode(
+            [SongRecommendationOrigin].self,
+            from: JSONEncoder().encode(origins)
+        )
+
+        XCTAssertEqual(SongRecommendationOrigin.allCases, origins)
+        XCTAssertEqual(decoded, origins)
+        XCTAssertEqual(expectations.map { $0.origin.displayName }, expectations.map(\.displayName))
+    }
+
+    func testSongPlanGenerationSummaryDerivesAllFieldsFromContextAndFinalItems() throws {
+        let playlistID = UUID(uuidString: "E6C74E68-5A71-4C45-93A5-CDF8BC4281D4")!
+        let context = makeGenerationContext(
+            playlistID: playlistID,
+            playlistTitle: "周末朋友局",
+            importedSongCount: 9,
+            verifiedSongCount: 6,
+            pendingSongCount: 2,
+            unmatchedSongCount: 1,
+            scenario: .birthday,
+            peopleCount: 7,
+            durationMinutes: 90,
+            voiceSource: .measured,
+            feedbackCount: 3
+        )
+        let items = [
+            makePlanItem(id: "imported-1", origin: .importedMatch),
+            makePlanItem(id: "imported-2", origin: .importedMatch),
+            makePlanItem(id: "alternative", origin: .adoptedAlternative),
+            makePlanItem(id: "same-artist", origin: .sameArtistSupplement),
+            makePlanItem(id: "style", origin: .styleSupplement),
+            makePlanItem(id: "scene", origin: .sceneSupplement),
+            makePlanItem(id: "popular", origin: .popularSupplement)
+        ]
+
+        let summary = try SongPlanGenerationSummary(context: context, items: items)
+
+        XCTAssertEqual(summary.playlistID, playlistID)
+        XCTAssertEqual(summary.playlistTitle, "周末朋友局")
+        XCTAssertEqual(summary.importedSongCount, 9)
+        XCTAssertEqual(summary.verifiedSongCount, 6)
+        XCTAssertEqual(summary.pendingSongCount, 2)
+        XCTAssertEqual(summary.unmatchedSongCount, 1)
+        XCTAssertEqual(summary.formalPlanCount, 7)
+        XCTAssertEqual(summary.importedMatchCount, 2)
+        XCTAssertEqual(summary.adoptedAlternativeCount, 1)
+        XCTAssertEqual(summary.supplementCount, 4)
+        XCTAssertEqual(summary.scenario, .birthday)
+        XCTAssertEqual(summary.peopleCount, 7)
+        XCTAssertEqual(summary.durationMinutes, 90)
+        XCTAssertEqual(summary.voiceSource, .measured)
+        XCTAssertEqual(summary.feedbackCount, 3)
+        XCTAssertEqual(
+            try JSONDecoder().decode(
+                SongPlanGenerationSummary.self,
+                from: JSONEncoder().encode(summary)
+            ),
+            summary
+        )
+    }
+
+    func testSongPlanGenerationSummaryRejectsCorruptedCodableCounts() throws {
+        let item = makePlanItem(id: "imported", origin: .importedMatch)
+        let summary = try SongPlanGenerationSummary(
+            context: makeGenerationContext(importedSongCount: 1, verifiedSongCount: 1),
+            items: [item]
+        )
+        let encoded = try JSONEncoder().encode(summary)
+        let validObject = try XCTUnwrap(
+            JSONSerialization.jsonObject(with: encoded) as? [String: Any]
+        )
+        let corruptions: [(key: String, value: Int)] = [
+            ("formalPlanCount", 2),
+            ("feedbackCount", -1)
+        ]
+
+        for corruption in corruptions {
+            var object = validObject
+            object[corruption.key] = corruption.value
+            let data = try JSONSerialization.data(withJSONObject: object)
+
+            XCTAssertThrowsError(try JSONDecoder().decode(SongPlanGenerationSummary.self, from: data)) { error in
+                guard case RecommendationGenerationError.countMismatch = error else {
+                    return XCTFail("损坏摘要应抛出 countMismatch，实际为：\(error)")
+                }
+            }
+        }
+    }
+
+    func testSongPlanGenerationSummaryRejectsNegativeContextValues() {
+        let invalidContexts = [
+            makeGenerationContext(importedSongCount: -1),
+            makeGenerationContext(verifiedSongCount: -1),
+            makeGenerationContext(pendingSongCount: -1),
+            makeGenerationContext(unmatchedSongCount: -1),
+            makeGenerationContext(peopleCount: -1),
+            makeGenerationContext(durationMinutes: -1),
+            makeGenerationContext(feedbackCount: -1)
+        ]
+
+        for context in invalidContexts {
+            XCTAssertThrowsError(try SongPlanGenerationSummary(context: context, items: [])) { error in
+                guard case RecommendationGenerationError.countMismatch = error else {
+                    return XCTFail("负数上下文应抛出 countMismatch，实际为：\(error)")
+                }
+            }
+        }
+    }
+
+    func testSongPlanGenerationSummaryRejectsUnclassifiedFormalItem() {
+        let legacyItem = makePlanItem(id: "legacy", origin: .legacyUnknown)
+
+        XCTAssertThrowsError(
+            try SongPlanGenerationSummary(context: makeGenerationContext(), items: [legacyItem])
+        ) { error in
+            guard case RecommendationGenerationError.countMismatch = error else {
+                return XCTFail("未分类正式条目应抛出 countMismatch，实际为：\(error)")
+            }
+        }
+    }
+
+    func testSongPlanRoundTripAndTrustBoundaryPreserveSummaryAndOrigins() throws {
+        let item = makePlanItem(id: "imported", origin: .importedMatch)
+        let summary = try SongPlanGenerationSummary(
+            context: makeGenerationContext(importedSongCount: 1, verifiedSongCount: 1),
+            items: [item]
+        )
+        let plan = SongPlan(
+            title: "正式排歌",
+            scenario: .friends,
+            generationSummary: summary,
+            sections: [SongPlanSection(title: "开场", goal: "热身", items: [item])]
+        )
+
+        let decoded = try JSONDecoder().decode(SongPlan.self, from: JSONEncoder().encode(plan))
+        let sanitized = decoded.sanitizedForTrustBoundaries()
+
+        XCTAssertEqual(decoded.generationSummary, summary)
+        XCTAssertEqual(decoded.sections.flatMap(\.items).map(\.origin), [.importedMatch])
+        XCTAssertEqual(sanitized.generationSummary, summary)
+        XCTAssertEqual(sanitized.sections.flatMap(\.items).map(\.origin), [.importedMatch])
+    }
+
     func testSongPlanItemDecodesLegacyJSONWithoutNewClosureFields() throws {
         let legacyJSON = """
         {
@@ -876,6 +1031,7 @@ final class ProductClosureTests: XCTestCase {
         XCTAssertNil(item.singingAdvice)
         XCTAssertNil(item.actionURL)
         XCTAssertEqual(item.feedbackTags, [])
+        XCTAssertEqual(item.origin, .legacyUnknown)
     }
 
     func testFeedbackProfileTogglesEachSignalIndependently() {
@@ -947,6 +1103,45 @@ final class ProductClosureTests: XCTestCase {
             confidence: 0.86,
             note: "本次录音结果",
             source: .measured
+        )
+    }
+
+    private func makeGenerationContext(
+        playlistID: UUID = UUID(uuidString: "73E3BE1C-7FB1-4A60-9C95-F8C57DF1741B")!,
+        playlistTitle: String = "测试歌单",
+        importedSongCount: Int = 0,
+        verifiedSongCount: Int = 0,
+        pendingSongCount: Int = 0,
+        unmatchedSongCount: Int = 0,
+        scenario: KTVScenario = .friends,
+        peopleCount: Int = 4,
+        durationMinutes: Int = 60,
+        voiceSource: VoiceProfileSource = .commonReference,
+        feedbackCount: Int = 0
+    ) -> SongPlanGenerationContext {
+        SongPlanGenerationContext(
+            playlistID: playlistID,
+            playlistTitle: playlistTitle,
+            importedSongCount: importedSongCount,
+            verifiedSongCount: verifiedSongCount,
+            pendingSongCount: pendingSongCount,
+            unmatchedSongCount: unmatchedSongCount,
+            scenario: scenario,
+            peopleCount: peopleCount,
+            durationMinutes: durationMinutes,
+            voiceSource: voiceSource,
+            feedbackCount: feedbackCount
+        )
+    }
+
+    private func makePlanItem(id: String, origin: SongRecommendationOrigin) -> SongPlanItem {
+        SongPlanItem(
+            track: makeTrack(id: id, title: "测试歌曲 \(id)", artist: "测试歌手"),
+            origin: origin,
+            score: 0.8,
+            reasons: ["测试理由"],
+            riskWarnings: [],
+            alternatives: []
         )
     }
 

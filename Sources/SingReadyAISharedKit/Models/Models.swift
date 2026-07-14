@@ -1592,6 +1592,7 @@ public struct SongPlan: Codable, Identifiable, Sendable {
     public var scenarioConfig: ScenarioConfig?
     public var voiceProfile: VoiceProfile?
     public var preferenceSummary: String?
+    public var generationSummary: SongPlanGenerationSummary?
     public var sections: [SongPlanSection]
     public var notices: [String]
     public var createdAt: Date
@@ -1604,6 +1605,7 @@ public struct SongPlan: Codable, Identifiable, Sendable {
         case scenarioConfig
         case voiceProfile
         case preferenceSummary
+        case generationSummary
         case sections
         case notices
         case createdAt
@@ -1617,6 +1619,7 @@ public struct SongPlan: Codable, Identifiable, Sendable {
         scenarioConfig: ScenarioConfig? = nil,
         voiceProfile: VoiceProfile? = nil,
         preferenceSummary: String? = nil,
+        generationSummary: SongPlanGenerationSummary? = nil,
         sections: [SongPlanSection],
         notices: [String] = [],
         createdAt: Date = Date()
@@ -1628,6 +1631,7 @@ public struct SongPlan: Codable, Identifiable, Sendable {
         self.scenarioConfig = scenarioConfig
         self.voiceProfile = voiceProfile
         self.preferenceSummary = preferenceSummary
+        self.generationSummary = generationSummary
         self.sections = normalizeSongPlanSectionsForTrustBoundary(sections)
         self.notices = notices
         self.createdAt = createdAt
@@ -1643,6 +1647,7 @@ public struct SongPlan: Codable, Identifiable, Sendable {
             scenarioConfig: try container.decodeIfPresent(ScenarioConfig.self, forKey: .scenarioConfig),
             voiceProfile: try container.decodeIfPresent(VoiceProfile.self, forKey: .voiceProfile),
             preferenceSummary: try container.decodeIfPresent(String.self, forKey: .preferenceSummary),
+            generationSummary: try container.decodeIfPresent(SongPlanGenerationSummary.self, forKey: .generationSummary),
             sections: try container.decodeIfPresent([SongPlanSection].self, forKey: .sections) ?? [],
             notices: try container.decodeIfPresent([String].self, forKey: .notices) ?? [],
             createdAt: try container.decodeIfPresent(Date.self, forKey: .createdAt) ?? Date()
@@ -1935,6 +1940,7 @@ public struct SingingAdjustmentAdvice: Codable, Equatable, Sendable {
 public struct SongPlanItem: Codable, Identifiable, Sendable {
     public var id: UUID
     public var track: KTVTrack
+    public var origin: SongRecommendationOrigin
     public var score: Double
     public var scoreBreakdown: RecommendationScoreBreakdown
     public var reasons: [String]
@@ -1948,6 +1954,7 @@ public struct SongPlanItem: Codable, Identifiable, Sendable {
     enum CodingKeys: String, CodingKey {
         case id
         case track
+        case origin
         case score
         case scoreBreakdown
         case reasons
@@ -1962,6 +1969,7 @@ public struct SongPlanItem: Codable, Identifiable, Sendable {
     public init(
         id: UUID = UUID(),
         track: KTVTrack,
+        origin: SongRecommendationOrigin = .legacyUnknown,
         score: Double,
         scoreBreakdown: RecommendationScoreBreakdown = .empty,
         reasons: [String],
@@ -1975,6 +1983,7 @@ public struct SongPlanItem: Codable, Identifiable, Sendable {
         let boundedScore = min(max(score, 0), 1)
         self.id = id
         self.track = track
+        self.origin = origin
         self.score = boundedScore
         if track.isProvisionalExternalCandidate {
             self.scoreBreakdown = RecommendationScoreBreakdown(
@@ -2019,6 +2028,7 @@ public struct SongPlanItem: Codable, Identifiable, Sendable {
         self.init(
             id: try container.decodeIfPresent(UUID.self, forKey: .id) ?? UUID(),
             track: try container.decode(KTVTrack.self, forKey: .track),
+            origin: try container.decodeIfPresent(SongRecommendationOrigin.self, forKey: .origin) ?? .legacyUnknown,
             score: decodedScore,
             scoreBreakdown: try container.decodeIfPresent(RecommendationScoreBreakdown.self, forKey: .scoreBreakdown) ?? .empty,
             reasons: try container.decodeIfPresent([String].self, forKey: .reasons) ?? [],
@@ -2035,6 +2045,7 @@ public struct SongPlanItem: Codable, Identifiable, Sendable {
         SongPlanItem(
             id: id,
             track: track,
+            origin: origin,
             score: score,
             scoreBreakdown: scoreBreakdown,
             reasons: reasons,
@@ -2099,6 +2110,7 @@ public extension SongPlan {
             scenarioConfig: scenarioConfig,
             voiceProfile: voiceProfile,
             preferenceSummary: preferenceSummary,
+            generationSummary: generationSummary,
             sections: sections,
             notices: notices,
             createdAt: createdAt

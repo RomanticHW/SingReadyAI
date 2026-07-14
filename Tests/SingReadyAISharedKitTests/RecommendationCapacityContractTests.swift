@@ -330,6 +330,48 @@ final class RecommendationCapacityContractTests: XCTestCase {
 
         XCTAssertEqual(notices, [])
         XCTAssertEqual(sections.first?["role"] as? String, "general")
+        XCTAssertNil(plan.generationSummary)
+    }
+
+    func testGenerationSummaryCountsEveryCapacityItemExactlyOnce() throws {
+        let plan = makePlan(catalog: makeCatalog(count: 20), duration: 60)
+        var items = plan.sections.flatMap(\.items)
+        let origins: [SongRecommendationOrigin] = [
+            .importedMatch,
+            .adoptedAlternative,
+            .sameArtistSupplement,
+            .styleSupplement,
+            .sceneSupplement,
+            .popularSupplement
+        ]
+        for index in items.indices {
+            items[index].origin = origins[index % origins.count]
+        }
+        let context = SongPlanGenerationContext(
+            playlistID: UUID(uuidString: "F4EF5D3E-B042-4E59-85AC-028749CE25F2")!,
+            playlistTitle: "60 分钟容量歌单",
+            importedSongCount: 12,
+            verifiedSongCount: 12,
+            pendingSongCount: 0,
+            unmatchedSongCount: 0,
+            scenario: .friends,
+            peopleCount: 4,
+            durationMinutes: 60,
+            voiceSource: .commonReference,
+            feedbackCount: 0
+        )
+
+        let summary = try SongPlanGenerationSummary(context: context, items: items)
+
+        XCTAssertEqual(items.count, 12)
+        XCTAssertEqual(summary.formalPlanCount, items.count)
+        XCTAssertEqual(summary.importedMatchCount, 2)
+        XCTAssertEqual(summary.adoptedAlternativeCount, 2)
+        XCTAssertEqual(summary.supplementCount, 8)
+        XCTAssertEqual(
+            summary.formalPlanCount,
+            summary.importedMatchCount + summary.adoptedAlternativeCount + summary.supplementCount
+        )
     }
 
     func testTrackControlPolicyKeepsLockedTrackWhenRemoveIsRequested() {
