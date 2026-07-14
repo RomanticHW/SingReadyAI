@@ -45,6 +45,10 @@ public struct PlanBasis: Codable, Equatable, Sendable {
     public let trackControlsRevision: UInt64
     public let catalogRevision: String
 
+    public var isWellFormed: Bool {
+        catalogRevision == matchBasis.catalogRevision
+    }
+
     public init(
         matchBasis: MatchBasis,
         matchRevision: UInt64,
@@ -62,7 +66,43 @@ public struct PlanBasis: Codable, Equatable, Sendable {
         self.voiceFingerprint = voiceFingerprint
         self.feedbackRevision = feedbackRevision
         self.trackControlsRevision = trackControlsRevision
-        self.catalogRevision = catalogRevision
+        self.catalogRevision = catalogRevision == matchBasis.catalogRevision
+            ? catalogRevision
+            : matchBasis.catalogRevision
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case matchBasis
+        case matchRevision
+        case scenarioFingerprint
+        case voiceSource
+        case voiceFingerprint
+        case feedbackRevision
+        case trackControlsRevision
+        case catalogRevision
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        let matchBasis = try container.decode(MatchBasis.self, forKey: .matchBasis)
+        let catalogRevision = try container.decode(String.self, forKey: .catalogRevision)
+        guard catalogRevision == matchBasis.catalogRevision else {
+            throw DecodingError.dataCorruptedError(
+                forKey: .catalogRevision,
+                in: container,
+                debugDescription: "PlanBasis 的曲库修订与 MatchBasis 不一致"
+            )
+        }
+        self.init(
+            matchBasis: matchBasis,
+            matchRevision: try container.decode(UInt64.self, forKey: .matchRevision),
+            scenarioFingerprint: try container.decode(String.self, forKey: .scenarioFingerprint),
+            voiceSource: try container.decode(VoiceProfileSource.self, forKey: .voiceSource),
+            voiceFingerprint: try container.decode(String.self, forKey: .voiceFingerprint),
+            feedbackRevision: try container.decode(UInt64.self, forKey: .feedbackRevision),
+            trackControlsRevision: try container.decode(UInt64.self, forKey: .trackControlsRevision),
+            catalogRevision: catalogRevision
+        )
     }
 }
 
@@ -195,10 +235,12 @@ public struct PlaylistPreparationSummary: Equatable, Sendable {
     public init?(
         playlist: ImportedPlaylist,
         reviewSongs: [WorkflowReviewSong],
-        analysis: CompletedPlaylistAnalysis?
+        analysis: CompletedPlaylistAnalysis?,
+        currentBasis: MatchBasis
     ) {
         guard let analysis,
-              analysis.basis.playlistID == playlist.id else {
+              currentBasis.playlistID == playlist.id,
+              analysis.basis == currentBasis else {
             return nil
         }
 
@@ -302,7 +344,7 @@ public enum PlaylistWorkflowValidityPolicy {
     }
 
     public static func accepts(planBasis: PlanBasis, current: PlanBasis) -> Bool {
-        planBasis == current
+        planBasis.isWellFormed && current.isWellFormed && planBasis == current
     }
 
     public static func restoredMatchState(

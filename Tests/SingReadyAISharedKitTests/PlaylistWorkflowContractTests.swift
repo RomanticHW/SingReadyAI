@@ -107,6 +107,41 @@ final class PlaylistWorkflowContractTests: XCTestCase {
         }
     }
 
+    func testPlanBasisNormalizesConstructionAndRejectsMismatchedArchive() throws {
+        let matchBasis = MatchBasis(
+            playlistID: UUID(),
+            reviewRevision: 2,
+            catalogRevision: "catalog-a"
+        )
+        let normalized = makePlanBasis(
+            matchBasis: matchBasis,
+            catalogRevision: "catalog-b"
+        )
+        let malformed = PlanBasisPayload(
+            matchBasis: matchBasis,
+            matchRevision: 8,
+            scenarioFingerprint: "scenario-a",
+            voiceSource: .measured,
+            voiceFingerprint: "voice-a",
+            feedbackRevision: 5,
+            trackControlsRevision: 7,
+            catalogRevision: "catalog-b"
+        )
+
+        XCTAssertEqual(normalized.catalogRevision, matchBasis.catalogRevision)
+        XCTAssertTrue(normalized.isWellFormed)
+        XCTAssertThrowsError(
+            try JSONDecoder().decode(
+                PlanBasis.self,
+                from: JSONEncoder().encode(malformed)
+            )
+        ) { error in
+            guard case DecodingError.dataCorrupted = error else {
+                return XCTFail("不一致的曲库修订应按损坏数据拒绝：\(error)")
+            }
+        }
+    }
+
     func testExternalCandidateChangesDoNotParticipateInPlanBasis() {
         let playlistID = UUID()
         let matchBasis = MatchBasis(
@@ -369,7 +404,8 @@ final class PlaylistWorkflowContractTests: XCTestCase {
         let summary = try XCTUnwrap(PlaylistPreparationSummary(
             playlist: playlist,
             reviewSongs: reviewSongs,
-            analysis: analysis
+            analysis: analysis,
+            currentBasis: basis
         ))
 
         XCTAssertEqual(summary.importedCount, 4)
@@ -434,23 +470,61 @@ final class PlaylistWorkflowContractTests: XCTestCase {
             ],
             preferenceProfile: makePreferenceProfile()
         )
+        let complete = CompletedPlaylistAnalysis(
+            basis: basis,
+            matchRevision: 3,
+            matches: [first, second].map { song in
+                MatchResult(
+                    importedSong: song,
+                    disposition: .unmatched,
+                    score: 0,
+                    reason: "暂未找到"
+                )
+            },
+            preferenceProfile: makePreferenceProfile()
+        )
+        let changedReview = MatchBasis(
+            playlistID: playlist.id,
+            reviewRevision: basis.reviewRevision + 1,
+            catalogRevision: basis.catalogRevision
+        )
+        let changedCatalog = MatchBasis(
+            playlistID: playlist.id,
+            reviewRevision: basis.reviewRevision,
+            catalogRevision: "catalog-b"
+        )
         var invalidReview = reviewSongs
         invalidReview[0].title = "   "
 
         XCTAssertNil(PlaylistPreparationSummary(
             playlist: playlist,
             reviewSongs: reviewSongs,
-            analysis: incomplete
+            analysis: incomplete,
+            currentBasis: basis
         ))
         XCTAssertNil(PlaylistPreparationSummary(
             playlist: playlist,
             reviewSongs: reviewSongs,
-            analysis: stale
+            analysis: stale,
+            currentBasis: basis
         ))
         XCTAssertNil(PlaylistPreparationSummary(
             playlist: playlist,
             reviewSongs: invalidReview,
-            analysis: stale
+            analysis: stale,
+            currentBasis: basis
+        ))
+        XCTAssertNil(PlaylistPreparationSummary(
+            playlist: playlist,
+            reviewSongs: reviewSongs,
+            analysis: complete,
+            currentBasis: changedReview
+        ))
+        XCTAssertNil(PlaylistPreparationSummary(
+            playlist: playlist,
+            reviewSongs: reviewSongs,
+            analysis: complete,
+            currentBasis: changedCatalog
         ))
     }
 
@@ -484,7 +558,8 @@ final class PlaylistWorkflowContractTests: XCTestCase {
         let summary = try XCTUnwrap(PlaylistPreparationSummary(
             playlist: playlist,
             reviewSongs: [WorkflowReviewSong(song: song)],
-            analysis: analysis
+            analysis: analysis,
+            currentBasis: basis
         ))
 
         XCTAssertEqual(summary.validReviewedCount, 1)
@@ -642,4 +717,15 @@ private struct BasisPayload: Codable, Equatable {
     let ledger: WorkflowRevisionLedger
     let match: MatchBasis
     let plan: PlanBasis
+}
+
+private struct PlanBasisPayload: Encodable {
+    let matchBasis: MatchBasis
+    let matchRevision: UInt64
+    let scenarioFingerprint: String
+    let voiceSource: VoiceProfileSource
+    let voiceFingerprint: String
+    let feedbackRevision: UInt64
+    let trackControlsRevision: UInt64
+    let catalogRevision: String
 }
