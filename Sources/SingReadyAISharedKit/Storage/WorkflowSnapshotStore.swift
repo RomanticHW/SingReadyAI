@@ -9,20 +9,8 @@ public enum PlaylistImportTextPreflight {
         guard text.count <= maximumCharacterCount else { return false }
 
         var physicalLineCount = 1
-        var previousScalarWasCarriageReturn = false
-        for scalar in text.unicodeScalars {
-            switch scalar.value {
-            case 13:
-                physicalLineCount += 1
-                previousScalarWasCarriageReturn = true
-            case 10:
-                if !previousScalarWasCarriageReturn {
-                    physicalLineCount += 1
-                }
-                previousScalarWasCarriageReturn = false
-            default:
-                previousScalarWasCarriageReturn = false
-            }
+        for character in text where character.isNewline {
+            physicalLineCount += 1
             guard physicalLineCount <= maximumPhysicalLineCount else { return false }
         }
         return true

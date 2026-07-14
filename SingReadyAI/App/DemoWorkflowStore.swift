@@ -211,6 +211,10 @@ final class DemoWorkflowStore: ObservableObject {
         isImportResolving || isCommittingImportedWorkflow || isManagingLocalData
     }
 
+    var isImportPersistenceLocked: Bool {
+        isImportResolving || isCommittingImportedWorkflow
+    }
+
     func replaceReviewSongs(_ songs: [EditableImportedSongDraft]) {
         reviewSongs = songs
     }
@@ -250,6 +254,7 @@ final class DemoWorkflowStore: ObservableObject {
     }
 
     func jumpToStage(_ stage: WorkflowStage, animated: Bool = true) async {
+        guard !isCommittingImportedWorkflow else { return }
         if stage == .scenario, importedPlaylist != nil {
             hasAdvancedToScenario = true
         }

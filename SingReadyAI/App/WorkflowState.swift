@@ -130,6 +130,23 @@ enum ReviewMutation: Equatable {
     case restore(id: UUID)
 }
 
+enum ImportedWorkflowCommitError: LocalizedError {
+    case persistenceFailed
+    case pendingPersistenceFailed
+    case superseded
+
+    var errorDescription: String? {
+        switch self {
+        case .persistenceFailed:
+            return "这份歌单暂时没保存下来，之前的歌单和结果都还在。请稍后重试。"
+        case .pendingPersistenceFailed:
+            return "歌单暂时没保存下来，待整理内容已保留，请稍后重试。"
+        case .superseded:
+            return "本次导入已停止，之前的歌单和结果都还在。请重新试一次。"
+        }
+    }
+}
+
 struct SongFeedbackUndoAction: Equatable {
     var trackID: String
     var trackTitle: String

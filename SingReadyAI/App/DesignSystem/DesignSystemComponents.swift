@@ -69,6 +69,7 @@ struct StageJumpMenu: View {
     let stages: [WorkflowStage]
     let current: WorkflowStage
     let scenario: KTVScenario
+    let isEnabled: Bool
     let onSelect: (WorkflowStage) -> Void
 
     var body: some View {
@@ -92,7 +93,9 @@ struct StageJumpMenu: View {
             .frame(minWidth: ComponentTokens.minTouchTarget, minHeight: ComponentTokens.minTouchTarget)
         }
         .buttonStyle(.plain)
+        .disabled(!isEnabled)
         .accessibilityLabel("打开功能菜单")
+        .accessibilityHint(isEnabled ? "选择要前往的功能" : "新歌单保存完成后即可使用")
         .sheet(isPresented: $isPresented) {
             NavigationStack {
                 ScrollView {
@@ -163,6 +166,7 @@ struct StageJumpMenu: View {
             .clipShape(RoundedRectangle(cornerRadius: DesignSystem.radiusSmall, style: .continuous))
         }
         .buttonStyle(PressedScaleButtonStyle(scale: 0.98))
+        .disabled(!isEnabled)
         .accessibilityIdentifier("stage-menu-\(stage.rawValue)")
         .accessibilityLabel(current == stage ? "\(stageTitle)，当前页面" : "打开\(stageTitle)")
         .accessibilityAddTraits(current == stage ? .isSelected : [])
@@ -361,6 +365,8 @@ struct LoadingStateView: View {
             Text(text).font(TypographyTokens.callout)
         }
         .foregroundStyle(DesignSystem.muted)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(text)
     }
 }
 

@@ -113,22 +113,28 @@ struct ImportHubView: View {
 
     private var statusPanel: some View {
         GlassCard {
-            if store.errorMessage == nil {
+            if store.errorMessage == nil, !store.isImportResolving {
                 Text(store.statusMessage)
                     .font(TypographyTokens.callout)
                     .foregroundStyle(DesignSystem.muted)
             }
             if store.isImportResolving {
-                LoadingStateView(text: "正在整理歌单")
-                Button {
-                    store.cancelCurrentImport()
-                } label: {
-                    Label("取消本次导入", systemImage: "xmark.circle")
-                        .font(TypographyTokens.caption.weight(.semibold))
-                        .frame(maxWidth: .infinity, minHeight: ComponentTokens.minTouchTarget)
+                LoadingStateView(
+                    text: store.isCommittingImportedWorkflow
+                        ? "正在保存新歌单"
+                        : store.statusMessage
+                )
+                if !store.isCommittingImportedWorkflow {
+                    Button {
+                        store.cancelCurrentImport()
+                    } label: {
+                        Label("取消本次导入", systemImage: "xmark.circle")
+                            .font(TypographyTokens.caption.weight(.semibold))
+                            .frame(maxWidth: .infinity, minHeight: ComponentTokens.minTouchTarget)
+                    }
+                    .buttonStyle(.bordered)
+                    .accessibilityLabel("取消本次导入")
                 }
-                .buttonStyle(.bordered)
-                .accessibilityLabel("取消本次导入")
             }
             if let error = store.errorMessage {
                 ErrorStateView(text: error)

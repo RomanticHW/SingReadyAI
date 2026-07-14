@@ -210,11 +210,17 @@ extension DemoWorkflowStore {
                     navigate: false,
                     recordsRecentPlaylist: false
                 )
+            } catch is CancellationError {
+                throw CancellationError()
+            } catch let error as ImportedWorkflowCommitError {
+                switch error {
+                case .persistenceFailed:
+                    throw ImportedWorkflowCommitError.pendingPersistenceFailed
+                case .pendingPersistenceFailed, .superseded:
+                    throw error
+                }
             } catch {
-                let message = "歌单暂时没保存下来，待整理内容已保留，请稍后重试。"
-                errorMessage = message
-                statusMessage = message
-                return
+                throw ImportedWorkflowCommitError.pendingPersistenceFailed
             }
             guard case .applied = commitResult else { return }
             setCommittingImportedWorkflow(true)
@@ -345,37 +351,50 @@ extension DemoWorkflowStore {
         navigate: Bool,
         recordsRecentPlaylist: Bool = true
     ) async throws -> WorkflowCommitResult {
-        guard acceptsImportGeneration(generation) else { return .superseded }
+        guard acceptsImportGeneration(generation) else {
+            if Task.isCancelled { throw CancellationError() }
+            throw ImportedWorkflowCommitError.superseded
+        }
         setCommittingImportedWorkflow(true)
-        let result: WorkflowCommitResult
+        defer { setCommittingImportedWorkflow(false) }
+
         do {
-            result = try await workflowPersistenceExecutor.commitWorkflowSnapshot(
+            let result = try await workflowPersistenceExecutor.commitWorkflowSnapshot(
                 candidate,
                 generation: generation
             )
-        } catch {
-            setCommittingImportedWorkflow(false)
-            throw error
-        }
-        guard case .applied = result else {
-            setCommittingImportedWorkflow(false)
-            return result
-        }
+            guard case .applied = result else {
+                if Task.isCancelled { throw CancellationError() }
+                throw ImportedWorkflowCommitError.superseded
+            }
 
-        defer { setCommittingImportedWorkflow(false) }
-        publishImportedWorkflow(candidate)
-        if recordsRecentPlaylist {
-            _ = await recordRecentImport(
-                candidate.importedPlaylist,
-                request: recentPlaylistPersistenceGate.begin(),
-                failureMessage: "歌单已经打开，但“最近导入”暂时没保存下来。"
-            )
+            publishImportedWorkflow(candidate)
+            #if DEBUG
+            if ProcessInfo.processInfo.arguments.contains(
+                "-singreadyDelayImportedWorkflowFinalization"
+            ) {
+                try? await Task.sleep(nanoseconds: 4_000_000_000)
+            }
+            #endif
+            if recordsRecentPlaylist {
+                _ = await recordRecentImport(
+                    candidate.importedPlaylist,
+                    request: recentPlaylistPersistenceGate.begin(),
+                    failureMessage: "歌单已经打开，但“最近导入”暂时没保存下来。"
+                )
+            }
+            statusMessage = "找到了 \(candidate.importedPlaylist.songs.count) 首歌，先把不确定的地方看一眼"
+            if navigate {
+                setStage(.review)
+            }
+            return .applied
+        } catch is CancellationError {
+            throw CancellationError()
+        } catch let error as ImportedWorkflowCommitError {
+            throw error
+        } catch {
+            throw ImportedWorkflowCommitError.persistenceFailed
         }
-        statusMessage = "找到了 \(candidate.importedPlaylist.songs.count) 首歌，先把不确定的地方看一眼"
-        if navigate {
-            setStage(.review)
-        }
-        return result
     }
 
     private func publishImportedWorkflow(_ snapshot: WorkflowSnapshot) {

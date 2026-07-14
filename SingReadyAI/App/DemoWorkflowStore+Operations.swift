@@ -8,6 +8,12 @@ enum WorkflowOperationOutcome: Sendable {
     case discarded
 }
 
+private struct ImportCancellationReservation {
+    let generation: UInt64
+    let snapshot: WorkflowSnapshot?
+    let snapshotRevision: UInt64
+}
+
 @MainActor
 extension DemoWorkflowStore {
     func resetImport(
@@ -89,13 +95,12 @@ extension DemoWorkflowStore {
     ) async {
         guard !isImportInteractionDisabled,
               let request = importOperationGate.beginIfIdle() else { return }
-        let generation = workflowSnapshotPersistenceGate.begin()
-        await workflowPersistenceExecutor.reserveWorkflowMutation(generation: generation)
-        guard importOperationGate.accepts(request) else { return }
-
         setImportOperationState(.resolving)
         errorMessage = nil
         statusMessage = loadingMessage
+        let generation = workflowSnapshotPersistenceGate.begin()
+        await workflowPersistenceExecutor.reserveWorkflowMutation(generation: generation)
+        guard importOperationGate.accepts(request) else { return }
         #if DEBUG
         let timeoutNanoseconds: UInt64 = ProcessInfo.processInfo.arguments.contains(
             "-singreadyShortImportTimeout"
@@ -256,32 +261,30 @@ extension DemoWorkflowStore {
     }
 
     func cancelCurrentImport() {
-        guard let generation = beginImportCancellation(
+        guard let reservation = beginImportCancellation(
             state: .cancelled,
-            status: "已取消本次导入"
+            status: "已取消本次导入，之前的歌单和结果都还在。"
         ) else { return }
         Task { @MainActor [weak self] in
             guard let self else { return }
-            await self.workflowPersistenceExecutor.reserveWorkflowMutation(
-                generation: generation
-            )
+            await self.finishImportCancellation(reservation)
         }
     }
 
     func cancelCurrentImportAndWait(
         state: ImportOperationState = .cancelled,
-        status: String = "已取消本次导入"
+        status: String = "已取消本次导入，之前的歌单和结果都还在。"
     ) async {
-        guard let generation = beginImportCancellation(state: state, status: status) else {
+        guard let reservation = beginImportCancellation(state: state, status: status) else {
             return
         }
-        await workflowPersistenceExecutor.reserveWorkflowMutation(generation: generation)
+        await finishImportCancellation(reservation)
     }
 
     private func beginImportCancellation(
         state: ImportOperationState,
         status: String
-    ) -> UInt64? {
+    ) -> ImportCancellationReservation? {
         guard isImportResolving, !isCommittingImportedWorkflow else { return nil }
         importOperationGate.cancel()
         importOperationTask?.cancel()
@@ -289,10 +292,49 @@ extension DemoWorkflowStore {
         importOperationTask = nil
         importOperationTimeoutTask = nil
         let generation = workflowSnapshotPersistenceGate.begin()
+        let reservation = ImportCancellationReservation(
+            generation: generation,
+            snapshot: workflowSnapshotForPersistence(),
+            snapshotRevision: workflowSnapshotRevision
+        )
         setImportOperationState(state)
         statusMessage = status
         if case .failed = state { errorMessage = status }
-        return generation
+        return reservation
+    }
+
+    private func finishImportCancellation(
+        _ reservation: ImportCancellationReservation
+    ) async {
+        await workflowPersistenceExecutor.reserveWorkflowMutation(
+            generation: reservation.generation
+        )
+        do {
+            let didApply: Bool
+            if let snapshot = reservation.snapshot {
+                didApply = try await workflowPersistenceExecutor.commitWorkflowSnapshot(
+                    snapshot,
+                    generation: reservation.generation
+                ) == .applied
+            } else {
+                let result = try await workflowPersistenceExecutor.clearWorkflowSnapshot(
+                    request: reservation.generation
+                )
+                if case .applied = result {
+                    didApply = true
+                } else {
+                    didApply = false
+                }
+            }
+            if didApply,
+               workflowSnapshotPersistenceGate.accepts(reservation.generation),
+               workflowSnapshotRevision == reservation.snapshotRevision {
+                lastWorkflowSnapshotAttemptRevision = reservation.snapshotRevision
+            }
+        } catch {
+            guard workflowSnapshotPersistenceGate.accepts(reservation.generation) else { return }
+            errorMessage = "之前的进度暂时没保存下来，请稍后再试。"
+        }
     }
 
     func cancelCurrentMatching() {

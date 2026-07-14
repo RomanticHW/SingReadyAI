@@ -52,6 +52,7 @@ extension DemoWorkflowStore {
 
     @discardableResult
     func persistWorkflowSnapshot(reportFailure: Bool = true) async -> Bool {
+        guard !isImportPersistenceLocked else { return false }
         let revision = workflowSnapshotRevision
         let request = workflowSnapshotPersistenceGate.begin()
         lastWorkflowSnapshotAttemptRevision = revision
@@ -325,6 +326,7 @@ extension DemoWorkflowStore {
             .debounce(for: .milliseconds(80), scheduler: RunLoop.main)
             .sink { [weak self] in
                 guard let self,
+                      !self.isImportPersistenceLocked,
                       self.lastWorkflowSnapshotAttemptRevision != self.workflowSnapshotRevision else {
                     return
                 }

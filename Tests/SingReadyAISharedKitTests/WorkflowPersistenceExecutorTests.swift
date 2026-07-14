@@ -12,6 +12,10 @@ final class WorkflowPersistenceExecutorTests: XCTestCase {
         XCTAssertFalse(PlaylistImportTextPreflight.accepts(String(repeating: "歌", count: 50_001)))
         let oneThousandAndOnePhysicalLines = Array(repeating: "", count: 1_001).joined(separator: "\n")
         XCTAssertFalse(PlaylistImportTextPreflight.accepts(oneThousandAndOnePhysicalLines))
+        let unicodeSeparatedLines = Array(repeating: "歌", count: 1_001).joined(separator: "\u{2028}")
+        XCTAssertFalse(PlaylistImportTextPreflight.accepts(unicodeSeparatedLines))
+        let windowsSeparatedLines = Array(repeating: "歌", count: 1_000).joined(separator: "\r\n")
+        XCTAssertTrue(PlaylistImportTextPreflight.accepts(windowsSeparatedLines))
         XCTAssertEqual(
             PlaylistImportTextPreflight.limitMessage,
             "每次最多导入 5 万字、1000 行，请分成几份再试。"

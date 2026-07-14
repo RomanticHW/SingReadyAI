@@ -1079,6 +1079,57 @@ final class SingReadyAIUITests: XCTestCase {
         XCTAssertFalse(app.staticTexts["先看一眼歌名"].exists)
     }
 
+    func testBackgroundPersistenceCannotSupersedeInFlightImport() throws {
+        let app = XCUIApplication()
+        app.launchArguments = ["-singreadyStage", "result", "-singreadySlowImport"]
+        app.launch()
+        waitForText("朋友局歌单", in: app)
+
+        app.buttons["打开功能菜单"].tap()
+        app.buttons["打开导入歌单"].tap()
+        let textView = app.textViews["粘贴歌单文本"]
+        XCTAssertTrue(waitForElement(textView, in: app))
+        textView.tap()
+        app.typeText("晴天 - 周杰伦\n稻香 - 周杰伦")
+        tapButton("整理这段歌单", in: app)
+        waitForText("正在整理这段歌单", in: app)
+
+        XCUIDevice.shared.press(.home)
+        Thread.sleep(forTimeInterval: 1)
+        app.activate()
+
+        waitForText("先看一眼歌名", in: app, timeout: 18)
+        XCTAssertFalse(app.buttons["继续调整今晚歌单"].exists)
+    }
+
+    func testCommittedImportLocksNavigationUntilReviewIsReady() throws {
+        let app = XCUIApplication()
+        app.launchArguments = [
+            "-singreadyStage", "importHub",
+            "-singreadyDelayImportedWorkflowFinalization"
+        ]
+        app.launch()
+
+        let textView = app.textViews["粘贴歌单文本"]
+        XCTAssertTrue(waitForElement(textView, in: app))
+        textView.tap()
+        app.typeText("晴天 - 周杰伦\n稻香 - 周杰伦")
+        tapButton("整理这段歌单", in: app)
+
+        waitForText("正在保存新歌单", in: app)
+        XCTAssertFalse(app.buttons["取消本次导入"].exists)
+        let stageMenu = app.buttons["打开功能菜单"]
+        XCTAssertTrue(stageMenu.exists)
+        XCTAssertFalse(stageMenu.isEnabled)
+        let screenEdge = app.coordinate(withNormalizedOffset: CGVector(dx: 0.01, dy: 0.5))
+        let dragTarget = app.coordinate(withNormalizedOffset: CGVector(dx: 0.8, dy: 0.5))
+        screenEdge.press(forDuration: 0.1, thenDragTo: dragTarget)
+        XCTAssertTrue(app.staticTexts["正在保存新歌单"].exists)
+        XCTAssertFalse(stageMenu.isEnabled)
+
+        waitForText("先看一眼歌名", in: app, timeout: 12)
+    }
+
     func testCompletedImportCannotBeOverwrittenByLateTimeout() throws {
         let app = XCUIApplication()
         app.launchArguments = [

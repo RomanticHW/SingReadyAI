@@ -106,13 +106,15 @@ struct ProductFlowShell: View {
         }
         .navigationTitle(navigationTitle(for: stage))
         .navigationBarTitleDisplayMode(.inline)
+        .navigationBarBackButtonHidden(store.isCommittingImportedWorkflow)
         .nativeNavigationBarSurface()
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 StageJumpMenu(
                     stages: WorkflowStage.allCases,
                     current: stage,
-                    scenario: activeScenario
+                    scenario: activeScenario,
+                    isEnabled: !store.isCommittingImportedWorkflow
                 ) { selectedStage in
                     Task {
                         await store.jumpToStage(selectedStage, animated: !accessibilityReduceMotion)
