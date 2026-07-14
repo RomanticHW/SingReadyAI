@@ -573,6 +573,147 @@ final class ProductClosureTests: XCTestCase {
         }
     }
 
+    func testPendingAndUnadoptedTracksCannotLeakThroughNestedAlternativesOrExports() throws {
+        let pendingSameID = makeTrack(
+            id: "pending-same-id",
+            title: "待确认同 ID 备选",
+            artist: "待确认歌手"
+        )
+        let pendingSemanticSource = makeTrack(
+            id: "pending-semantic-source",
+            title: "待确认同语义备选",
+            artist: "待确认语义歌手"
+        )
+        let pendingSemanticCatalog = makeTrack(
+            id: "pending-semantic-catalog",
+            title: pendingSemanticSource.title,
+            artist: pendingSemanticSource.artist
+        )
+        let unadoptedSameID = makeTrack(
+            id: "unadopted-same-id",
+            title: "未采用同 ID 备选",
+            artist: "未采用歌手"
+        )
+        let unadoptedSemanticSource = makeTrack(
+            id: "unadopted-semantic-source",
+            title: "未采用同语义备选",
+            artist: "未采用语义歌手"
+        )
+        let unadoptedSemanticCatalog = makeTrack(
+            id: "unadopted-semantic-catalog",
+            title: unadoptedSemanticSource.title,
+            artist: unadoptedSemanticSource.artist
+        )
+        let cases: [(String, KTVTrack, KTVTrack, SongMatchDisposition)] = [
+            (
+                "pending-same-id",
+                pendingSameID,
+                pendingSameID,
+                .identityConfirmationRequired(candidates: [pendingSameID])
+            ),
+            (
+                "pending-semantic-id",
+                pendingSemanticSource,
+                pendingSemanticCatalog,
+                .identityConfirmationRequired(candidates: [pendingSemanticSource])
+            ),
+            (
+                "unadopted-same-id",
+                unadoptedSameID,
+                unadoptedSameID,
+                .alternativeSuggested(candidates: [unadoptedSameID])
+            ),
+            (
+                "unadopted-semantic-id",
+                unadoptedSemanticSource,
+                unadoptedSemanticCatalog,
+                .alternativeSuggested(candidates: [unadoptedSemanticSource])
+            )
+        ]
+        let scenario = ScenarioConfig(scenario: .friends, durationMinutes: 30)
+        let voice = VoiceProfile.simulatedMiddle
+
+        for (name, source, catalogTrack, disposition) in cases {
+            let formalTrack = makeTrack(
+                id: "formal-\(name)",
+                title: "正式歌曲 \(name)",
+                artist: "正式歌手 \(name)",
+                similarSongIds: [catalogTrack.id]
+            )
+            let pending = MatchResult(
+                importedSong: ImportedSong(
+                    title: source.title,
+                    artist: source.artist,
+                    source: .plainText,
+                    confidence: 1
+                ),
+                disposition: disposition,
+                score: 0.8,
+                reason: "待用户决定"
+            )
+            let matches = [match(formalTrack), pending]
+            let plan = try RecommendationEngine().generatePlan(
+                matches: matches,
+                preferenceProfile: makeProfile(),
+                voiceProfile: voice,
+                scenario: scenario,
+                catalog: [formalTrack, catalogTrack],
+                generationContext: makeRecommendationGenerationContext(
+                    matches: matches,
+                    scenario: scenario,
+                    voiceProfile: voice
+                )
+            )
+            let formalItem = try XCTUnwrap(
+                plan.sections.flatMap(\.items).first { $0.track.id == formalTrack.id }
+            )
+            let text = PlaylistTextExporter().export(plan: plan)
+            let json = try PlaylistJSONExporter().export(plan: plan)
+
+            XCTAssertFalse(
+                formalItem.alternatives.contains { $0.id == catalogTrack.id },
+                name
+            )
+            XCTAssertFalse(text.contains(catalogTrack.title), name)
+            XCTAssertFalse(json.contains(catalogTrack.title), name)
+        }
+    }
+
+    func testLegalGateCandidateRemainsAlternativeWithoutIncludingCurrentTrack() throws {
+        let alternative = makeTrack(
+            id: "legal-nested-alternative",
+            title: "合法备选",
+            artist: "合法备选歌手"
+        )
+        let formalTrack = makeTrack(
+            id: "formal-with-self-reference",
+            title: "正式歌曲",
+            artist: "正式歌手",
+            similarSongIds: ["formal-with-self-reference", alternative.id]
+        )
+        let matches = [match(formalTrack)]
+        let scenario = ScenarioConfig(scenario: .friends, durationMinutes: 30)
+        let voice = VoiceProfile.simulatedMiddle
+
+        let plan = try RecommendationEngine().generatePlan(
+            matches: matches,
+            preferenceProfile: makeProfile(),
+            voiceProfile: voice,
+            scenario: scenario,
+            catalog: [formalTrack, alternative],
+            generationContext: makeRecommendationGenerationContext(
+                matches: matches,
+                scenario: scenario,
+                voiceProfile: voice
+            )
+        )
+        let item = try XCTUnwrap(
+            plan.sections.flatMap(\.items).first { $0.track.id == formalTrack.id }
+        )
+
+        XCTAssertEqual(item.alternatives.map(\.id), [alternative.id])
+    }
+
     func testPendingSemanticIdentityAllowsSingleAdoptedLegalSourceWithDifferentIDs() throws {
         let pending = makeTrack(
             id: "semantic-pending",
@@ -978,6 +1119,138 @@ final class ProductClosureTests: XCTestCase {
             XCTAssertEqual(items.first?.origin, .adoptedAlternative, "顺序 \(index)")
             XCTAssertTrue(items.first?.isLocked == true, "顺序 \(index)")
         }
+    }
+
+    func testSupplementLimitIsStableAfterSemanticDeduplicationAndOriginOrdering() throws {
+        let priorityTracks = (0..<5).map { index in
+            makeTrack(
+                id: "priority-\(index)",
+                title: "zz-priority-\(index)",
+                artist: "歌手A",
+                genre: "独立类型",
+                moodTags: [],
+                singAlong: 0.2,
+                sceneTags: []
+            )
+        }
+        let styleTracks = (0..<95).map { index in
+            makeTrack(
+                id: String(format: "style-%03d", index),
+                title: String(format: "aa-style-%03d", index),
+                artist: "风格歌手 \(index)"
+            )
+        }
+        let semanticDuplicates = (0..<3).map { index in
+            makeTrack(
+                id: "duplicate-\(index)",
+                title: styleTracks[0].title,
+                artist: styleTracks[0].artist
+            )
+        }
+        let catalog = semanticDuplicates + styleTracks + priorityTracks
+        let fixedShuffle = catalog.enumerated()
+            .sorted {
+                ($0.offset * 37) % catalog.count < ($1.offset * 37) % catalog.count
+            }
+            .map(\.element)
+        let orders = [catalog, Array(catalog.reversed()), fixedShuffle]
+        let scenario = ScenarioConfig(scenario: .friends, durationMinutes: 30)
+        let signatures = try orders.map { order in
+            try RecommendationCandidateGate().candidates(
+                matches: [],
+                preferenceProfile: makeProfile(),
+                scenario: scenario,
+                catalog: order,
+                lockedTrackIDs: []
+            ).map { "\($0.origin.rawValue)|\($0.track.id)" }
+        }
+
+        XCTAssertTrue(signatures.allSatisfy { $0.count == 90 })
+        XCTAssertEqual(signatures[0], signatures[1])
+        XCTAssertEqual(signatures[0], signatures[2])
+        XCTAssertTrue(Set(priorityTracks.map(\.id)).isSubset(of: Set(signatures[0].map {
+            String($0.split(separator: "|")[1])
+        })))
+    }
+
+    func testLockedSupplementBypassesRegularSupplementLimitAfterStableSorting() throws {
+        let regular = (0..<95).map { index in
+            makeTrack(
+                id: String(format: "regular-%03d", index),
+                title: String(format: "regular-style-%03d", index),
+                artist: "常规歌手 \(index)"
+            )
+        }
+        let locked = makeTrack(
+            id: "zz-locked-popular",
+            title: "zz-locked-popular",
+            artist: "锁定歌手",
+            genre: "独立类型",
+            moodTags: [],
+            singAlong: 0.9,
+            sceneTags: []
+        )
+        let scenario = ScenarioConfig(scenario: .friends, durationMinutes: 30)
+
+        for catalog in [regular + [locked], [locked] + regular] {
+            let candidates = try RecommendationCandidateGate().candidates(
+                matches: [],
+                preferenceProfile: makeProfile(),
+                scenario: scenario,
+                catalog: catalog,
+                lockedTrackIDs: [locked.id]
+            )
+
+            XCTAssertEqual(candidates.count, 91)
+            XCTAssertTrue(candidates.contains { $0.track.id == locked.id })
+        }
+    }
+
+    func testAcceptedAndAdoptedCandidatesDoNotConsumeSupplementLimit() throws {
+        let imported = makeTrack(
+            id: "limit-imported",
+            title: "限额已命中",
+            artist: "命中歌手"
+        )
+        let adopted = makeTrack(
+            id: "limit-adopted",
+            title: "限额已采用",
+            artist: "采用歌手"
+        )
+        let supplements = (0..<90).map { index in
+            makeTrack(
+                id: String(format: "limit-supplement-%03d", index),
+                title: String(format: "limit-supplement-%03d", index),
+                artist: "补充歌手 \(index)"
+            )
+        }
+        let matches = [
+            match(imported),
+            MatchResult(
+                importedSong: ImportedSong(
+                    title: "待替代原歌",
+                    artist: "待替代歌手",
+                    source: .plainText,
+                    confidence: 1
+                ),
+                disposition: .adoptedAlternative(track: adopted),
+                score: 0.8,
+                reason: "已采用"
+            )
+        ]
+
+        let candidates = try RecommendationCandidateGate().candidates(
+            matches: matches,
+            preferenceProfile: makeProfile(),
+            scenario: ScenarioConfig(scenario: .friends, durationMinutes: 30),
+            catalog: [imported, adopted] + supplements,
+            lockedTrackIDs: []
+        )
+
+        XCTAssertEqual(candidates.count, 92)
+        XCTAssertEqual(candidates.filter { $0.origin == .importedMatch }.count, 1)
+        XCTAssertEqual(candidates.filter { $0.origin == .adoptedAlternative }.count, 1)
+        XCTAssertEqual(candidates.filter { $0.origin == .styleSupplement }.count, 90)
     }
 
     func testLockedTracksWithoutLegalLocalSourcesFailTogetherInStableOrder() {
@@ -1983,6 +2256,7 @@ final class ProductClosureTests: XCTestCase {
         energy: Double = 0.7,
         highMidi: Int = 69,
         versionTags: [String] = [],
+        similarSongIds: [String] = [],
         externalURL: URL? = nil,
         catalogSource: TrackCatalogSource = .ktvCatalog
     ) -> KTVTrack {
@@ -2006,7 +2280,7 @@ final class ProductClosureTests: XCTestCase {
             highNoteRisk: highRisk,
             aliases: [],
             versionTags: versionTags,
-            similarSongIds: [],
+            similarSongIds: similarSongIds,
             externalURL: externalURL,
             catalogSource: catalogSource,
             confidenceNote: catalogSource == .externalSimilar ? "相近备选，到店里可能还要搜一下" : nil

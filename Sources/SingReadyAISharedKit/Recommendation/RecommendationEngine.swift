@@ -63,6 +63,7 @@ public struct RecommendationEngine: Sendable {
                 !removedTrackIDs.contains($0.track.id)
                     || lockedTrackIDs.contains($0.track.id)
             }
+        let alternativeTracks = candidates.map(\.track)
         let scored: [ScoredTrack] = candidates.map { candidate in
             let breakdown = scoreBreakdown(
                 track: candidate.track,
@@ -121,7 +122,7 @@ public struct RecommendationEngine: Sendable {
                 scenario: scenario,
                 importedArtistCounts: importedArtistCounts,
                 inputSource: inputSource,
-                catalog: catalog,
+                alternativeTracks: alternativeTracks,
                 isLocked: isLocked,
                 feedbackProfile: feedbackProfile
             ))
@@ -173,7 +174,7 @@ public struct RecommendationEngine: Sendable {
             voiceProfile: voiceProfile,
             importedArtistCounts: importedArtistCounts,
             inputSource: inputSource,
-            catalog: catalog,
+            alternativeTracks: alternativeTracks,
             lockedTrackIDs: lockedTrackIDs,
             feedbackProfile: feedbackProfile
         )
@@ -478,7 +479,7 @@ public struct RecommendationEngine: Sendable {
         scenario: ScenarioConfig,
         importedArtistCounts: [String: Int],
         inputSource: RecommendationInputSource,
-        catalog: [KTVTrack],
+        alternativeTracks: [KTVTrack],
         isLocked: Bool,
         feedbackProfile: SongFeedbackProfile
     ) -> SongPlanItem {
@@ -497,7 +498,7 @@ public struct RecommendationEngine: Sendable {
                 inputSource: inputSource
             ),
             riskWarnings: reasonBuilder.riskWarnings(for: scoredTrack.track, voiceProfile: voiceProfile, scenario: scenario),
-            alternatives: alternatives(for: scoredTrack.track, in: catalog),
+            alternatives: alternatives(for: scoredTrack.track, in: alternativeTracks),
             isLocked: isLocked,
             singingAdvice: singingAdvisor.advice(for: scoredTrack.track, voiceProfile: voiceProfile),
             actionURL: actionLinkBuilder.url(for: scoredTrack.track),
@@ -514,7 +515,7 @@ public struct RecommendationEngine: Sendable {
         voiceProfile: VoiceProfile,
         importedArtistCounts: [String: Int],
         inputSource: RecommendationInputSource,
-        catalog: [KTVTrack],
+        alternativeTracks: [KTVTrack],
         lockedTrackIDs: Set<String>,
         feedbackProfile: SongFeedbackProfile
     ) -> [SongPlanSection] {
@@ -555,7 +556,7 @@ public struct RecommendationEngine: Sendable {
                 scenario: scenario,
                 importedArtistCounts: importedArtistCounts,
                 inputSource: inputSource,
-                catalog: catalog,
+                alternativeTracks: alternativeTracks,
                 isLocked: lockedTrackIDs.contains(candidate.track.id),
                 feedbackProfile: feedbackProfile
             )
@@ -607,6 +608,7 @@ public struct RecommendationEngine: Sendable {
     private func alternatives(for track: KTVTrack, in catalog: [KTVTrack]) -> [KTVTrack] {
         let similar = catalog.filter {
             $0.catalogSource == .ktvCatalog
+                && $0.id != track.id
                 && track.similarSongIds.contains($0.id)
         }
         if !similar.isEmpty { return Array(similar.prefix(2)) }

@@ -612,6 +612,88 @@ final class ExternalCandidateContractTests: XCTestCase {
         }
     }
 
+    func testLocalPlanItemFiltersNestedExternalAlternativesAcrossTrustBoundaries() throws {
+        let local = makeTrack(id: "local-primary", title: "本地正式歌曲")
+        let localAlternative = makeTrack(id: "local-alternative", title: "本地合法备选")
+        let externalAlternative = makeTrack(
+            id: "external-nested-alternative",
+            title: "外部嵌套备选",
+            source: .externalSimilar,
+            metadata: ExternalCandidateMetadata(
+                relation: .similarTrack,
+                relevance: 0.9,
+                reasons: ["公开搜索相似曲目"],
+                provider: .iTunes
+            )
+        )
+        let initializedItem = SongPlanItem(
+            track: local,
+            score: 0.8,
+            reasons: ["本地正式理由"],
+            riskWarnings: [],
+            alternatives: [externalAlternative, localAlternative]
+        )
+
+        XCTAssertEqual(initializedItem.alternatives.map(\.id), [localAlternative.id])
+
+        var unsafeItem = initializedItem
+        unsafeItem.alternatives = [externalAlternative, localAlternative]
+        let constructedPlan = SongPlan(
+            title: "构造边界",
+            scenario: .friends,
+            sections: [
+                SongPlanSection(
+                    role: .general,
+                    title: "正式分区",
+                    goal: "验证嵌套备选",
+                    items: [unsafeItem]
+                )
+            ]
+        )
+        XCTAssertEqual(
+            constructedPlan.sections.flatMap(\.items).first?.alternatives.map(\.id),
+            [localAlternative.id]
+        )
+
+        let unsafeItemObject = try XCTUnwrap(
+            JSONSerialization.jsonObject(with: JSONEncoder().encode(unsafeItem))
+                as? [String: Any]
+        )
+        let legacyPlanObject: [String: Any] = [
+            "title": "旧本地计划",
+            "scenario": "friends",
+            "sections": [[
+                "role": "general",
+                "title": "正式分区",
+                "goal": "验证旧数据",
+                "items": [unsafeItemObject]
+            ]]
+        ]
+        let decodedPlan = try JSONDecoder().decode(
+            SongPlan.self,
+            from: JSONSerialization.data(withJSONObject: legacyPlanObject, options: [.sortedKeys])
+        )
+        XCTAssertEqual(
+            decodedPlan.sections.flatMap(\.items).first?.alternatives.map(\.id),
+            [localAlternative.id]
+        )
+
+        var mutatedPlan = constructedPlan
+        mutatedPlan.sections[0].items[0].alternatives = [externalAlternative, localAlternative]
+        let sanitizedPlan = mutatedPlan.sanitizedForTrustBoundaries()
+        XCTAssertEqual(
+            sanitizedPlan.sections.flatMap(\.items).first?.alternatives.map(\.id),
+            [localAlternative.id]
+        )
+
+        let text = PlaylistTextExporter().export(plan: mutatedPlan)
+        let json = try PlaylistJSONExporter().export(plan: mutatedPlan)
+        XCTAssertFalse(text.contains(externalAlternative.title))
+        XCTAssertFalse(json.contains(externalAlternative.title))
+        XCTAssertTrue(text.contains(localAlternative.title))
+        XCTAssertTrue(json.contains(localAlternative.title))
+    }
+
     func testStartTipsPolicyNeverSelectsProvisionalPlaceholderMetrics() {
         let external = makeTrack(
             id: "external-tip",

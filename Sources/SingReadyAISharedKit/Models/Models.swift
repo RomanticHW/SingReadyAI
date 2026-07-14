@@ -2022,7 +2022,7 @@ public struct SongPlanItem: Codable, Identifiable, Sendable {
                 : scoreBreakdown
             self.reasons = reasons
             self.riskWarnings = riskWarnings
-            self.alternatives = alternatives
+            self.alternatives = alternatives.filter { $0.catalogSource == .ktvCatalog }
         }
         self.isLocked = isLocked
         self.singingAdvice = track.isProvisionalExternalCandidate ? nil : singingAdvice

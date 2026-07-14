@@ -77,13 +77,34 @@ public struct RecommendationCandidateGate: Sendable {
             }
             return RecommendationCandidate(track: track, origin: origin)
         }
-        let regularSupplementIDs = Set(
-            classifiedSupplements.prefix(Self.localSupplementLimit).map(\.track.id)
-        )
+        var supplementAccumulator = CandidateAccumulator(lockedTrackIDs: lockedTrackIDs)
+        for candidate in classifiedSupplements {
+            supplementAccumulator.add(candidate)
+        }
+        let orderedSupplements = supplementAccumulator.candidates.sorted { lhs, rhs in
+            if lhs.origin.recommendationPriority != rhs.origin.recommendationPriority {
+                return lhs.origin.recommendationPriority > rhs.origin.recommendationPriority
+            }
+            let leftKey = Self.semanticKey(for: lhs.track)
+            let rightKey = Self.semanticKey(for: rhs.track)
+            if leftKey != rightKey {
+                return leftKey < rightKey
+            }
+            return lhs.track.id < rhs.track.id
+        }
+        let lockedSupplements = orderedSupplements.filter {
+            lockedTrackIDs.contains($0.track.id)
+        }
+        let regularSupplements = orderedSupplements.filter {
+            !lockedTrackIDs.contains($0.track.id)
+                && !legalMatchSemanticKeys.contains(Self.semanticKey(for: $0.track))
+        }
+        .prefix(Self.localSupplementLimit)
 
-        for candidate in classifiedSupplements
-        where regularSupplementIDs.contains(candidate.track.id)
-            || lockedTrackIDs.contains(candidate.track.id) {
+        for candidate in regularSupplements {
+            accumulator.add(candidate)
+        }
+        for candidate in lockedSupplements {
             accumulator.add(candidate)
         }
 
