@@ -475,6 +475,231 @@ final class ProductClosureTests: XCTestCase {
         XCTAssertEqual(matchingItems.first?.origin, .importedMatch)
     }
 
+    func testPendingSemanticIdentityCannotReenterThroughDifferentCatalogIDOrLockedPath() throws {
+        let pendingStyle = makeTrack(
+            id: "pending-style",
+            title: "待确认同歌异 ID",
+            artist: "待确认歌手"
+        )
+        let catalogStyle = makeTrack(
+            id: "catalog-style",
+            title: pendingStyle.title,
+            artist: pendingStyle.artist
+        )
+        let unadoptedPopular = makeTrack(
+            id: "unadopted-popular",
+            title: "未采用同歌异 ID",
+            artist: "未采用歌手",
+            genre: "独立类型",
+            moodTags: [],
+            singAlong: 0.2,
+            sceneTags: []
+        )
+        let catalogPopular = makeTrack(
+            id: "catalog-popular",
+            title: unadoptedPopular.title,
+            artist: unadoptedPopular.artist,
+            genre: "独立类型",
+            moodTags: [],
+            singAlong: 0.9,
+            sceneTags: []
+        )
+        let cases: [(name: String, candidate: KTVTrack, catalog: KTVTrack, disposition: SongMatchDisposition)] = [
+            (
+                "identity-confirmation-style",
+                pendingStyle,
+                catalogStyle,
+                .identityConfirmationRequired(candidates: [pendingStyle])
+            ),
+            (
+                "alternative-suggested-popular",
+                unadoptedPopular,
+                catalogPopular,
+                .alternativeSuggested(candidates: [unadoptedPopular])
+            )
+        ]
+        let scenario = ScenarioConfig(scenario: .friends, durationMinutes: 30)
+        let voice = VoiceProfile.simulatedMiddle
+
+        for testCase in cases {
+            let match = MatchResult(
+                importedSong: ImportedSong(
+                    title: testCase.candidate.title,
+                    artist: testCase.candidate.artist,
+                    source: .plainText,
+                    confidence: 1
+                ),
+                disposition: testCase.disposition,
+                score: 0.8,
+                reason: "待用户确认"
+            )
+            let matches = [match]
+            let generationContext = makeRecommendationGenerationContext(
+                matches: matches,
+                scenario: scenario,
+                voiceProfile: voice
+            )
+            let plan = try RecommendationEngine().generatePlan(
+                matches: matches,
+                preferenceProfile: makeProfile(),
+                voiceProfile: voice,
+                scenario: scenario,
+                catalog: [testCase.catalog],
+                generationContext: generationContext
+            )
+
+            XCTAssertFalse(
+                plan.sections.flatMap(\.items).contains { $0.track.id == testCase.catalog.id },
+                testCase.name
+            )
+            XCTAssertThrowsError(
+                try RecommendationEngine().generatePlan(
+                    matches: matches,
+                    preferenceProfile: makeProfile(),
+                    voiceProfile: voice,
+                    scenario: scenario,
+                    catalog: [testCase.catalog],
+                    generationContext: generationContext,
+                    lockedTrackIDs: [testCase.catalog.id]
+                ),
+                testCase.name
+            ) { error in
+                XCTAssertEqual(
+                    error as? RecommendationGenerationError,
+                    .lockedTrackUnavailable(trackIDs: [testCase.catalog.id]),
+                    testCase.name
+                )
+            }
+        }
+    }
+
+    func testPendingSemanticIdentityAllowsSingleAdoptedLegalSourceWithDifferentIDs() throws {
+        let pending = makeTrack(
+            id: "semantic-pending",
+            title: "多路径合法歌曲",
+            artist: "多路径歌手"
+        )
+        let catalog = makeTrack(
+            id: "semantic-catalog",
+            title: pending.title,
+            artist: pending.artist
+        )
+        let accepted = makeTrack(
+            id: "semantic-accepted",
+            title: pending.title,
+            artist: pending.artist
+        )
+        let adopted = makeTrack(
+            id: "semantic-adopted",
+            title: pending.title,
+            artist: pending.artist
+        )
+        let matches = [
+            MatchResult(
+                importedSong: ImportedSong(
+                    title: pending.title,
+                    source: .plainText,
+                    confidence: 1
+                ),
+                disposition: .identityConfirmationRequired(candidates: [pending]),
+                score: 0.8,
+                reason: "待确认"
+            ),
+            MatchResult(
+                importedSong: ImportedSong(
+                    title: accepted.title,
+                    artist: accepted.artist,
+                    source: .plainText,
+                    confidence: 1
+                ),
+                disposition: .acceptedOriginalExact(track: accepted),
+                score: 1,
+                reason: "原曲命中"
+            ),
+            MatchResult(
+                importedSong: ImportedSong(
+                    title: "被替代歌曲",
+                    artist: "被替代歌手",
+                    source: .plainText,
+                    confidence: 1
+                ),
+                disposition: .adoptedAlternative(track: adopted),
+                score: 0.8,
+                reason: "已采用替代"
+            )
+        ]
+        let scenario = ScenarioConfig(scenario: .friends, durationMinutes: 30)
+        let voice = VoiceProfile.simulatedMiddle
+
+        let plan = try RecommendationEngine().generatePlan(
+            matches: matches,
+            preferenceProfile: makeProfile(),
+            voiceProfile: voice,
+            scenario: scenario,
+            catalog: [catalog],
+            generationContext: makeRecommendationGenerationContext(
+                matches: matches,
+                scenario: scenario,
+                voiceProfile: voice
+            )
+        )
+        let items = plan.sections.flatMap(\.items)
+
+        XCTAssertEqual(items.map(\.track.id), [adopted.id])
+        XCTAssertEqual(items.first?.origin, .adoptedAlternative)
+    }
+
+    func testPendingStudioIdentityDoesNotSuppressLiveAndRemixCatalogVersions() throws {
+        let pendingStudio = makeTrack(
+            id: "pending-studio",
+            title: "版本边界歌曲",
+            artist: "版本边界歌手"
+        )
+        let live = makeTrack(
+            id: "catalog-live",
+            title: "版本边界歌曲 Live",
+            artist: pendingStudio.artist,
+            versionTags: ["Live"]
+        )
+        let remix = makeTrack(
+            id: "catalog-remix",
+            title: "版本边界歌曲 Remix",
+            artist: pendingStudio.artist,
+            versionTags: ["Remix"]
+        )
+        let match = MatchResult(
+            importedSong: ImportedSong(
+                title: pendingStudio.title,
+                artist: pendingStudio.artist,
+                source: .plainText,
+                confidence: 1
+            ),
+            disposition: .identityConfirmationRequired(candidates: [pendingStudio]),
+            score: 0.8,
+            reason: "待确认录音室版"
+        )
+        let matches = [match]
+        let scenario = ScenarioConfig(scenario: .friends, durationMinutes: 30)
+        let voice = VoiceProfile.simulatedMiddle
+
+        let plan = try RecommendationEngine().generatePlan(
+            matches: matches,
+            preferenceProfile: makeProfile(),
+            voiceProfile: voice,
+            scenario: scenario,
+            catalog: [live, remix],
+            generationContext: makeRecommendationGenerationContext(
+                matches: matches,
+                scenario: scenario,
+                voiceProfile: voice
+            )
+        )
+        let items = plan.sections.flatMap(\.items)
+
+        XCTAssertEqual(Set(items.map(\.track.id)), [live.id, remix.id])
+        XCTAssertTrue(items.allSatisfy { $0.origin == .styleSupplement })
+    }
+
     func testCandidateOriginsPreferAdoptedAlternativeOverImportedMatchForSameSongIdentity() throws {
         let imported = makeTrack(
             id: "same-song-imported",

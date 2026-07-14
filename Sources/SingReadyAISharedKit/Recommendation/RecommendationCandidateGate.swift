@@ -23,19 +23,19 @@ public struct RecommendationCandidateGate: Sendable {
         lockedTrackIDs: Set<String>
     ) throws -> [RecommendationCandidate] {
         var accumulator = CandidateAccumulator(lockedTrackIDs: lockedTrackIDs)
-        var legalMatchTrackIDs = Set<String>()
+        var legalMatchSemanticKeys = Set<String>()
 
         for match in matches {
             switch match.disposition {
             case let .acceptedOriginalExact(track),
                  let .acceptedOriginalConfirmed(track):
                 if track.catalogSource == .ktvCatalog {
-                    legalMatchTrackIDs.insert(track.id)
+                    legalMatchSemanticKeys.insert(Self.semanticKey(for: track))
                 }
                 addLocal(track, origin: .importedMatch, to: &accumulator)
             case let .adoptedAlternative(track):
                 if track.catalogSource == .ktvCatalog {
-                    legalMatchTrackIDs.insert(track.id)
+                    legalMatchSemanticKeys.insert(Self.semanticKey(for: track))
                 }
                 addLocal(track, origin: .adoptedAlternative, to: &accumulator)
             case .identityConfirmationRequired,
@@ -44,8 +44,10 @@ public struct RecommendationCandidateGate: Sendable {
                 break
             }
         }
-        let unadoptedTrackIDs = Set(
-            matches.flatMap { $0.candidateTracks + $0.suggestedAlternatives }.map(\.id)
+        let unadoptedSemanticKeys = Set(
+            matches
+                .flatMap { $0.candidateTracks + $0.suggestedAlternatives }
+                .map(Self.semanticKey)
         )
 
         let preferredArtists = Set(preferenceProfile.topArtists.map(\.name))
@@ -60,8 +62,10 @@ public struct RecommendationCandidateGate: Sendable {
                 .map(\.key)
         )
         let classifiedSupplements = catalog.compactMap { track -> RecommendationCandidate? in
+            let semanticKey = Self.semanticKey(for: track)
             guard track.catalogSource == .ktvCatalog,
-                  !unadoptedTrackIDs.contains(track.id) || legalMatchTrackIDs.contains(track.id),
+                  !unadoptedSemanticKeys.contains(semanticKey)
+                    || legalMatchSemanticKeys.contains(semanticKey),
                   let origin = supplementOrigin(
                     for: track,
                     preferredArtists: preferredArtists,
