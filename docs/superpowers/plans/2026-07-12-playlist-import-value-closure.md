@@ -693,7 +693,7 @@ Expected: PASS；每个上游变化只失效规格矩阵规定的下游。
 - Modify: `Tests/SingReadyAISharedKitTests/WorkflowPersistenceExecutorTests.swift`
 - Modify: `Tests/SingReadyAISharedKitTests/AppGroupStoreTests.swift`
 
-- [ ] **Step 1: 写 v1 读取、v2 新字段与旧 App 构造兼容红灯**
+- [x] **Step 1: 写 v1 读取、v2 新字段与旧 App 构造兼容红灯**
 
 测试同一存储层同时满足：
 
@@ -702,12 +702,12 @@ Expected: PASS；每个上游变化只失效规格矩阵规定的下游。
 - 当前 App 使用的旧 WorkflowSnapshot initializer 和只读 `matches/preferenceProfile/songPlan/externalCandidateTracks` 访问器仍可编译，但它们只读 legacy bridge，没有第二份可写状态。
 - running/generating/failed operation state不直接编码；只能编码最后一个完整 ready/stale plan record。
 
-- [ ] **Step 2: 运行存储测试，确认当前 schema 1 红灯**
+- [x] **Step 2: 运行存储测试，确认当前 schema 1 红灯**
 
 Run: `swift test --filter StoragePrivacyHardeningTests && swift test --filter WorkflowPersistenceExecutorTests`
 Expected: FAIL；当前 archive 没有 v2 字段、ArchiveV1 分流或 persisted plan record。
 
-- [ ] **Step 3: 定义稳定的持久化计划记录**
+- [x] **Step 3: 定义稳定的持久化计划记录**
 
     public enum PersistedPlanRecord: Codable, Sendable {
         case ready(plan: SongPlan, basis: PlanBasis)
@@ -716,13 +716,13 @@ Expected: FAIL；当前 archive 没有 v2 字段、ArchiveV1 分流或 persisted
 
 `PlanGenerationState.generating/failed` 若携带 previous，只把 previous 编成 `.stale`；无 previous 时不写 plan record。自定义 Codable 固定 `kind / plan / basis / reason` 键，不依赖关联枚举自动形状。
 
-- [ ] **Step 4: 扩展 WorkflowSnapshot 并提供两个显式 public initializer**
+- [x] **Step 4: 扩展 WorkflowSnapshot 并提供两个显式 public initializer**
 
 v2 主 initializer 覆盖原始歌单/草稿、`revisions`、`completedAnalysis`、`persistedPlanRecord`、`externalCandidateCollection`、音区、场景、反馈和控制项，并声明为 public。另保留一个加“migration-only”注释但暂不标 deprecated 的旧 initializer，把旧 matches/profile/songPlan/external tracks 仅写进内部 `LegacyWorkflowDerivationBridge`；待 App 调用点迁完后由 Task 16 删除。
 
 旧属性全部是 bridge/new state 的只读计算值，不提供 setter；读取优先 new state，只有对应 new state 为 nil 时才回落 bridge。Task 10、11、12 每迁移一个领域，就在写入 v2 新字段时清空该领域的 bridge 值，并删除 App 对相应适配器的使用；适配器最终只服务 ArchiveV1 测试与迁移，因此不会出现两套同时可写的真源。
 
-- [ ] **Step 5: 显式分流 ArchiveV1 与 ArchiveV2**
+- [x] **Step 5: 显式分流 ArchiveV1 与 ArchiveV2**
 
 `currentSchemaVersion = 2`。先读取 version header，再分别解码：
 
@@ -738,7 +738,7 @@ v2 主 initializer 覆盖原始歌单/草稿、`revisions`、`completedAnalysis`
 
 `migrateShell` 只搬运可安全保留的数据和 legacy bridge；完整 v1 有效性归一、公开候选丢弃和超限写保护在 Task 12 完成。
 
-- [ ] **Step 6: 运行全量 Swift 与 App 增量构建**
+- [x] **Step 6: 运行全量 Swift 与 App 增量构建**
 
 Run:
 
@@ -750,7 +750,7 @@ Run:
 
 Expected: PASS 且 `** BUILD SUCCEEDED **`；当前 App 通过只读持久化 bridge 保持可编译，新写入 archive 已是 schema 2。
 
-- [ ] **Step 7: 提交 v2 快照壳**
+- [x] **Step 7: 提交 v2 快照壳**
 
     git add Sources/SingReadyAISharedKit/Storage/WorkflowSnapshotStore.swift Tests/SingReadyAISharedKitTests
     git commit -m "feat: 建立工作流快照 v2 结构"
