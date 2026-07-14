@@ -186,17 +186,25 @@ private struct CandidateAccumulator {
         }
         let candidateIsLocked = lockedTrackIDs.contains(candidate.track.id)
         let existingIsLocked = lockedTrackIDs.contains(existing.track.id)
-        if candidateIsLocked != existingIsLocked {
-            if candidateIsLocked {
-                candidatesBySemanticKey[key] = candidate
-            }
-            return
-        }
-        if candidate.origin.recommendationPriority > existing.origin.recommendationPriority
+        let candidateWinsWithoutLock =
+            candidate.origin.recommendationPriority > existing.origin.recommendationPriority
             || (candidate.origin.recommendationPriority == existing.origin.recommendationPriority
-                && candidate.track.id < existing.track.id) {
-            candidatesBySemanticKey[key] = candidate
+                && candidate.track.id < existing.track.id)
+        let selectedTrack = if candidateIsLocked != existingIsLocked {
+            candidateIsLocked ? candidate.track : existing.track
+        } else {
+            candidateWinsWithoutLock ? candidate.track : existing.track
         }
+        let selectedOrigin = if candidate.origin.recommendationPriority
+            > existing.origin.recommendationPriority {
+            candidate.origin
+        } else {
+            existing.origin
+        }
+        candidatesBySemanticKey[key] = RecommendationCandidate(
+            track: selectedTrack,
+            origin: selectedOrigin
+        )
     }
 }
 

@@ -888,7 +888,7 @@ final class ProductClosureTests: XCTestCase {
         XCTAssertEqual(originByID[popular.id], .popularSupplement)
     }
 
-    func testLockedLegalSupplementSurvivesSemanticDeduplication() throws {
+    func testLockedSemanticDuplicateKeepsImportedOrigin() throws {
         let imported = makeTrack(
             id: "semantic-imported",
             title: "同一语义歌曲",
@@ -919,8 +919,65 @@ final class ProductClosureTests: XCTestCase {
         let items = plan.sections.flatMap(\.items)
 
         XCTAssertEqual(items.map(\.track.id), [lockedSupplement.id])
-        XCTAssertEqual(items.first?.origin, .styleSupplement)
+        XCTAssertEqual(items.first?.origin, .importedMatch)
         XCTAssertTrue(items.first?.isLocked == true)
+    }
+
+    func testLockedSemanticDuplicateKeepsAdoptedOriginRegardlessOfMatchOrder() throws {
+        let imported = makeTrack(
+            id: "semantic-order-imported",
+            title: "同一语义顺序歌曲",
+            artist: "同一语义顺序歌手"
+        )
+        let adopted = makeTrack(
+            id: "semantic-order-adopted",
+            title: imported.title,
+            artist: imported.artist
+        )
+        let lockedSupplement = makeTrack(
+            id: "semantic-order-locked",
+            title: imported.title,
+            artist: imported.artist
+        )
+        let importedMatch = match(imported)
+        let adoptedMatch = MatchResult(
+            importedSong: ImportedSong(
+                title: "被替代顺序歌曲",
+                artist: "被替代顺序歌手",
+                source: .plainText,
+                confidence: 1
+            ),
+            disposition: .adoptedAlternative(track: adopted),
+            score: 0.8,
+            reason: "已采用替代"
+        )
+        let matchOrders = [
+            [importedMatch, adoptedMatch],
+            [adoptedMatch, importedMatch]
+        ]
+        let scenario = ScenarioConfig(scenario: .friends, durationMinutes: 30)
+        let voice = VoiceProfile.simulatedMiddle
+
+        for (index, matches) in matchOrders.enumerated() {
+            let plan = try RecommendationEngine().generatePlan(
+                matches: matches,
+                preferenceProfile: makeProfile(),
+                voiceProfile: voice,
+                scenario: scenario,
+                catalog: [lockedSupplement],
+                generationContext: makeRecommendationGenerationContext(
+                    matches: matches,
+                    scenario: scenario,
+                    voiceProfile: voice
+                ),
+                lockedTrackIDs: [lockedSupplement.id]
+            )
+            let items = plan.sections.flatMap(\.items)
+
+            XCTAssertEqual(items.map(\.track.id), [lockedSupplement.id], "顺序 \(index)")
+            XCTAssertEqual(items.first?.origin, .adoptedAlternative, "顺序 \(index)")
+            XCTAssertTrue(items.first?.isLocked == true, "顺序 \(index)")
+        }
     }
 
     func testLockedTracksWithoutLegalLocalSourcesFailTogetherInStableOrder() {
