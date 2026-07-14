@@ -928,6 +928,36 @@ final class ProductClosureTests: XCTestCase {
         }
     }
 
+    func testSongPlanGenerationSummaryRejectsOverflowingCodableCounts() {
+        let json = """
+        {
+          "playlistID": "99E02A68-1176-4B77-AD8F-1D5AB225E3CA",
+          "playlistTitle": "损坏摘要",
+          "importedSongCount": 0,
+          "verifiedSongCount": 0,
+          "pendingSongCount": 0,
+          "unmatchedSongCount": 0,
+          "formalPlanCount": \(Int.max),
+          "importedMatchCount": \(Int.max),
+          "adoptedAlternativeCount": \(Int.max),
+          "supplementCount": \(Int.max),
+          "scenario": "friends",
+          "peopleCount": 4,
+          "durationMinutes": 60,
+          "voiceSource": "commonReference",
+          "feedbackCount": 0
+        }
+        """
+
+        XCTAssertThrowsError(
+            try JSONDecoder().decode(SongPlanGenerationSummary.self, from: Data(json.utf8))
+        ) { error in
+            guard case RecommendationGenerationError.countMismatch = error else {
+                return XCTFail("溢出摘要应抛出 countMismatch，实际为：\(error)")
+            }
+        }
+    }
+
     func testSongPlanGenerationSummaryRejectsNegativeContextValues() {
         let invalidContexts = [
             makeGenerationContext(importedSongCount: -1),
@@ -980,6 +1010,51 @@ final class ProductClosureTests: XCTestCase {
         XCTAssertEqual(decoded.sections.flatMap(\.items).map(\.origin), [.importedMatch])
         XCTAssertEqual(sanitized.generationSummary, summary)
         XCTAssertEqual(sanitized.sections.flatMap(\.items).map(\.origin), [.importedMatch])
+    }
+
+    func testSongPlanDecodingRejectsNonzeroSummaryWhenFinalSectionsAreEmpty() throws {
+        let item = makePlanItem(id: "imported", origin: .importedMatch)
+        let summary = try SongPlanGenerationSummary(
+            context: makeGenerationContext(importedSongCount: 1, verifiedSongCount: 1),
+            items: [item]
+        )
+        let plan = SongPlan(
+            title: "空计划",
+            scenario: .friends,
+            generationSummary: summary,
+            sections: []
+        )
+
+        XCTAssertThrowsError(
+            try JSONDecoder().decode(SongPlan.self, from: JSONEncoder().encode(plan))
+        ) { error in
+            guard case RecommendationGenerationError.countMismatch = error else {
+                return XCTFail("空计划与非零摘要不一致时应抛出 countMismatch，实际为：\(error)")
+            }
+        }
+    }
+
+    func testSongPlanDecodingRejectsSummaryOriginDistributionMismatch() throws {
+        let summarizedItem = makePlanItem(id: "imported", origin: .importedMatch)
+        let actualItem = makePlanItem(id: "alternative", origin: .adoptedAlternative)
+        let summary = try SongPlanGenerationSummary(
+            context: makeGenerationContext(importedSongCount: 1, verifiedSongCount: 1),
+            items: [summarizedItem]
+        )
+        let plan = SongPlan(
+            title: "来源不一致计划",
+            scenario: .friends,
+            generationSummary: summary,
+            sections: [SongPlanSection(title: "开场", goal: "热身", items: [actualItem])]
+        )
+
+        XCTAssertThrowsError(
+            try JSONDecoder().decode(SongPlan.self, from: JSONEncoder().encode(plan))
+        ) { error in
+            guard case RecommendationGenerationError.countMismatch = error else {
+                return XCTFail("条目来源与摘要不一致时应抛出 countMismatch，实际为：\(error)")
+            }
+        }
     }
 
     func testSongPlanItemDecodesLegacyJSONWithoutNewClosureFields() throws {

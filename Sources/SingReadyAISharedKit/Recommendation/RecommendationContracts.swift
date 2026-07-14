@@ -174,12 +174,18 @@ public struct SongPlanGenerationSummary: Codable, Equatable, Sendable {
         adoptedAlternativeCount: Int,
         supplementCount: Int
     ) throws {
+        let (importedAndAdoptedCount, firstAdditionOverflowed) = importedMatchCount
+            .addingReportingOverflow(adoptedAlternativeCount)
+        let (classifiedCount, secondAdditionOverflowed) = importedAndAdoptedCount
+            .addingReportingOverflow(supplementCount)
         guard context.hasNonnegativeValues,
               formalPlanCount >= 0,
               importedMatchCount >= 0,
               adoptedAlternativeCount >= 0,
               supplementCount >= 0,
-              formalPlanCount == importedMatchCount + adoptedAlternativeCount + supplementCount else {
+              !firstAdditionOverflowed,
+              !secondAdditionOverflowed,
+              formalPlanCount == classifiedCount else {
             throw RecommendationGenerationError.countMismatch
         }
 
@@ -198,5 +204,31 @@ public struct SongPlanGenerationSummary: Codable, Equatable, Sendable {
         durationMinutes = context.durationMinutes
         voiceSource = context.voiceSource
         feedbackCount = context.feedbackCount
+    }
+
+    func matchesFinalItems<Items: Sequence>(_ items: Items) -> Bool where Items.Element == SongPlanItem {
+        var actualFormalPlanCount = 0
+        var actualImportedMatchCount = 0
+        var actualAdoptedAlternativeCount = 0
+        var actualSupplementCount = 0
+
+        for item in items {
+            actualFormalPlanCount += 1
+            switch item.origin {
+            case .importedMatch:
+                actualImportedMatchCount += 1
+            case .adoptedAlternative:
+                actualAdoptedAlternativeCount += 1
+            case .sameArtistSupplement, .styleSupplement, .sceneSupplement, .popularSupplement:
+                actualSupplementCount += 1
+            case .legacyUnknown:
+                break
+            }
+        }
+
+        return actualFormalPlanCount == formalPlanCount
+            && actualImportedMatchCount == importedMatchCount
+            && actualAdoptedAlternativeCount == adoptedAlternativeCount
+            && actualSupplementCount == supplementCount
     }
 }

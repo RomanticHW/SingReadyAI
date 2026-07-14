@@ -1639,6 +1639,10 @@ public struct SongPlan: Codable, Identifiable, Sendable {
 
     public init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
+        let decodedGenerationSummary = try container.decodeIfPresent(
+            SongPlanGenerationSummary.self,
+            forKey: .generationSummary
+        )
         self.init(
             id: try container.decodeIfPresent(UUID.self, forKey: .id) ?? UUID(),
             title: try container.decode(String.self, forKey: .title),
@@ -1647,11 +1651,15 @@ public struct SongPlan: Codable, Identifiable, Sendable {
             scenarioConfig: try container.decodeIfPresent(ScenarioConfig.self, forKey: .scenarioConfig),
             voiceProfile: try container.decodeIfPresent(VoiceProfile.self, forKey: .voiceProfile),
             preferenceSummary: try container.decodeIfPresent(String.self, forKey: .preferenceSummary),
-            generationSummary: try container.decodeIfPresent(SongPlanGenerationSummary.self, forKey: .generationSummary),
+            generationSummary: decodedGenerationSummary,
             sections: try container.decodeIfPresent([SongPlanSection].self, forKey: .sections) ?? [],
             notices: try container.decodeIfPresent([String].self, forKey: .notices) ?? [],
             createdAt: try container.decodeIfPresent(Date.self, forKey: .createdAt) ?? Date()
         )
+        if let decodedGenerationSummary,
+           !decodedGenerationSummary.matchesFinalItems(sections.lazy.flatMap(\.items)) {
+            throw RecommendationGenerationError.countMismatch
+        }
     }
 }
 
