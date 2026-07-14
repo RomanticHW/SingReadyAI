@@ -404,11 +404,20 @@ final class ProductClosureTests: XCTestCase {
     }
 
     func testMatchConfirmationTransitionInvalidatesPlanWithoutDiscardingUserSelections() {
-        let externalTrack = makeTrack(
-            id: "external",
-            title: "外部备选",
-            artist: "候选歌手",
-            catalogSource: .externalSimilar
+        let externalCandidates = ExternalCandidateCollection(
+            basis: ExternalCandidateBasis(
+                playlistID: UUID(),
+                reviewRevision: 7,
+                requestRevision: 9
+            ),
+            candidates: [
+                ExternalSongCandidate(
+                    title: "外部备选",
+                    artist: "候选歌手",
+                    source: .iTunes,
+                    confidence: 0.9
+                )
+            ]
         )
         let currentPlan = SongPlan(
             title: "当前计划",
@@ -418,7 +427,7 @@ final class ProductClosureTests: XCTestCase {
         let currentState = MatchConfirmationWorkflowState(
             lockedTrackIDs: ["locked"],
             removedTrackIDs: ["removed"],
-            externalCandidateTracks: [externalTrack],
+            externalCandidateCollection: externalCandidates,
             songPlan: currentPlan
         )
 
@@ -426,7 +435,7 @@ final class ProductClosureTests: XCTestCase {
 
         XCTAssertEqual(nextState.lockedTrackIDs, currentState.lockedTrackIDs)
         XCTAssertEqual(nextState.removedTrackIDs, currentState.removedTrackIDs)
-        XCTAssertEqual(nextState.externalCandidateTracks.map(\.id), [externalTrack.id])
+        XCTAssertEqual(nextState.externalCandidateCollection, externalCandidates)
         XCTAssertNil(nextState.songPlan)
     }
 
@@ -2190,18 +2199,22 @@ final class ProductClosureTests: XCTestCase {
     }
 
     func testExternalCandidateMergeKeepsExistingCandidatesWhenExpandedAgain() {
+        let basis = ExternalCandidateBasis(
+            playlistID: UUID(),
+            reviewRevision: 2,
+            requestRevision: 3
+        )
         let candidate = ExternalSongCandidate(title: "七里香", artist: "周杰伦", source: .iTunes, confidence: 0.9)
-        let mapper = ExternalCandidateTrackMapper()
-        let existing = [mapper.map(candidate)]
+        let existing = ExternalCandidateCollection(basis: basis, candidates: [candidate])
 
-        let merged = ExternalCandidateTrackAccumulator().mergedTracks(
-            baseCatalog: [],
-            existingExternalTracks: existing,
-            candidates: [candidate],
+        let merged = ExternalCandidateCollectionAccumulator().mergedCollection(
+            basis: basis,
+            existing: existing,
+            incoming: [candidate],
             limit: 12
         )
 
-        XCTAssertEqual(merged.map(\.id), existing.map(\.id))
+        XCTAssertEqual(merged, existing)
     }
 
     func testExternalCandidateCountRemainsIndependentFromFormalPlanCount() throws {

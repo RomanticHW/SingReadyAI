@@ -230,9 +230,24 @@ extension DemoWorkflowStore {
             }
         }
         if ProcessInfo.processInfo.arguments.contains("-singreadyCandidateChangeAfterPlan"),
-           let candidate = catalog.last {
-            externalCandidateTracks = [candidate]
-            invalidatePlanForExternalCandidateChange()
+           let candidate = catalog.last,
+           let importedPlaylist {
+            externalCandidateCollection = ExternalCandidateCollection(
+                basis: ExternalCandidateBasis(
+                    playlistID: importedPlaylist.id,
+                    reviewRevision: revisions.review,
+                    requestRevision: 1
+                ),
+                candidates: [
+                    ExternalSongCandidate(
+                        title: candidate.title,
+                        artist: candidate.artist,
+                        source: .iTunes,
+                        confidence: 0.9,
+                        externalURL: candidate.externalURL
+                    )
+                ]
+            )
         }
         switch launchStage {
         case .result:
@@ -446,8 +461,24 @@ extension DemoWorkflowStore {
             ))
             setMatchOperationState(.ready(basis))
         }
-        if ProcessInfo.processInfo.arguments.contains("-singreadySeedExternalCandidate") {
-            externalCandidateTracks = [unmatchedBackup]
+        if ProcessInfo.processInfo.arguments.contains("-singreadySeedExternalCandidate"),
+           let importedPlaylist {
+            externalCandidateCollection = ExternalCandidateCollection(
+                basis: ExternalCandidateBasis(
+                    playlistID: importedPlaylist.id,
+                    reviewRevision: revisions.review,
+                    requestRevision: 1
+                ),
+                candidates: [
+                    ExternalSongCandidate(
+                        title: unmatchedBackup.title,
+                        artist: unmatchedBackup.artist,
+                        source: .iTunes,
+                        confidence: 0.88,
+                        externalURL: unmatchedBackup.externalURL
+                    )
+                ]
+            )
             externalCandidateStatus = "已保留 1 首公开备选"
         }
         statusMessage = "还有几首需要核对备选"

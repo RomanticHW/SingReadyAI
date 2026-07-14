@@ -423,7 +423,7 @@ extension DemoWorkflowStore {
         hasAdvancedToScenario = false
         lockedTrackIDs = []
         removedTrackIDs = []
-        externalCandidateTracks = []
+        externalCandidateCollection = nil
         externalCandidateStatus = "还没找同歌手备选"
         feedbackProfile = snapshot.feedbackProfile
         feedbackStatusMessage = nil
@@ -525,7 +525,7 @@ extension DemoWorkflowStore {
         setMatchOperationState(.notStarted)
         hasAdvancedToScenario = false
         setPlanGenerationState(invalidatedPlanState)
-        externalCandidateTracks = []
+        externalCandidateCollection = nil
         externalCandidateStatus = "歌单内容已变更，请重新找同歌手备选"
         lockedTrackIDs = []
         removedTrackIDs = []
@@ -656,7 +656,7 @@ extension DemoWorkflowStore {
                 completedAnalysis: analysis,
                 revisions: nextRevisions,
                 planGenerationState: invalidatedPlanState,
-                externalCandidateTracks: []
+                externalCandidateCollection: nil
             ) else {
                 return .failed("当前歌单暂时无法保存，请重新导入后再试。")
             }
@@ -769,7 +769,7 @@ extension DemoWorkflowStore {
         replaceCompletedAnalysis(analysis)
         replaceWorkflowRevisions(nextRevisions)
         setPlanGenerationState(nextPlanGenerationState)
-        externalCandidateTracks = []
+        externalCandidateCollection = nil
         externalCandidateStatus = "还没找同歌手备选"
         lastRemovedTrackUndo = nil
         isApplyingRestoredWorkflowSnapshot = wasApplyingSnapshot
@@ -829,7 +829,7 @@ extension DemoWorkflowStore {
                 completedAnalysis: updatedAnalysis,
                 revisions: nextRevisions,
                 planGenerationState: invalidatedPlanState,
-                externalCandidateTracks: externalCandidateTracks
+                externalCandidateCollection: externalCandidateCollection
             ) else { return }
             let result = try await workflowPersistenceExecutor.commitWorkflowSnapshot(
                 candidate,

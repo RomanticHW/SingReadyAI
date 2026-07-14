@@ -90,6 +90,42 @@ public struct ImportedSong: Codable, Identifiable, Hashable, Sendable {
         self.normalizedArtist = normalizedArtist ?? self.artist.map(SongNormalizer.normalizeArtist)
         self.versionTags = versionTags
     }
+
+    private enum CodingKeys: String, CodingKey {
+        case id
+        case title
+        case artist
+        case source
+        case rawText
+        case confidence
+        case normalizedTitle
+        case normalizedArtist
+        case versionTags
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.init(
+            id: try container.decode(UUID.self, forKey: .id),
+            title: try container.decode(String.self, forKey: .title),
+            artist: try container.decodeIfPresent(String.self, forKey: .artist),
+            source: try container.decode(ImportSource.self, forKey: .source),
+            rawText: try container.decodeIfPresent(String.self, forKey: .rawText),
+            confidence: try container.decode(Double.self, forKey: .confidence),
+            normalizedTitle: try container.decodeIfPresent(
+                String.self,
+                forKey: .normalizedTitle
+            ),
+            normalizedArtist: try container.decodeIfPresent(
+                String.self,
+                forKey: .normalizedArtist
+            ),
+            versionTags: try container.decodeIfPresent(
+                [String].self,
+                forKey: .versionTags
+            ) ?? []
+        )
+    }
 }
 
 public struct ImportedPlaylist: Codable, Identifiable, Sendable {
@@ -893,18 +929,18 @@ public struct MatchStatistics: Equatable, Sendable {
 public struct MatchConfirmationWorkflowState: Sendable {
     public var lockedTrackIDs: Set<String>
     public var removedTrackIDs: Set<String>
-    public var externalCandidateTracks: [KTVTrack]
+    public var externalCandidateCollection: ExternalCandidateCollection?
     public var songPlan: SongPlan?
 
     public init(
         lockedTrackIDs: Set<String>,
         removedTrackIDs: Set<String>,
-        externalCandidateTracks: [KTVTrack],
+        externalCandidateCollection: ExternalCandidateCollection?,
         songPlan: SongPlan?
     ) {
         self.lockedTrackIDs = lockedTrackIDs
         self.removedTrackIDs = removedTrackIDs
-        self.externalCandidateTracks = externalCandidateTracks
+        self.externalCandidateCollection = externalCandidateCollection
         self.songPlan = songPlan
     }
 }

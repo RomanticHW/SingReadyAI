@@ -97,11 +97,36 @@ struct MatchReportView: View {
                                 Text(store.externalCandidateStatus)
                                     .font(TypographyTokens.caption)
                                     .foregroundStyle(DesignSystem.muted)
-                                if !store.externalCandidateTracks.isEmpty {
-                                    TagCloud(
-                                        values: store.externalCandidateTracks.prefix(6).map(externalCandidateTag),
-                                        tint: DesignSystem.amber
-                                    )
+                                if !store.externalCandidates.isEmpty {
+                                    VStack(alignment: .leading, spacing: SpacingTokens.sm) {
+                                        ForEach(
+                                            Array(store.externalCandidates.prefix(6).enumerated()),
+                                            id: \.offset
+                                        ) { index, candidate in
+                                            VStack(alignment: .leading, spacing: SpacingTokens.xs) {
+                                                Text(candidate.title)
+                                                    .font(TypographyTokens.callout.weight(.semibold))
+                                                    .stageText()
+                                                Text(
+                                                    "\(candidate.artist ?? "歌手待核对") · "
+                                                        + "\(candidate.source.displayName) · 待核对"
+                                                )
+                                                .font(TypographyTokens.caption)
+                                                .foregroundStyle(DesignSystem.muted)
+                                                if let externalURL = candidate.externalURL {
+                                                    Link("查看公开来源", destination: externalURL)
+                                                        .font(TypographyTokens.caption.weight(.semibold))
+                                                        .foregroundStyle(DesignSystem.cyan)
+                                                }
+                                            }
+                                            if index < min(store.externalCandidates.count, 6) - 1 {
+                                                Divider().overlay(DesignSystem.border)
+                                            }
+                                        }
+                                    }
+                                    Text("公开候选只供你参考，不会自动加进排歌结果。")
+                                        .font(TypographyTokens.caption)
+                                        .foregroundStyle(DesignSystem.amber)
                                 }
                                 Text("点击后会从最多 4 首歌中提取歌手，只发送歌手名称到 Apple 公开搜索，用于查找同歌手备选；不会发送录音或完整歌单。")
                                     .font(TypographyTokens.caption)
@@ -240,7 +265,7 @@ struct MatchReportView: View {
     }
 
     private var shouldShowBackupSuggestion: Bool {
-        hasSongsNeedingBackup || !store.externalCandidateTracks.isEmpty || store.isExpandingExternalCandidates
+        hasSongsNeedingBackup || !store.externalCandidates.isEmpty || store.isExpandingExternalCandidates
     }
 
     private var externalCandidateTitle: String {
@@ -249,14 +274,6 @@ struct MatchReportView: View {
 
     private var externalCandidateButtonTitle: String {
         hasSongsNeedingBackup ? "找同歌手备选" : "再找同歌手备选"
-    }
-
-    private func externalCandidateTag(_ track: KTVTrack) -> String {
-        guard track.isProvisionalExternalCandidate else {
-            return "\(track.title) · 本地参考"
-        }
-        let relation = track.externalCandidateMetadata?.relation.displayName ?? "外部候选"
-        return "\(track.title) · \(relation) · 待核对"
     }
 
     private func matchHeadline(for rate: Double) -> String {

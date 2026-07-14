@@ -23,6 +23,10 @@ public enum VersionedStoreQuarantineReason: Equatable, Sendable {
     case oversized
 }
 
+public enum WorkflowSnapshotStoreError: Error, Equatable, Sendable {
+    case archiveTooLarge
+}
+
 public enum VersionedStoreLoadResult<Value: Sendable>: Sendable {
     case missing
     case loaded(Value)
@@ -413,6 +417,24 @@ public struct WorkflowSnapshot: Codable, Sendable {
 
     public init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
+        let legacyDerivationBridge = try container.decodeIfPresent(
+            LegacyWorkflowDerivationBridge.self,
+            forKey: .legacyDerivationBridge
+        ) ?? .empty
+        let currentPlanRecord = try container.decodeIfPresent(
+            PersistedPlanRecord.self,
+            forKey: .persistedPlanRecord
+        )
+        let migratedPlanRecord: PersistedPlanRecord?
+        if let currentPlanRecord {
+            migratedPlanRecord = currentPlanRecord
+        } else if let legacyPlan = legacyDerivationBridge.songPlan {
+            migratedPlanRecord = PersistedPlanRecord(
+                planGenerationState: .legacyStale(plan: legacyPlan)
+            )
+        } else {
+            migratedPlanRecord = nil
+        }
         self.init(
             importedPlaylist: try container.decode(ImportedPlaylist.self, forKey: .importedPlaylist),
             reviewSongs: try container.decode([WorkflowReviewSong].self, forKey: .reviewSongs),
@@ -421,10 +443,7 @@ public struct WorkflowSnapshot: Codable, Sendable {
                 CompletedPlaylistAnalysis.self,
                 forKey: .completedAnalysis
             ),
-            persistedPlanRecord: try container.decodeIfPresent(
-                PersistedPlanRecord.self,
-                forKey: .persistedPlanRecord
-            ),
+            persistedPlanRecord: migratedPlanRecord,
             externalCandidateCollection: try container.decodeIfPresent(
                 ExternalCandidateCollection.self,
                 forKey: .externalCandidateCollection
@@ -443,10 +462,7 @@ public struct WorkflowSnapshot: Codable, Sendable {
                 forKey: .hasAdvancedToScenario
             ),
             updatedAt: try container.decode(Date.self, forKey: .updatedAt),
-            legacyDerivationBridge: try container.decodeIfPresent(
-                LegacyWorkflowDerivationBridge.self,
-                forKey: .legacyDerivationBridge
-            ) ?? .empty
+            legacyDerivationBridge: .empty
         )
     }
 
@@ -573,7 +589,11 @@ public struct WorkflowSnapshotStore: Sendable {
 
     public func loadWithStatus() throws -> VersionedStoreLoadResult<WorkflowSnapshot> {
         guard FileManager.default.fileExists(atPath: url.path) else { return .missing }
-        if try fileExceedsMaximumByteCount(at: url, maximumByteCount: Self.maximumArchiveByteCount) {
+        if try fileExceedsMaximumByteCount(
+            at: url,
+            maximumByteCount: Self.maximumArchiveByteCount,
+            inclusive: true
+        ) {
             try quarantine(reason: "oversized")
             return .quarantined(.oversized)
         }
@@ -587,7 +607,7 @@ public struct WorkflowSnapshotStore: Sendable {
         switch header.schemaVersion {
         case 1:
             do {
-                return .loaded(migrateShell(try decoder.decode(ArchiveV1.self, from: data)))
+                return .loaded(migrate(try decoder.decode(ArchiveV1.self, from: data)))
             } catch {
                 try quarantine(reason: "corrupt")
                 return .quarantined(.corrupt)
@@ -606,14 +626,19 @@ public struct WorkflowSnapshotStore: Sendable {
     }
 
     public func save(_ snapshot: WorkflowSnapshot) throws {
+        let archive = ArchiveV2(schemaVersion: Self.currentSchemaVersion, snapshot: snapshot)
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+        let data = try encoder.encode(archive)
+        guard data.count < Self.maximumArchiveByteCount else {
+            throw WorkflowSnapshotStoreError.archiveTooLarge
+        }
+
         let directory = url.deletingLastPathComponent()
         if !FileManager.default.fileExists(atPath: directory.path) {
             try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         }
-        let archive = ArchiveV2(schemaVersion: Self.currentSchemaVersion, snapshot: snapshot)
-        let encoder = JSONEncoder()
-        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
-        try encoder.encode(archive).write(to: url, options: [.atomic])
+        try data.write(to: url, options: [.atomic])
     }
 
     public func clear() throws {
@@ -647,14 +672,17 @@ public struct WorkflowSnapshotStore: Sendable {
         try FileManager.default.moveItem(at: url, to: quarantineURL)
     }
 
-    private func migrateShell(_ archive: ArchiveV1) -> WorkflowSnapshot {
+    private func migrate(_ archive: ArchiveV1) -> WorkflowSnapshot {
         let snapshot = archive.snapshot
+        let migratedPlanRecord = snapshot.songPlan.flatMap { plan in
+            PersistedPlanRecord(planGenerationState: .legacyStale(plan: plan))
+        }
         return WorkflowSnapshot(
             importedPlaylist: snapshot.importedPlaylist,
             reviewSongs: snapshot.reviewSongs,
             revisions: WorkflowRevisionLedger(),
             completedAnalysis: nil,
-            persistedPlanRecord: nil,
+            persistedPlanRecord: migratedPlanRecord,
             externalCandidateCollection: nil,
             voiceProfile: snapshot.voiceProfile,
             recommendationInputSource: snapshot.recommendationInputSource,
@@ -664,12 +692,7 @@ public struct WorkflowSnapshotStore: Sendable {
             feedbackProfile: snapshot.feedbackProfile,
             hasAdvancedToScenario: snapshot.hasAdvancedToScenario,
             updatedAt: snapshot.updatedAt,
-            legacyDerivationBridge: LegacyWorkflowDerivationBridge(
-                matches: snapshot.matches,
-                preferenceProfile: snapshot.preferenceProfile,
-                songPlan: snapshot.songPlan,
-                externalCandidateTracks: snapshot.externalCandidateTracks
-            )
+            legacyDerivationBridge: .empty
         )
     }
 }
@@ -995,10 +1018,16 @@ public actor VoiceProfileStore {
     }
 }
 
-private func fileExceedsMaximumByteCount(at url: URL, maximumByteCount: UInt64) throws -> Bool {
+private func fileExceedsMaximumByteCount(
+    at url: URL,
+    maximumByteCount: UInt64,
+    inclusive: Bool = false
+) throws -> Bool {
     let attributes = try FileManager.default.attributesOfItem(atPath: url.path)
     guard let fileSize = attributes[.size] as? NSNumber else { return false }
-    return fileSize.uint64Value > maximumByteCount
+    return inclusive
+        ? fileSize.uint64Value >= maximumByteCount
+        : fileSize.uint64Value > maximumByteCount
 }
 
 public struct VoiceProfilePersistenceRequestGate: Equatable, Sendable {

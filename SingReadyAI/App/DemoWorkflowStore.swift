@@ -34,7 +34,7 @@ final class DemoWorkflowStore: ObservableObject {
     @Published var recordingLevel = 0.08
     @Published var lockedTrackIDs: Set<String> = []
     @Published var removedTrackIDs: Set<String> = []
-    @Published var externalCandidateTracks: [KTVTrack] = []
+    @Published var externalCandidateCollection: ExternalCandidateCollection?
     @Published var externalCandidateStatus = "还没找同歌手备选"
     @Published var isExpandingExternalCandidates = false
     @Published var feedbackProfile = SongFeedbackProfile.empty
@@ -226,7 +226,7 @@ final class DemoWorkflowStore: ObservableObject {
 
     var removedTracksForManagement: [KTVTrack] {
         let tracksByID = Dictionary(
-            (catalog + externalCandidateTracks).map { ($0.id, $0) },
+            catalog.map { ($0.id, $0) },
             uniquingKeysWith: { first, _ in first }
         )
         let sortedTracks = removedTrackIDs
@@ -236,6 +236,10 @@ final class DemoWorkflowStore: ObservableObject {
                 return $0.title < $1.title
             }
         return Array(sortedTracks.prefix(8))
+    }
+
+    var externalCandidates: [ExternalSongCandidate] {
+        externalCandidateCollection?.candidates ?? []
     }
 
     var currentStage: WorkflowStage {

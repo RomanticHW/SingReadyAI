@@ -16,43 +16,24 @@ final class ExternalCandidateContractTests: XCTestCase {
         XCTAssertEqual(tooLow.relevance, 0)
     }
 
-    func testPlaylistRevisionChangesWhenSamePlaylistIDContentChanges() {
-        let playlistID = UUID()
-        let first = ImportedPlaylist(
-            id: playlistID,
-            source: .plainText,
-            title: "同一歌单",
-            songs: [ImportedSong(title: "晴天", artist: "周杰伦", source: .plainText, confidence: 1)],
-            parseConfidence: 1
-        )
-        let edited = ImportedPlaylist(
-            id: playlistID,
-            source: .plainText,
-            title: "同一歌单",
-            songs: [ImportedSong(title: "七里香", artist: "周杰伦", source: .plainText, confidence: 1)],
-            parseConfidence: 1
-        )
-
-        XCTAssertNotEqual(
-            ExternalCandidatePlaylistRevision.fingerprint(for: first),
-            ExternalCandidatePlaylistRevision.fingerprint(for: edited)
-        )
-    }
-
-    func testSamePlaylistIDWithChangedRevisionRejectsOldCompletion() throws {
+    func testSamePlaylistIDWithChangedReviewRevisionRejectsOldCompletion() throws {
         let playlistID = UUID()
         var coordinator = ExternalCandidateRequestCoordinator()
         let request = try XCTUnwrap(coordinator.beginIfIdle(
             playlistID: playlistID,
-            playlistRevision: "revision-a",
+            reviewRevision: 4,
             nowNanoseconds: 100,
             timeoutNanoseconds: 100
         ))
 
+        XCTAssertEqual(request.basis.playlistID, playlistID)
+        XCTAssertEqual(request.basis.reviewRevision, 4)
+        XCTAssertEqual(request.basis.requestRevision, 1)
         XCTAssertFalse(coordinator.commit(
             request,
             playlistID: playlistID,
-            playlistRevision: "revision-b",
+            reviewRevision: 5,
+            requestRevision: request.basis.requestRevision,
             nowNanoseconds: 120
         ))
         XCTAssertTrue(coordinator.isActive(request))
@@ -1055,90 +1036,62 @@ final class ExternalCandidateContractTests: XCTestCase {
         XCTAssertFalse(plan.sections.flatMap(\.items).contains { $0.track.id == external.id })
     }
 
-    func testAccumulatorDeduplicatesBySemanticKeyAndLocalCatalogWins() {
-        let local = makeTrack(id: "local", title: "七里香", artist: "周杰伦")
-        let existingExternal = makeTrack(
-            id: "external:legacy-id",
-            title: "晴天",
-            artist: "周杰伦",
-            source: .externalSimilar,
-            metadata: nil
-        )
-        let candidates = [
-            ExternalSongCandidate(
-                title: "七里香",
-                artist: "周杰伦",
-                source: .iTunes,
-                confidence: 0.99,
-                relation: .sameArtist
-            ),
-            ExternalSongCandidate(
-                title: "晴天",
-                artist: "周杰伦",
-                source: .iTunes,
-                confidence: 0.95,
-                relation: .sameArtist
-            )
-        ]
-
-        let merged = ExternalCandidateTrackAccumulator().mergedTracks(
-            baseCatalog: [local],
-            existingExternalTracks: [existingExternal],
-            candidates: candidates
-        )
-
-        XCTAssertFalse(merged.contains { SongNormalizer.normalizeTitle($0.title) == SongNormalizer.normalizeTitle(local.title) })
-        XCTAssertEqual(merged.filter { SongNormalizer.normalizeTitle($0.title) == "晴天" }.count, 1)
-    }
-
-    func testAccumulatorEqualRelevanceOrderingIsIndependentOfInputOrder() {
-        let artistB = ExternalSongCandidate(
-            title: "同名歌曲",
-            artist: "歌手B",
-            source: .iTunes,
-            confidence: 0.8,
-            relation: .sameArtist
-        )
-        let artistA = ExternalSongCandidate(
-            title: "同名歌曲",
-            artist: "歌手A",
-            source: .iTunes,
-            confidence: 0.8,
-            relation: .sameArtist
-        )
-        let accumulator = ExternalCandidateTrackAccumulator()
-
-        let first = accumulator.mergedTracks(
-            baseCatalog: [],
-            existingExternalTracks: [],
-            candidates: [artistB, artistA]
-        )
-        let second = accumulator.mergedTracks(
-            baseCatalog: [],
-            existingExternalTracks: [],
-            candidates: [artistA, artistB]
-        )
-
-        XCTAssertEqual(first.map(\.id), second.map(\.id))
-        XCTAssertEqual(first.map(\.artist), ["歌手A", "歌手B"])
-    }
-
     func testRequestCoordinatorRejectsConcurrentAndStaleCompletions() throws {
         let playlistA = UUID()
         let playlistB = UUID()
         var coordinator = ExternalCandidateRequestCoordinator()
 
-        let requestA = try XCTUnwrap(coordinator.beginIfIdle(playlistID: playlistA, nowNanoseconds: 100, timeoutNanoseconds: 50))
-        XCTAssertNil(coordinator.beginIfIdle(playlistID: playlistA, nowNanoseconds: 101, timeoutNanoseconds: 50))
+        let requestA = try XCTUnwrap(coordinator.beginIfIdle(
+            playlistID: playlistA,
+            reviewRevision: 8,
+            nowNanoseconds: 100,
+            timeoutNanoseconds: 50
+        ))
+        XCTAssertNil(coordinator.beginIfIdle(
+            playlistID: playlistA,
+            reviewRevision: 8,
+            nowNanoseconds: 101,
+            timeoutNanoseconds: 50
+        ))
 
         coordinator.cancel()
-        let requestB = try XCTUnwrap(coordinator.beginIfIdle(playlistID: playlistB, nowNanoseconds: 200, timeoutNanoseconds: 50))
+        let requestB = try XCTUnwrap(coordinator.beginIfIdle(
+            playlistID: playlistB,
+            reviewRevision: 2,
+            nowNanoseconds: 200,
+            timeoutNanoseconds: 50
+        ))
 
-        XCTAssertFalse(coordinator.commit(requestA, playlistID: playlistA, nowNanoseconds: 120))
+        XCTAssertFalse(coordinator.commit(
+            requestA,
+            playlistID: playlistA,
+            reviewRevision: 8,
+            requestRevision: requestA.basis.requestRevision,
+            nowNanoseconds: 120
+        ))
         XCTAssertFalse(coordinator.finish(requestA), "旧请求的清理不能结束新请求")
-        XCTAssertFalse(coordinator.commit(requestB, playlistID: playlistA, nowNanoseconds: 210))
+        XCTAssertFalse(coordinator.commit(
+            requestB,
+            playlistID: playlistA,
+            reviewRevision: 2,
+            requestRevision: requestB.basis.requestRevision,
+            nowNanoseconds: 210
+        ))
+        XCTAssertFalse(coordinator.commit(
+            requestB,
+            playlistID: playlistB,
+            reviewRevision: 2,
+            requestRevision: requestB.basis.requestRevision &+ 1,
+            nowNanoseconds: 210
+        ))
         XCTAssertTrue(coordinator.isActive(requestB))
-        XCTAssertTrue(coordinator.commit(requestB, playlistID: playlistB, nowNanoseconds: 210))
+        XCTAssertTrue(coordinator.commit(
+            requestB,
+            playlistID: playlistB,
+            reviewRevision: 2,
+            requestRevision: requestB.basis.requestRevision,
+            nowNanoseconds: 210
+        ))
         XCTAssertFalse(coordinator.isBusy)
     }
 
@@ -1147,6 +1100,7 @@ final class ExternalCandidateContractTests: XCTestCase {
         var coordinator = ExternalCandidateRequestCoordinator()
         let request = try XCTUnwrap(coordinator.beginIfIdle(
             playlistID: playlistID,
+            reviewRevision: 3,
             nowNanoseconds: 1_000,
             timeoutNanoseconds: 500
         ))
@@ -1154,7 +1108,13 @@ final class ExternalCandidateContractTests: XCTestCase {
         XCTAssertFalse(coordinator.expire(request, nowNanoseconds: 1_499))
         XCTAssertTrue(coordinator.expire(request, nowNanoseconds: 1_500))
         XCTAssertFalse(coordinator.isBusy)
-        XCTAssertFalse(coordinator.commit(request, playlistID: playlistID, nowNanoseconds: 1_500))
+        XCTAssertFalse(coordinator.commit(
+            request,
+            playlistID: playlistID,
+            reviewRevision: 3,
+            requestRevision: request.basis.requestRevision,
+            nowNanoseconds: 1_500
+        ))
     }
 
     func testOverallTimeoutThrowsTypedError() async {

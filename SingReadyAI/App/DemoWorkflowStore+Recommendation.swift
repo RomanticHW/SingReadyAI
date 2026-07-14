@@ -396,7 +396,7 @@ extension DemoWorkflowStore {
             return
         }
         guard removedTrackIDs.remove(trackID) != nil else { return }
-        let title = (catalog + externalCandidateTracks)
+        let title = catalog
             .first(where: { $0.id == trackID })?
             .title ?? "这首歌"
         lastRemovedTrackUndo = nil

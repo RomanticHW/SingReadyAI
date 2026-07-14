@@ -249,16 +249,165 @@ final class StoragePrivacyHardeningTests: XCTestCase {
         defer { try? FileManager.default.removeItem(at: directory) }
         let url = directory.appendingPathComponent("workflow_snapshot.json")
         let store = WorkflowSnapshotStore(url: url)
-        try Data(repeating: 0, count: 16 * 1_024 * 1_024 + 1).write(to: url)
+        try Data(repeating: 0, count: 16 * 1_024 * 1_024).write(to: url)
 
         guard case .quarantined(.oversized) = try store.loadWithStatus() else {
-            return XCTFail("超过 16 MB 的工作流快照应在解码前被隔离")
+            return XCTFail("达到 16 MiB 的工作流快照应在解码前被隔离")
         }
         XCTAssertFalse(FileManager.default.fileExists(atPath: url.path))
         XCTAssertTrue(
             try FileManager.default.contentsOfDirectory(atPath: directory.path)
                 .contains { $0.hasPrefix("workflow_snapshot.oversized-") }
         )
+    }
+
+    func testWorkflowSnapshotSaveRejectsOversizedArchiveWithoutReplacingStableSnapshot() throws {
+        let directory = try makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let url = directory.appendingPathComponent("workflow_snapshot.json")
+        let stableSong = ImportedSong(
+            title: "晴天",
+            artist: "周杰伦",
+            source: .plainText,
+            confidence: 1
+        )
+        let stablePlaylist = ImportedPlaylist(
+            source: .plainText,
+            title: "稳定快照",
+            songs: [stableSong],
+            parseConfidence: 1
+        )
+        let stableSnapshot = WorkflowSnapshot(
+            importedPlaylist: stablePlaylist,
+            reviewSongs: [WorkflowReviewSong(song: stableSong)],
+            revisions: WorkflowRevisionLedger(),
+            completedAnalysis: nil,
+            persistedPlanRecord: nil,
+            externalCandidateCollection: nil,
+            voiceProfile: nil,
+            recommendationInputSource: .userImport,
+            scenarioConfig: ScenarioConfig(),
+            lockedTrackIDs: [],
+            removedTrackIDs: [],
+            feedbackProfile: .empty
+        )
+        let store = WorkflowSnapshotStore(url: url)
+        try store.save(stableSnapshot)
+        let stableData = try Data(contentsOf: url)
+
+        let oversizedRawText = String(repeating: "x", count: 9 * 1_024 * 1_024)
+        let oversizedSong = ImportedSong(
+            title: "超限歌曲",
+            source: .plainText,
+            rawText: oversizedRawText,
+            confidence: 1
+        )
+        let oversizedPlaylist = ImportedPlaylist(
+            source: .plainText,
+            title: "超限快照",
+            songs: [oversizedSong],
+            parseConfidence: 1
+        )
+        let oversizedSnapshot = WorkflowSnapshot(
+            importedPlaylist: oversizedPlaylist,
+            reviewSongs: [WorkflowReviewSong(song: oversizedSong)],
+            revisions: WorkflowRevisionLedger(),
+            completedAnalysis: nil,
+            persistedPlanRecord: nil,
+            externalCandidateCollection: nil,
+            voiceProfile: nil,
+            recommendationInputSource: .userImport,
+            scenarioConfig: ScenarioConfig(),
+            lockedTrackIDs: [],
+            removedTrackIDs: [],
+            feedbackProfile: .empty
+        )
+
+        XCTAssertThrowsError(try store.save(oversizedSnapshot)) { error in
+            XCTAssertEqual(error as? WorkflowSnapshotStoreError, .archiveTooLarge)
+        }
+        XCTAssertEqual(try Data(contentsOf: url), stableData)
+        XCTAssertEqual(try store.load()?.importedPlaylist.title, "稳定快照")
+    }
+
+    func testWorkflowSnapshotSaveRejectsArchiveAtExactLimitWithoutTouchingStableFile() throws {
+        let directory = try makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let maximumArchiveByteCount = 16 * 1_024 * 1_024
+        let songID = try XCTUnwrap(UUID(uuidString: "10000000-0000-0000-0000-000000000001"))
+        let playlistID = try XCTUnwrap(UUID(uuidString: "20000000-0000-0000-0000-000000000002"))
+        let fixedDate = Date(timeIntervalSince1970: 1_700_000_000)
+
+        func snapshot(rawTextCount: Int) -> WorkflowSnapshot {
+            let song = ImportedSong(
+                id: songID,
+                title: "精确边界歌曲",
+                source: .plainText,
+                rawText: String(repeating: "x", count: rawTextCount),
+                confidence: 1
+            )
+            let playlist = ImportedPlaylist(
+                id: playlistID,
+                source: .plainText,
+                title: "精确边界快照",
+                songs: [song],
+                createdAt: fixedDate,
+                parseConfidence: 1
+            )
+            return WorkflowSnapshot(
+                importedPlaylist: playlist,
+                reviewSongs: [
+                    WorkflowReviewSong(
+                        id: songID,
+                        title: song.title,
+                        artist: nil,
+                        source: .plainText,
+                        rawText: nil,
+                        confidence: 1,
+                        versionTags: [],
+                        isDeleted: false
+                    )
+                ],
+                revisions: WorkflowRevisionLedger(),
+                completedAnalysis: nil,
+                persistedPlanRecord: nil,
+                externalCandidateCollection: nil,
+                voiceProfile: nil,
+                recommendationInputSource: .userImport,
+                scenarioConfig: ScenarioConfig(),
+                lockedTrackIDs: [],
+                removedTrackIDs: [],
+                feedbackProfile: .empty,
+                updatedAt: fixedDate
+            )
+        }
+
+        let calibrationURL = directory.appendingPathComponent("workflow_snapshot_calibration.json")
+        let calibrationStore = WorkflowSnapshotStore(url: calibrationURL)
+        let initialRawTextCount = maximumArchiveByteCount - 128 * 1_024
+        try calibrationStore.save(snapshot(rawTextCount: initialRawTextCount))
+        let initialArchiveByteCount = try Data(contentsOf: calibrationURL).count
+        XCTAssertLessThan(initialArchiveByteCount, maximumArchiveByteCount)
+
+        let exactRawTextCount = initialRawTextCount
+            + maximumArchiveByteCount
+            - initialArchiveByteCount
+        try calibrationStore.save(snapshot(rawTextCount: exactRawTextCount - 1))
+        XCTAssertEqual(
+            try Data(contentsOf: calibrationURL).count,
+            maximumArchiveByteCount - 1
+        )
+
+        let stableURL = directory.appendingPathComponent("workflow_snapshot.json")
+        let stableStore = WorkflowSnapshotStore(url: stableURL)
+        try stableStore.save(snapshot(rawTextCount: 0))
+        let stableData = try Data(contentsOf: stableURL)
+
+        XCTAssertThrowsError(try stableStore.save(snapshot(rawTextCount: exactRawTextCount))) { error in
+            XCTAssertEqual(error as? WorkflowSnapshotStoreError, .archiveTooLarge)
+        }
+        XCTAssertEqual(try Data(contentsOf: stableURL), stableData)
+        XCTAssertEqual(try stableStore.load()?.importedPlaylist.title, "精确边界快照")
     }
 
     func testVersionedStoresPropagateIOReadFailuresInsteadOfReportingQuarantine() throws {
@@ -273,7 +422,7 @@ final class StoragePrivacyHardeningTests: XCTestCase {
         XCTAssertThrowsError(try WorkflowSnapshotStore(url: snapshotDirectoryURL).loadWithStatus())
     }
 
-    func testWorkflowSnapshotRoundTripsNonEmptyRecommendationState() throws {
+    func testWorkflowSnapshotMigratesEarlySchemaTwoLegacyDerivationsConservatively() throws {
         let directory = try makeTemporaryDirectory()
         defer { try? FileManager.default.removeItem(at: directory) }
         let url = directory.appendingPathComponent("workflow_snapshot.json")
@@ -420,25 +569,20 @@ final class StoragePrivacyHardeningTests: XCTestCase {
         try store.save(snapshot)
         let restored = try XCTUnwrap(store.load())
 
-        XCTAssertEqual(try canonicalJSON(restored), try canonicalJSON(snapshot))
         XCTAssertEqual(restored.importedPlaylist.externalURL, playlist.externalURL)
         XCTAssertEqual(restored.reviewSongs.first?.versionTags, ["Live"])
-        XCTAssertEqual(restored.matches.first?.matchedTrack?.id, localTrack.id)
-        XCTAssertEqual(restored.matches.first?.alternatives.first?.id, alternative.id)
-        XCTAssertEqual(restored.matches.first?.confirmationState, .confirmed)
-        XCTAssertEqual(restored.preferenceProfile?.topArtists.first?.name, "周杰伦")
-        XCTAssertEqual(restored.preferenceProfile?.scenarioFitScores["friends"], 0.95)
+        XCTAssertNil(restored.completedAnalysis)
+        XCTAssertTrue(restored.matches.isEmpty)
+        XCTAssertNil(restored.preferenceProfile)
         XCTAssertEqual(restored.voiceProfile, voice)
-        XCTAssertEqual(restored.songPlan?.id, plan.id)
-        XCTAssertEqual(restored.songPlan?.scenarioConfig, scenario)
-        XCTAssertEqual(restored.songPlan?.voiceProfile, voice)
-        XCTAssertEqual(restored.songPlan?.sections.first?.role, .warmup)
-        XCTAssertEqual(restored.songPlan?.sections.first?.items.first?.track.id, localTrack.id)
-        XCTAssertEqual(restored.songPlan?.sections.first?.items.first?.scoreBreakdown, breakdown)
-        XCTAssertEqual(restored.songPlan?.sections.first?.items.first?.singingAdvice?.semitoneShift, -2)
-        XCTAssertEqual(restored.songPlan?.sections.first?.items.first?.feedbackTags, [.liked, .sung])
-        XCTAssertEqual(restored.externalCandidateTracks.first?.catalogSource, .externalSimilar)
-        XCTAssertEqual(restored.externalCandidateTracks.first?.externalCandidateMetadata, externalTrack.externalCandidateMetadata)
+        guard case let .stale(stalePlan)? = restored.persistedPlanRecord else {
+            return XCTFail("缺少 basis 的早期 v2 计划只能恢复为 stale")
+        }
+        XCTAssertEqual(stalePlan.plan.id, plan.id)
+        XCTAssertNil(stalePlan.previousBasis)
+        XCTAssertEqual(stalePlan.reason, "这份旧歌单需要按当前选择重新排一版")
+        XCTAssertNil(restored.externalCandidateCollection)
+        XCTAssertTrue(restored.externalCandidateTracks.isEmpty)
         XCTAssertEqual(restored.lockedTrackIDs, [localTrack.id])
         XCTAssertEqual(restored.removedTrackIDs, [alternative.id])
         XCTAssertEqual(Set(restored.feedbackProfile.feedback(for: localTrack.id)), Set([.liked, .sung]))
@@ -581,7 +725,135 @@ final class StoragePrivacyHardeningTests: XCTestCase {
         XCTAssertFalse(collectionText.contains("catalogSource"))
     }
 
-    func testWorkflowSnapshotLoadsSchemaOneIntoLegacyBridgeWithoutClaimingV2Readiness() throws {
+    func testWorkflowSnapshotRoundTripsOneThousandSongCommittedSnapshotWithinArchiveLimit() throws {
+        let directory = try makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let url = directory.appendingPathComponent("workflow_snapshot.json")
+        let songs = (0..<1_000).map { index in
+            ImportedSong(
+                title: "歌曲 \(index)",
+                artist: index.isMultiple(of: 3) ? "歌手甲" : "歌手乙",
+                source: .plainText,
+                rawText: "歌曲 \(index) - 歌手",
+                confidence: index.isMultiple(of: 5) ? 0.72 : 0.96,
+                versionTags: index.isMultiple(of: 7) ? ["Live"] : []
+            )
+        }
+        let playlist = ImportedPlaylist(
+            source: .plainText,
+            title: "千首完整快照",
+            songs: songs,
+            parseConfidence: 0.91
+        )
+        let reviewSongs = songs.enumerated().map { index, song in
+            WorkflowReviewSong(
+                song: song,
+                title: index.isMultiple(of: 11) ? "\(song.title)（已核对）" : nil,
+                isDeleted: index.isMultiple(of: 37)
+            )
+        }
+        let matchBasis = MatchBasis(
+            playlistID: playlist.id,
+            reviewRevision: 12,
+            catalogRevision: "catalog-1000"
+        )
+        let matches = songs.map { song in
+            MatchResult(
+                importedSong: song,
+                matchedTrack: makeTrack(
+                    id: "track-\(song.id.uuidString)",
+                    title: song.title,
+                    artist: song.artist ?? "未知歌手"
+                ),
+                alternatives: [],
+                status: .exact,
+                confirmationState: .confirmed,
+                score: 0.96,
+                reason: "歌名和歌手一致"
+            )
+        }
+        let analysis = CompletedPlaylistAnalysis(
+            basis: matchBasis,
+            matchRevision: 13,
+            matches: matches,
+            preferenceProfile: makePreferenceProfile()
+        )
+        let scenario = ScenarioConfig(scenario: .friends, peopleCount: 8, durationMinutes: 180)
+        let plan = SongPlan(
+            title: "千首歌单排歌",
+            scenario: .friends,
+            inputSource: .userImport,
+            scenarioConfig: scenario,
+            sections: []
+        )
+        let planBasis = PlanBasis(
+            matchBasis: matchBasis,
+            matchRevision: 13,
+            scenarioFingerprint: "scenario-1000",
+            voiceSource: .commonReference,
+            voiceFingerprint: "voice-1000",
+            feedbackRevision: 14,
+            trackControlsRevision: 15,
+            inputSource: .userImport,
+            catalogRevision: "catalog-1000"
+        )
+        let externalCollection = ExternalCandidateCollection(
+            basis: ExternalCandidateBasis(
+                playlistID: playlist.id,
+                reviewRevision: 12,
+                requestRevision: 16
+            ),
+            candidates: (0..<16).map { index in
+                ExternalSongCandidate(
+                    title: "公开候选 \(index)",
+                    artist: "候选歌手 \(index)",
+                    source: index.isMultiple(of: 2) ? .iTunes : .lastFM,
+                    confidence: 0.8
+                )
+            }
+        )
+        let revisions = WorkflowRevisionLedger(
+            review: 12,
+            match: 13,
+            feedback: 14,
+            trackControls: 15
+        )
+        let snapshot = WorkflowSnapshot(
+            importedPlaylist: playlist,
+            reviewSongs: reviewSongs,
+            revisions: revisions,
+            completedAnalysis: analysis,
+            persistedPlanRecord: .ready(plan: plan, basis: planBasis),
+            externalCandidateCollection: externalCollection,
+            voiceProfile: nil,
+            recommendationInputSource: .userImport,
+            scenarioConfig: scenario,
+            lockedTrackIDs: [matches[0].acceptedTrack!.id],
+            removedTrackIDs: [matches[1].acceptedTrack!.id],
+            feedbackProfile: SongFeedbackProfile(
+                feedbackByTrackID: [matches[2].acceptedTrack!.id: [.liked]]
+            )
+        )
+
+        let store = WorkflowSnapshotStore(url: url)
+        try store.save(snapshot)
+        let archiveData = try Data(contentsOf: url)
+        let restored = try XCTUnwrap(store.load())
+
+        XCTAssertLessThan(archiveData.count, 16 * 1_024 * 1_024)
+        XCTAssertEqual(restored.importedPlaylist.songs.count, 1_000)
+        XCTAssertEqual(restored.reviewSongs.count, 1_000)
+        XCTAssertEqual(restored.completedAnalysis?.matches.count, 1_000)
+        XCTAssertEqual(restored.revisions, revisions)
+        guard case let .ready(restoredPlan, restoredBasis) = restored.persistedPlanRecord else {
+            return XCTFail("千首快照的 ready 计划应完整恢复")
+        }
+        XCTAssertEqual(restoredPlan.id, plan.id)
+        XCTAssertEqual(restoredBasis, planBasis)
+        XCTAssertEqual(restored.externalCandidateCollection, externalCollection)
+    }
+
+    func testWorkflowSnapshotMigratesSchemaOneWithoutClaimingLegacyDerivationsAreReady() throws {
         let directory = try makeTemporaryDirectory()
         defer { try? FileManager.default.removeItem(at: directory) }
         let url = directory.appendingPathComponent("workflow_snapshot.json")
@@ -648,18 +920,80 @@ final class StoragePrivacyHardeningTests: XCTestCase {
 
         XCTAssertEqual(restored.revisions, WorkflowRevisionLedger())
         XCTAssertNil(restored.completedAnalysis)
-        XCTAssertNil(restored.persistedPlanRecord)
         XCTAssertNil(restored.externalCandidateCollection)
-        XCTAssertEqual(restored.matches.first?.matchedTrack?.id, track.id)
-        XCTAssertEqual(restored.preferenceProfile?.summary, preference.summary)
-        XCTAssertEqual(restored.songPlan?.id, plan.id)
-        XCTAssertEqual(restored.externalCandidateTracks.first?.id, externalTrack.id)
+        XCTAssertTrue(restored.matches.isEmpty)
+        XCTAssertNil(restored.preferenceProfile)
+        guard case let .stale(stalePlan)? = restored.persistedPlanRecord else {
+            return XCTFail("schema 1 的旧计划缺少 basis，只能恢复为 stale")
+        }
+        XCTAssertEqual(stalePlan.plan.id, plan.id)
+        XCTAssertNil(stalePlan.previousBasis)
+        XCTAssertEqual(stalePlan.reason, "这份旧歌单需要按当前选择重新排一版")
+        XCTAssertTrue(restored.externalCandidateTracks.isEmpty)
         XCTAssertEqual(restored.updatedAt, updatedAt)
         XCTAssertTrue(FileManager.default.fileExists(atPath: url.path))
         XCTAssertFalse(
             try FileManager.default.contentsOfDirectory(atPath: directory.path)
                 .contains { $0.contains(".corrupt-") || $0.contains(".incompatible-") }
         )
+    }
+
+    func testWorkflowSnapshotSchemaOneDefaultsMissingSongVersionTagsToEmpty() throws {
+        let directory = try makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let url = directory.appendingPathComponent("workflow_snapshot.json")
+        let song = ImportedSong(
+            title: "旧版歌曲",
+            artist: "旧版歌手",
+            source: .plainText,
+            confidence: 0.9,
+            versionTags: ["Live"]
+        )
+        let playlist = ImportedPlaylist(
+            source: .plainText,
+            title: "旧版无版本标签",
+            songs: [song],
+            parseConfidence: 0.9
+        )
+        let archive = LegacyWorkflowArchiveFixture(
+            schemaVersion: 1,
+            snapshot: LegacyWorkflowSnapshotFixture(
+                importedPlaylist: playlist,
+                reviewSongs: [WorkflowReviewSong(song: song)],
+                matches: [],
+                preferenceProfile: nil,
+                voiceProfile: nil,
+                recommendationInputSource: .userImport,
+                scenarioConfig: ScenarioConfig(),
+                songPlan: nil,
+                lockedTrackIDs: [],
+                removedTrackIDs: [],
+                externalCandidateTracks: [],
+                feedbackProfile: .empty,
+                hasAdvancedToScenario: false,
+                updatedAt: Date(timeIntervalSince1970: 1_700_000_000)
+            )
+        )
+        var root = try XCTUnwrap(
+            JSONSerialization.jsonObject(with: JSONEncoder().encode(archive)) as? [String: Any]
+        )
+        var snapshot = try XCTUnwrap(root["snapshot"] as? [String: Any])
+        var importedPlaylist = try XCTUnwrap(snapshot["importedPlaylist"] as? [String: Any])
+        var importedSongs = try XCTUnwrap(importedPlaylist["songs"] as? [[String: Any]])
+        importedSongs[0].removeValue(forKey: "versionTags")
+        importedPlaylist["songs"] = importedSongs
+        snapshot["importedPlaylist"] = importedPlaylist
+        var reviewSongs = try XCTUnwrap(snapshot["reviewSongs"] as? [[String: Any]])
+        reviewSongs[0].removeValue(forKey: "versionTags")
+        snapshot["reviewSongs"] = reviewSongs
+        root["snapshot"] = snapshot
+        try JSONSerialization.data(withJSONObject: root).write(to: url, options: .atomic)
+
+        guard case let .loaded(restored) = try WorkflowSnapshotStore(url: url).loadWithStatus() else {
+            return XCTFail("缺少 versionTags 的 schema 1 快照应兼容恢复")
+        }
+        XCTAssertEqual(restored.importedPlaylist.songs.first?.versionTags, [])
+        XCTAssertEqual(restored.reviewSongs.first?.versionTags, [])
     }
 
     func testWorkflowSnapshotV2DecodeDropsLegacyAnalysisWhenCommittedAnalysisExists() throws {
@@ -809,12 +1143,6 @@ final class StoragePrivacyHardeningTests: XCTestCase {
             .appendingPathComponent(UUID().uuidString, isDirectory: true)
         try FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
         return url
-    }
-
-    private func canonicalJSON<Value: Encodable>(_ value: Value) throws -> Data {
-        let encoder = JSONEncoder()
-        encoder.outputFormatting = [.sortedKeys]
-        return try encoder.encode(value)
     }
 
     private func sharedImageFiles(in directory: URL) throws -> [String] {

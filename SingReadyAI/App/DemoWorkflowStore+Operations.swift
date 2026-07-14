@@ -30,7 +30,7 @@ extension DemoWorkflowStore {
         recommendationInputSource = .userImport
         setPlanGenerationState(.absent)
         hasAdvancedToScenario = false
-        externalCandidateTracks = []
+        externalCandidateCollection = nil
         externalCandidateStatus = "还没找同歌手备选"
         feedbackStatusMessage = nil
         lastFeedbackUndo = nil

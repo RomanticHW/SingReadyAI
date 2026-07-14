@@ -13,10 +13,9 @@ extension DemoWorkflowStore {
         }
         let timeoutNanoseconds: UInt64 = 12_000_000_000
         let now = DispatchTime.now().uptimeNanoseconds
-        let playlistRevision = ExternalCandidatePlaylistRevision.fingerprint(for: requestPlaylist)
         guard let request = externalCandidateRequestCoordinator.beginIfIdle(
             playlistID: requestPlaylist.id,
-            playlistRevision: playlistRevision,
+            reviewRevision: revisions.review,
             nowNanoseconds: now,
             timeoutNanoseconds: timeoutNanoseconds
         ) else {
@@ -74,7 +73,8 @@ extension DemoWorkflowStore {
                   externalCandidateRequestCoordinator.commit(
                       request,
                       playlistID: currentPlaylist.id,
-                      playlistRevision: ExternalCandidatePlaylistRevision.fingerprint(for: currentPlaylist),
+                      reviewRevision: revisions.review,
+                      requestRevision: request.basis.requestRevision,
                       nowNanoseconds: completedAt
                   ) else {
                 guard externalCandidateRequestCoordinator.isActive(request) else { return }
@@ -83,10 +83,7 @@ extension DemoWorkflowStore {
                 externalCandidateTask = nil
                 isExpandingExternalCandidates = false
                 if contextIsCurrent {
-                    applyLocalCandidateFallback(
-                        for: requestPlaylist,
-                        failureText: "Apple 公开搜索等待超时"
-                    )
+                    reportExternalCandidateSearchUnavailable()
                 } else {
                     clearExternalCandidateResultsForContextChange()
                 }
@@ -96,26 +93,18 @@ extension DemoWorkflowStore {
             externalCandidateTask = nil
             isExpandingExternalCandidates = false
             let candidates = fetchedCandidates.filter { !importedKeys.contains($0.normalizedKey) }
-            let previousCount = externalCandidateTracks.filter(\.isProvisionalExternalCandidate).count
-            externalCandidateTracks = ExternalCandidateTrackAccumulator().mergedTracks(
-                baseCatalog: catalog,
-                existingExternalTracks: externalCandidateTracks,
-                candidates: candidates,
+            guard !candidates.isEmpty else {
+                reportExternalCandidateSearchUnavailable()
+                return
+            }
+            externalCandidateCollection = ExternalCandidateCollectionAccumulator().mergedCollection(
+                basis: request.basis,
+                existing: externalCandidateCollection,
+                incoming: candidates,
                 limit: 12
             )
-            let newCount = max(0, externalCandidateTracks.count - previousCount)
-            if externalCandidateTracks.isEmpty {
-                applyLocalCandidateFallback(
-                    for: requestPlaylist,
-                    failureText: "Apple 公开搜索没有找到新的同歌手曲目"
-                )
-            } else if newCount > 0 {
-                externalCandidateStatus = "新增 \(newCount) 首同歌手公开候选，KTV 收录与适唱情况待核对"
-                statusMessage = externalCandidateStatus
-            } else {
-                externalCandidateStatus = "没有新增同歌手候选，已保留现有 \(externalCandidateTracks.count) 首"
-                statusMessage = externalCandidateStatus
-            }
+            externalCandidateStatus = "找到 \(externalCandidates.count) 首同歌手公开候选，可打开来源核对，不会自动加入排歌结果"
+            statusMessage = externalCandidateStatus
         } catch is CancellationError {
             guard currentStage == .matchReport else {
                 finishExternalCandidateRequestWithoutResults(request)
@@ -136,10 +125,7 @@ extension DemoWorkflowStore {
             externalCandidateTask = nil
             isExpandingExternalCandidates = false
             if contextIsCurrent {
-                applyLocalCandidateFallback(
-                    for: requestPlaylist,
-                    failureText: "Apple 公开搜索等待超时"
-                )
+                reportExternalCandidateSearchUnavailable()
             } else {
                 clearExternalCandidateResultsForContextChange()
             }
@@ -153,10 +139,7 @@ extension DemoWorkflowStore {
             externalCandidateTask = nil
             isExpandingExternalCandidates = false
             if contextIsCurrent {
-                applyLocalCandidateFallback(
-                    for: requestPlaylist,
-                    failureText: "Apple 公开搜索暂时不可用"
-                )
+                reportExternalCandidateSearchUnavailable()
             } else {
                 clearExternalCandidateResultsForContextChange()
             }
@@ -204,30 +187,18 @@ extension DemoWorkflowStore {
 
     private func isCurrentExternalCandidateContext(_ request: ExternalCandidateRequest) -> Bool {
         guard let playlist = externalCandidatePlaylistForCurrentReview(),
-              playlist.id == request.playlistID else { return false }
-        return ExternalCandidatePlaylistRevision.fingerprint(for: playlist) == request.playlistRevision
+              playlist.id == request.basis.playlistID else { return false }
+        return revisions.review == request.basis.reviewRevision
     }
 
     private func clearExternalCandidateResultsForContextChange() {
-        externalCandidateTracks = []
+        externalCandidateCollection = nil
         externalCandidateStatus = "歌单内容已变更，请重新找同歌手备选"
         statusMessage = externalCandidateStatus
     }
 
-    private func applyLocalCandidateFallback(
-        for playlist: ImportedPlaylist,
-        failureText: String
-    ) {
-        if !externalCandidateTracks.isEmpty {
-            externalCandidateStatus = "\(failureText)，已保留现有 \(externalCandidateTracks.count) 首备选"
-            statusMessage = externalCandidateStatus
-            return
-        }
-        let fallbackTracks = localFallbackTracks(for: playlist, limit: 8)
-        externalCandidateTracks = fallbackTracks
-        externalCandidateStatus = fallbackTracks.isEmpty
-            ? "\(failureText)，本地参考中也没有新的备选"
-            : "\(failureText)，先列出 \(fallbackTracks.count) 首本地参考备选"
+    private func reportExternalCandidateSearchUnavailable() {
+        externalCandidateStatus = "暂时没找到更多公开候选，可以继续按已确认歌曲排歌"
         statusMessage = externalCandidateStatus
     }
 
@@ -304,36 +275,12 @@ extension DemoWorkflowStore {
         lastFeedbackUndo = nil
     }
 
-    private func localFallbackTracks(for playlist: ImportedPlaylist, limit: Int) -> [KTVTrack] {
-        let importedTitles = Set(playlist.songs.map { SongNormalizer.normalizeTitle($0.title) })
-        let preferredArtists = Set(playlist.songs.compactMap(\.artist).map(SongNormalizer.normalizeArtist))
-        let preferredGenres = Set(matches.compactMap(\.acceptedTrack).map(\.genre))
-
-        return catalog
-            .filter { !importedTitles.contains(SongNormalizer.normalizeTitle($0.title)) }
-            .sorted { lhs, rhs in
-                let lhsScore = fallbackScore(lhs, artists: preferredArtists, genres: preferredGenres)
-                let rhsScore = fallbackScore(rhs, artists: preferredArtists, genres: preferredGenres)
-                if lhsScore == rhsScore { return lhs.singAlongScore > rhs.singAlongScore }
-                return lhsScore > rhsScore
-            }
-            .prefix(limit)
-            .map { $0 }
-    }
-
-    private func fallbackScore(_ track: KTVTrack, artists: Set<String>, genres: Set<String>) -> Double {
-        var score = track.singAlongScore * 0.45 + track.ktvAvailability * 0.35
-        if artists.contains(SongNormalizer.normalizeArtist(track.artist)) { score += 0.45 }
-        if genres.contains(track.genre) { score += 0.20 }
-        return score
-    }
-
     private func trackDisplayTitle(for trackID: String) -> String {
         let planTracks = visibleSongPlan?.sections.flatMap(\.items).map(\.track) ?? []
         let matchTracks = matches.flatMap { match in
             [match.acceptedTrack].compactMap(\.self) + match.alternatives
         }
-        let allTracks = planTracks + externalCandidateTracks + matchTracks + catalog
+        let allTracks = planTracks + matchTracks + catalog
         guard let track = allTracks.first(where: { $0.id == trackID }) else {
             return "这首歌"
         }

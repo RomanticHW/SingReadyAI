@@ -1,6 +1,6 @@
 import Foundation
 
-public struct ExternalCandidateBasis: Codable, Equatable, Sendable {
+public struct ExternalCandidateBasis: Codable, Equatable, Hashable, Sendable {
     public let playlistID: UUID
     public let reviewRevision: UInt64
     public let requestRevision: UInt64

@@ -324,59 +324,6 @@ public struct ExternalCandidateSeedSelector: Sendable {
     }
 }
 
-// Task 12 前的 legacy runtime bridge；当前 App 仍通过它维护外部候选轨道。
-public struct ExternalCandidateTrackAccumulator: Sendable {
-    private let mapper: ExternalCandidateTrackMapper
-
-    public init(mapper: ExternalCandidateTrackMapper = ExternalCandidateTrackMapper()) {
-        self.mapper = mapper
-    }
-
-    public func mergedTracks(
-        baseCatalog: [KTVTrack],
-        existingExternalTracks: [KTVTrack],
-        candidates: [ExternalSongCandidate],
-        limit: Int = 12
-    ) -> [KTVTrack] {
-        let baseSemanticKeys = Set(baseCatalog.map(Self.semanticKey))
-        var tracksBySemanticKey = existingExternalTracks.reduce(into: [String: KTVTrack]()) { result, track in
-            let key = Self.semanticKey(track)
-            guard !baseSemanticKeys.contains(key) else { return }
-            if let existing = result[key], Self.relevance(of: existing) >= Self.relevance(of: track) {
-                return
-            }
-            result[key] = track
-        }
-
-        for candidate in candidates.sorted(by: { $0.confidence > $1.confidence }) {
-            let track = mapper.map(candidate)
-            let key = Self.semanticKey(track)
-            guard !baseSemanticKeys.contains(key) else { continue }
-            if let existing = tracksBySemanticKey[key], Self.relevance(of: existing) >= candidate.confidence {
-                continue
-            }
-            tracksBySemanticKey[key] = track
-        }
-
-        return Array(tracksBySemanticKey.values.sorted {
-            let lhsRelevance = Self.relevance(of: $0)
-            let rhsRelevance = Self.relevance(of: $1)
-            if lhsRelevance != rhsRelevance {
-                return lhsRelevance > rhsRelevance
-            }
-            return Self.semanticKey($0) < Self.semanticKey($1)
-        }.prefix(max(0, limit)))
-    }
-
-    private static func semanticKey(_ track: KTVTrack) -> String {
-        "\(SongNormalizer.normalizeTitle(track.title))|\(SongNormalizer.normalizeArtist(track.artist))"
-    }
-
-    private static func relevance(of track: KTVTrack) -> Double {
-        track.externalCandidateMetadata?.relevance ?? 0
-    }
-}
-
 public struct LastFMSimilarSongProvider: SimilarSongProviding {
     private let apiKey: String
     private let fetcher: any ExternalMusicDataFetching
@@ -555,93 +502,17 @@ public struct MusicBrainzMetadataResolver: SongMetadataResolving {
     }
 }
 
-// Task 12 前的 legacy runtime bridge；当前 App 仍通过它映射外部候选轨道。
-public struct ExternalCandidateTrackMapper: Sendable {
-    public init() {}
-
-    public func map(_ candidate: ExternalSongCandidate) -> KTVTrack {
-        KTVTrack(
-            id: "external:\(candidate.source.rawValue):\(candidate.normalizedKey)",
-            title: candidate.title,
-            artist: candidate.artist ?? "未知歌手",
-            language: language(for: candidate),
-            era: era(for: candidate.releaseYear),
-            genre: candidate.primaryGenreName ?? "流行",
-            moodTags: [],
-            sceneTags: [],
-            difficulty: 3,
-            vocalRangeLowMidi: 48,
-            vocalRangeHighMidi: 70,
-            energy: 0.58,
-            singAlongScore: 0.72,
-            ktvAvailability: 0.45,
-            duetFriendly: false,
-            rapDensity: 0.12,
-            highNoteRisk: 0.50,
-            aliases: [],
-            similarSongIds: [],
-            externalURL: candidate.externalURL,
-            catalogSource: .externalSimilar,
-            confidenceNote: "\(candidate.relation.displayName)，KTV 收录与适唱情况待核对",
-            externalCandidateMetadata: ExternalCandidateMetadata(
-                relation: candidate.relation,
-                relevance: candidate.confidence,
-                reasons: candidate.reasons,
-                provider: candidate.source
-            )
-        )
-    }
-
-    private func language(for candidate: ExternalSongCandidate) -> String {
-        let genre = (candidate.primaryGenreName ?? "").lowercased()
-        if genre.contains("mandopop") || genre.contains("c-pop") || genre.contains("chinese") {
-            return "Mandarin"
-        }
-        return "Unknown"
-    }
-
-    private func era(for releaseYear: Int?) -> String {
-        guard let releaseYear else { return "Unknown" }
-        let decade = (releaseYear / 10) * 10
-        return "\(decade)s"
-    }
-}
-
-public enum ExternalCandidatePlaylistRevision {
-    public static func fingerprint(for playlist: ImportedPlaylist) -> String {
-        var parts = [
-            playlist.id.uuidString.lowercased(),
-            playlist.source.rawValue,
-            playlist.title.trimmingCharacters(in: .whitespacesAndNewlines)
-        ]
-        parts.append(contentsOf: playlist.songs.enumerated().map { index, song in
-            [
-                String(index),
-                song.id.uuidString.lowercased(),
-                song.title.trimmingCharacters(in: .whitespacesAndNewlines),
-                song.artist?.trimmingCharacters(in: .whitespacesAndNewlines) ?? "",
-                song.versionTags.joined(separator: ",")
-            ].joined(separator: "\u{1F}")
-        })
-
-        var hash: UInt64 = 14_695_981_039_346_656_037
-        for byte in parts.joined(separator: "\u{1E}").utf8 {
-            hash ^= UInt64(byte)
-            hash &*= 1_099_511_628_211
-        }
-        return String(hash, radix: 16)
-    }
-}
-
 public struct ExternalCandidateRequest: Equatable, Hashable, Sendable {
     public let id: UInt64
-    public let playlistID: UUID
-    public let playlistRevision: String
+    public let basis: ExternalCandidateBasis
 
-    fileprivate init(id: UInt64, playlistID: UUID, playlistRevision: String) {
+    fileprivate init(id: UInt64, playlistID: UUID, reviewRevision: UInt64) {
         self.id = id
-        self.playlistID = playlistID
-        self.playlistRevision = playlistRevision
+        basis = ExternalCandidateBasis(
+            playlistID: playlistID,
+            reviewRevision: reviewRevision,
+            requestRevision: id
+        )
     }
 }
 
@@ -662,7 +533,7 @@ public struct ExternalCandidateRequestCoordinator: Sendable {
 
     public mutating func beginIfIdle(
         playlistID: UUID,
-        playlistRevision: String = "",
+        reviewRevision: UInt64,
         nowNanoseconds: UInt64,
         timeoutNanoseconds: UInt64
     ) -> ExternalCandidateRequest? {
@@ -671,7 +542,7 @@ public struct ExternalCandidateRequestCoordinator: Sendable {
         let request = ExternalCandidateRequest(
             id: nextID,
             playlistID: playlistID,
-            playlistRevision: playlistRevision
+            reviewRevision: reviewRevision
         )
         let (deadline, overflow) = nowNanoseconds.addingReportingOverflow(timeoutNanoseconds)
         active = ActiveRequest(
@@ -688,13 +559,15 @@ public struct ExternalCandidateRequestCoordinator: Sendable {
     public mutating func commit(
         _ request: ExternalCandidateRequest,
         playlistID: UUID,
-        playlistRevision: String = "",
+        reviewRevision: UInt64,
+        requestRevision: UInt64,
         nowNanoseconds: UInt64
     ) -> Bool {
         guard let active,
               active.request == request,
-              request.playlistID == playlistID,
-              request.playlistRevision == playlistRevision,
+              request.basis.playlistID == playlistID,
+              request.basis.reviewRevision == reviewRevision,
+              request.basis.requestRevision == requestRevision,
               nowNanoseconds < active.deadlineNanoseconds else {
             return false
         }

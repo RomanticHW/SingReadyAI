@@ -74,7 +74,7 @@ extension DemoWorkflowStore {
             completedAnalysis: completedAnalysis,
             revisions: revisions,
             planGenerationState: planGenerationState,
-            externalCandidateTracks: externalCandidateTracks
+            externalCandidateCollection: externalCandidateCollection
         )
     }
 
@@ -82,7 +82,7 @@ extension DemoWorkflowStore {
         completedAnalysis: CompletedPlaylistAnalysis?,
         revisions: WorkflowRevisionLedger,
         planGenerationState: PlanGenerationState,
-        externalCandidateTracks: [KTVTrack]
+        externalCandidateCollection: ExternalCandidateCollection?
     ) -> WorkflowSnapshot? {
         guard let importedPlaylist else { return nil }
         return WorkflowSnapshot(
@@ -104,7 +104,7 @@ extension DemoWorkflowStore {
             persistedPlanRecord: PersistedPlanRecord(
                 planGenerationState: planGenerationState
             ),
-            externalCandidateCollection: nil,
+            externalCandidateCollection: externalCandidateCollection,
             voiceProfile: voiceProfile,
             recommendationInputSource: recommendationInputSource,
             scenarioConfig: scenarioConfig,
@@ -113,7 +113,7 @@ extension DemoWorkflowStore {
             feedbackProfile: feedbackProfile,
             hasAdvancedToScenario: hasAdvancedToScenario,
             legacySongPlan: nil,
-            legacyExternalCandidateTracks: externalCandidateTracks
+            legacyExternalCandidateTracks: []
         )
     }
 
@@ -130,7 +130,7 @@ extension DemoWorkflowStore {
             completedAnalysis: completedAnalysis,
             revisions: revisions,
             planGenerationState: state,
-            externalCandidateTracks: externalCandidateTracks
+            externalCandidateCollection: externalCandidateCollection
         ) else {
             return nil
         }
@@ -298,7 +298,13 @@ extension DemoWorkflowStore {
             scenarioConfig = snapshot.scenarioConfig
             lockedTrackIDs = Set(snapshot.lockedTrackIDs)
             removedTrackIDs = Set(snapshot.removedTrackIDs).subtracting(lockedTrackIDs)
-            externalCandidateTracks = snapshot.externalCandidateTracks
+            if let restoredCandidates = snapshot.externalCandidateCollection,
+               restoredCandidates.basis.playlistID == snapshot.importedPlaylist.id,
+               restoredCandidates.basis.reviewRevision == snapshot.revisions.review {
+                externalCandidateCollection = restoredCandidates
+            } else {
+                externalCandidateCollection = nil
+            }
             // 歌曲反馈以同步写入的独立本机记录为真源。快照字段仅用于旧版本迁移，
             // 不能覆盖用户在快照落盘前刚刚保存的新反馈。
             let standaloneFeedback = hasStandaloneFeedbackRecord ? feedbackProfile : nil
@@ -361,9 +367,9 @@ extension DemoWorkflowStore {
             if shouldRefreshPlanForFeedback {
                 invalidatePlan(reason: "歌曲反馈已更新")
             }
-            externalCandidateStatus = externalCandidateTracks.isEmpty
+            externalCandidateStatus = externalCandidates.isEmpty
                 ? "还没找同歌手备选"
-                : "已恢复 \(externalCandidateTracks.count) 首备选"
+                : "已恢复 \(externalCandidates.count) 首公开候选"
             statusMessage = visibleSongPlan == nil
                 ? "已恢复上次整理进度"
                 : (canUseReadyPlan ? "已恢复上次排好的歌单" : "已恢复上一版歌单，请按最新选择重排")
@@ -501,7 +507,7 @@ extension DemoWorkflowStore {
             $scenarioConfig.dropFirst().map { _ in () }.eraseToAnyPublisher(),
             $lockedTrackIDs.dropFirst().map { _ in () }.eraseToAnyPublisher(),
             $removedTrackIDs.dropFirst().map { _ in () }.eraseToAnyPublisher(),
-            $externalCandidateTracks.dropFirst().map { _ in () }.eraseToAnyPublisher(),
+            $externalCandidateCollection.dropFirst().map { _ in () }.eraseToAnyPublisher(),
             $feedbackProfile.dropFirst().map { _ in () }.eraseToAnyPublisher(),
             $hasAdvancedToScenario.dropFirst().map { _ in () }.eraseToAnyPublisher()
         ]
@@ -550,7 +556,7 @@ extension DemoWorkflowStore {
                 || isGeneratingPlan
                 || !lockedTrackIDs.isEmpty
                 || !removedTrackIDs.isEmpty
-                || !externalCandidateTracks.isEmpty else {
+                || externalCandidateCollection != nil else {
             return
         }
         let invalidatedPlanState = planGenerationState.invalidated(
@@ -580,10 +586,6 @@ extension DemoWorkflowStore {
         guard visibleSongPlan != nil || isGeneratingPlan else { return }
         invalidatePlan(reason: "音区参考已更新")
         statusMessage = "音区参考已更新，请重新排今晚歌单"
-    }
-
-    func invalidatePlanForExternalCandidateChange() {
-        // 公开候选只用于独立候选卡，不参与正式排歌输入，也不改变 PlanBasis。
     }
 
     func reviewSongsDifferFromImportedPlaylist(
